@@ -33,7 +33,7 @@ A plugin is published to the registry as `@skillcdn/console-plugin-<key>` by the
 
 ## How a plugin is run while it is written
 
-Its tests run the server module against a context in memory and the package through `console-plugin check`, with nothing of a console running. To look at the pages and work the whole as an agent would, a console of this machine reads the plugins from `.plugins-dir/`, which `pnpm plugins-dir` writes with what each plugin ships, as the image holds them ([guide/local-console.md](guide/local-console.md)).
+Its tests run the server module against a context in memory and the package through `console-plugin check`, with nothing of a console running. To look at the pages, the console's checkout runs its preview with the built plugin installed beside its fixtures (`pnpm dev:plugins -- --plugin <path>`), nobody's identity provider needed; to work the whole as a deployment runs it, a console of this machine reads the plugins from `.plugins-dir/`, which `pnpm plugins-dir` writes with what each plugin ships, as the image holds them ([guide/local-console.md](guide/local-console.md)).
 
 ## Versions
 
@@ -49,8 +49,7 @@ Each plugin follows semver on its own: `patch` for a fix, `minor` for something 
 | `scripts/check-text-safety.mjs` | No control or invisible character in a tracked or new text file |
 | `scripts/check-licenses.mjs` | Every package a plugin's bundles pull in under a permissive license, since that is what ships: the bundles are built in memory with a metafile and each input's package read; the `@skillcdn/*` packages under FSL-1.1-ALv2 excepted, and the development tools out of scope |
 | `skillcdn check` | The root manifest, every plugin's manifest of skills and every skill in the SkillCDN Format as the indexer reads them |
-| `scripts/check-plugins.mjs` | What only this repository asks ([guide/conventions.md](guide/conventions.md)): the files a plugin has; its manifest's key, `pluginApi` and both languages; its package's name, license, module type, version, empty `dependencies`, catalog versions, `files`, scripts and repository directory; the skills' translations and the commands they name; the stylesheet's prefix; every link of every Markdown file; the plugin's rows in the README and the roadmap |
-| `turbo run build typecheck test` | Each plugin built, typechecked and tested, its tests running `console-plugin check` on the built package: what a console, or a store, would refuse it for |
+| `scripts/check-plugins.mjs` | What only this repository asks ([guide/conventions.md](guide/conventions.md)): the files a plugin has; its manifest's key, `pluginApi` and both languages; its package's name, license, module type, version, empty `dependencies`, catalog versions, `files`, scripts and repository directory; the skills' translations and the commands they name; the stylesheet's prefix; every link of every Markdown file; the plugin's rows in the README and the roadmap || `turbo run build typecheck test` | Each plugin built, typechecked and tested, its tests running `console-plugin check` on the built package: what a console, or a store, would refuse it for |
 
 ## The example and the console's template
 
