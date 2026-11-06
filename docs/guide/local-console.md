@@ -11,7 +11,7 @@ The console's checkout, installed and built as its README's "Install" says (`pnp
 ```sh
 pnpm turbo run build --filter @skillcdn/console-plugin-<key>        # here: dist/ of the plugin
 cd <the console's checkout>
-pnpm dev:plugins -- --plugin <this repository>/plugins/<key>         # as often as there are plugins to look at; --port <n> for another port
+pnpm dev:plugins --plugin <this repository>/plugins/<key>         # as often as there are plugins to look at; --port <n> for another port
 ```
 
 It prints where it listens and the addresses that sign a person in: `alice`, an administrator, and `bob` and `carol`, members. As `alice`, the Settings page lists the plugin as installed, with any reason it failed to load, and enabling it is the consent to each capability, the board project made from the manifest's defaults or chosen, the projects it is on and the settings; then the roles, granted to the fixture's people. After a change to the plugin, build it again and start the preview again: it copies what the plugin ships when it starts. The console's command is not signed in to this console; what an agent would do is done through the pages, or with `console login --url <the address printed>` approved on its pages.

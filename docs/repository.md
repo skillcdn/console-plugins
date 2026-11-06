@@ -33,7 +33,7 @@ A plugin is published to the registry as `@skillcdn/console-plugin-<key>` by the
 
 ## How a plugin is run while it is written
 
-Its tests run the server module against a context in memory and the package through `console-plugin check`, with nothing of a console running. To look at the pages, the console's checkout runs its preview with the built plugin installed beside its fixtures (`pnpm dev:plugins -- --plugin <path>`), nobody's identity provider needed; to work the whole as a deployment runs it, a console of this machine reads the plugins from `.plugins-dir/`, which `pnpm plugins-dir` writes with what each plugin ships, as the image holds them ([guide/local-console.md](guide/local-console.md)).
+Its tests run the server module against a context in memory and the package through `console-plugin check`, with nothing of a console running. To look at the pages, the console's checkout runs its preview with the built plugin installed beside its fixtures (`pnpm dev:plugins --plugin <path>`), nobody's identity provider needed; to work the whole as a deployment runs it, a console of this machine reads the plugins from `.plugins-dir/`, which `pnpm plugins-dir` writes with what each plugin ships, as the image holds them ([guide/local-console.md](guide/local-console.md)).
 
 ## Versions
 
