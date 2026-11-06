@@ -16,14 +16,14 @@ A plugin's README carries the table of phase 1, and the manifest and the tests a
 
 In this order, so that a reader of one knows where to look in the next: the title and a paragraph saying what the plugin does and for whom; **The design** (above); **Where things are**, the table of files; **Working on it**, the commands from the repository's root; **Enabling it**, what the administrator does, which the hand-over task quotes: the capabilities consented to, the board project made or chosen and the projects the plugin is on, the settings to fill and the secrets to set, the roles and who gets them, and where the skills are once it runs (`console plugin <key> skills`); **What the deployment must provide**, where the plugin asks it: `CREATEROLE` for `storage:sql`, the hosts of `outbound`, a bound on the files; and the version of the console it is built for.
 
-## Two languages
+## Languages
 
-Every plugin speaks English and Korean ([ADR-0004](../adr/0004-every-plugin-speaks-english-and-korean-from-its-first-commit.md)):
+Every plugin speaks the languages the repository speaks: English first, and Korean beside it today ([ADR-0004](../adr/0004-every-plugin-speaks-english-and-korean-from-its-first-commit.md)). The list is `LANGUAGES` in `scripts/check-plugins.mjs`, and a language is added when the console's pages speak it: its tag goes into the list, every plugin's manifest gains its entries, every `words.ts` a pack and every skill a translation, in one change, since the check refuses a plugin that lacks one.
 
-- Every language map of the manifest has `en` and `ko`: the plugin's `name`, `description` and `agentNote`; each role's, setting's, option's, page's and widget's `name` and `description`; a declared menu group's `name`; the board's `defaults`. The console shows them in the person's language.
-- The pages' words are in `src/web/words.ts`: an interface `Words`, one constant per language with the same keys, and `wordsFor(language)` choosing by `frame.context.language`, English for any other. Nothing a page shows is a literal in `index.ts`. Dates and figures are formatted with `Intl` for that language.
+- Every language map of the manifest has every language of the list: the plugin's `name`, `description` and `agentNote`; each role's, setting's, option's, page's and widget's `name` and `description`; a declared menu group's `name`; the board's `defaults`. The console shows them in the person's language, English where it has none.
+- The pages' words are in `src/web/words.ts`: an interface `Words`, one constant per language with the same keys, the constants gathered in `PACKS` by tag, and `wordsFor(language)` choosing the tag's pack, else its primary subtag's (`ko` for `ko-KR`), else English, from `frame.context.language`. Nothing a page shows is a literal in `index.ts`. Dates and figures are formatted with `Intl` for that language.
 - A command's `text` is for the people who read the board and for the agent that prints it: in the caller's language (`ctx.language`) where the words matter to people, English otherwise; `data` is for `--json` and the pages. A `PluginError`'s message is English, as the console's own refusals are.
-- The skills are in English, each with `skillcdn.translations.ko` (`title`, `description`), and the plugin's `SKILLCDN.md` with `translations.ko`; pages a plugin writes on the board (`ctx.console.documents.write`) are in the workspace's language, which `ctx.console.workspace()` says.
+- The skills are in English, each with `skillcdn.translations.<tag>` (`title`, `description`) for every other language of the list, and the plugin's `SKILLCDN.md` with `translations.<tag>`; pages a plugin writes on the board (`ctx.console.documents.write`) are in the workspace's language, which `ctx.console.workspace()` says.
 
 ## Records, and settings
 

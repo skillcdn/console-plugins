@@ -25,6 +25,7 @@ The plugin's `package.json` loses `private: true` and gains `publishConfig: { "a
 
 Checked once by whoever administers the repository, and again by a fork:
 
+- About: a description of one or two sentences, the website pointing at the pack's page on SkillCDN (`https://skillcdn.ai/gh/skillcdn/console-plugins`), and the topics `skillcdn`, `ai-agents`, `mcp`, `console`, `plugins` and `typescript`, by which the repository is found, as the console's repository is.
 - Actions: workflow permissions read-only (each job declares what it needs), and "Allow GitHub Actions to create and approve pull requests" on, for the version pull request.
 - Security: private vulnerability reporting on ([SECURITY.md](../../SECURITY.md)), secret scanning on, Dependabot alerts on; the actions are kept current by `.github/dependabot.yml`.
 - Branch protection: none yet, while maintainers push to `main`; the checks are what CI runs on every push.
