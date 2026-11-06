@@ -1,45 +1,25 @@
 // What time brings, once a day: the credits the policies owe by today, the expiries and the
-// carry-overs; leave turned off for people who left or were deactivated in the console; tasks for
-// HR where a person must act (days about to expire, a period to grant by hand, a leaver to settle);
-// and next year's holidays where a calendar is set. Every write is idempotent by a ref or a mark,
-// so a run repeated on the same day changes nothing more.
-import type { JobDefinition, PluginContext, PluginRecord } from "@skillcdn/console/plugin";
+// carry-overs; leave turned off for people past the day they left, and for people deactivated in
+// the console whose event the hooks missed; tasks for HR where a person must act (days about to
+// expire, a period to grant by hand, a leaver to settle); and next year's holidays where a
+// calendar is set. Every write is idempotent by a ref or a mark, so a run repeated on the same
+// day changes nothing more.
+import type { JobDefinition, PluginContext } from "@skillcdn/console/plugin";
 import { ANNUAL, type Person, type Policy } from "../../shared/contracts.js";
 import { addDays, dayIn, daysBetween, monthOf, yearOf } from "../../shared/days.js";
-import { marks, people } from "../collections.js";
+import { people } from "../collections.js";
 import { settingsOf } from "../settings.js";
-import {
-  allTypes,
-  balancedTypes,
-  type Clock,
-  clockOf,
-  listAll,
-  policyFor,
-  stamp,
-} from "../store.js";
+import { allTypes, balancedTypes, clockOf, listAll, policyFor } from "../store.js";
 import { daysText, serverWords } from "../words.js";
 import { settle } from "./balance.js";
 import { writeHolidays } from "./commands.js";
 import { ledgerOf, syncPerson } from "./engine.js";
 import { builtInHolidays } from "./holidays.js";
+import { mark, marked, nameOf, type RestPerson, taskOnce, turnOffLeaver } from "./leavers.js";
 import { periodOf } from "./rules.js";
-
-type RestPerson = Awaited<ReturnType<PluginContext["console"]["people"]["list"]>>[number];
 
 /** Days within which a reminder's day is still acted on, so that a job that missed a day catches up. */
 const CATCH_UP_DAYS = 6;
-
-async function marked(ctx: PluginContext, key: string): Promise<boolean> {
-  const page = await ctx.records(marks).list({ where: { key }, limit: 1 });
-  return page.items.length > 0;
-}
-
-async function mark(ctx: PluginContext, key: string, clock: Clock, summary: string): Promise<void> {
-  if (await marked(ctx, key)) {
-    return;
-  }
-  await ctx.records(marks).create({ key, at: stamp(clock), summary: summary.slice(0, 2000) });
-}
 
 interface ReminderRow {
   readonly who: string;
@@ -68,7 +48,6 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
     holidays: 0,
     skipped: [],
   };
-  const board = ctx.plugin.board;
   let directoryMap = new Map<string, RestPerson>();
   try {
     directoryMap = new Map((await ctx.console.people.list()).map((person) => [person.id, person]));
@@ -77,23 +56,9 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  const nameOf = (record: Person) => {
-    const known = directoryMap.get(record.personId);
-    return known?.name ?? known?.login ?? record.name ?? record.login;
-  };
   const task = async (key: string, title: string, body: string) => {
-    if (board === null || (await marked(ctx, key))) {
-      return;
-    }
-    try {
-      await ctx.console.tasks.create(board.key, { title, body, priority: "normal" });
+    if (await taskOnce(ctx, clock, key, title, body)) {
       outcome.tasks += 1;
-      await mark(ctx, key, clock, title);
-    } catch (error) {
-      ctx.log.warn("a task could not be written", {
-        key,
-        error: error instanceof Error ? error.message : String(error),
-      });
     }
   };
   const types = balancedTypes(await allTypes(ctx)).map((type) => type.data);
@@ -103,21 +68,18 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
   for (const record of enrolled) {
     outcome.people += 1;
     const known = directoryMap.get(record.data.personId);
+    const who = nameOf(record.data, known);
     if (known !== undefined && known.status === "deactivated") {
+      // The hook heard it as it happened, unless the plugin was enabled after, or the event was
+      // missed; the mark keeps the task from being written twice.
       const leftOn =
         known.deactivatedAt === null
           ? clock.today
           : dayIn(new Date(known.deactivatedAt), clock.timeZone);
-      await ctx
-        .records(people)
-        .update(record.id, { leave: false, leftOn: record.data.leftOn ?? leftOn });
+      if (await turnOffLeaver(ctx, record, leftOn, clock, words, who)) {
+        outcome.tasks += 1;
+      }
       outcome.turnedOff += 1;
-      const remaining = await remainingAnnual(ctx, record, clock.today);
-      await task(
-        `left:${record.data.personId}`,
-        words.leftTaskTitle(nameOf(record.data)),
-        words.leftTaskBody(nameOf(record.data), leftOn, daysText(remaining, words)),
-      );
       continue;
     }
     if (record.data.leftOn !== null && record.data.leftOn < clock.today) {
@@ -132,16 +94,8 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
     }
     const synced = await syncPerson(ctx, record.data, policy.data, types, clock.today, "console");
     outcome.written += synced.written;
-    collectManual(policy.data, record.data, clock.today, manual, nameOf(record.data));
-    await collectReminders(
-      ctx,
-      policy.data,
-      record.data,
-      clock.today,
-      reminders,
-      nameOf(record.data),
-      words,
-    );
+    collectManual(policy.data, record.data, clock.today, manual, who);
+    await collectReminders(ctx, policy.data, record.data, clock.today, reminders, who, words);
   }
   for (const [key, reminder] of reminders) {
     await task(
@@ -182,23 +136,6 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
   await mark(ctx, `daily:${clock.today}`, clock, JSON.stringify(outcome));
   ctx.log.info("daily leave run", { ...outcome, skipped: outcome.skipped.length });
   return outcome;
-}
-
-async function remainingAnnual(
-  ctx: PluginContext,
-  record: PluginRecord<Person>,
-  today: string,
-): Promise<number> {
-  const { lines, pending } = await ledgerOf(ctx, record.data.personId, ANNUAL);
-  const settlement = settle(lines, pending);
-  return (
-    settlement.buckets
-      .filter(
-        (bucket) =>
-          bucket.remaining > 0 && (bucket.expiresOn === null || bucket.expiresOn >= today),
-      )
-      .reduce((sum, bucket) => sum + bucket.remaining, 0) - settlement.overdraft
-  );
 }
 
 function collectManual(

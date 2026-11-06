@@ -50,7 +50,7 @@ An approver must be able to work in the plugin's board project, since a decision
 | Everyone's requests, or those waiting | `console plugin hr requests --scope all [--state requested]` |
 | The year's ledger or requests as CSV, for payroll | `console plugin hr export <year> [--what ledger\|requests]` |
 
-The daily job writes the days due, closes expired credits as expired or paid out, carries days over where the policy says, turns leave off for a person deactivated in the console or past the day they left, and leaves HR a task where a person must act: days about to expire (the use-promotion notice), a period to grant by hand under a manual policy, a leaver to settle.
+When the console deactivates a person, the plugin turns their leave off from that day at once and leaves HR a task to settle what is left; when a person who left comes back, it leaves HR a task to say whether their leave is on again, and does not turn it on itself. The daily job writes the days due, closes expired credits as expired or paid out, carries days over where the policy says, turns leave off for a person past the day they left (and for a deactivation the console told it of too late), and leaves HR a task where a person must act: days about to expire (the use-promotion notice), a period to grant by hand under a manual policy, a leaver to settle.
 
 ## Rules
 

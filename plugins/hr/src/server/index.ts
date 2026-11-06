@@ -1,6 +1,7 @@
 // The server module of HR: what the console runs in a thread of its own, reaching the console
 // through `ctx` alone. Leave is its first area of work: the collections, the commands and the
-// queries of leave, the hook that hears a decision answered, and the daily job. Everything
+// queries of leave, the hooks that hear a decision answered and people leaving or coming back,
+// and the daily job. Everything
 // imported here is bundled into dist/server/index.js by the build; the pieces are exported by
 // name for the tests.
 import { definePlugin } from "@skillcdn/console/plugin";
@@ -34,7 +35,12 @@ export {
   setup,
   type,
 } from "./leave/commands.js";
-export { hooks, onDecisionAnswered } from "./leave/hooks.js";
+export {
+  hooks,
+  onDecisionAnswered,
+  onPersonDeactivated,
+  onPersonReactivated,
+} from "./leave/hooks.js";
 export { daily, jobs, runDaily } from "./leave/jobs.js";
 export {
   balance,

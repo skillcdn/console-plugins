@@ -30,6 +30,8 @@ import {
   ledgerQuery,
   offboard,
   onDecisionAnswered,
+  onPersonDeactivated,
+  onPersonReactivated,
   overview,
   peopleQuery,
   policy,
@@ -173,6 +175,7 @@ function contextWith(
             options: ask.options.map((option, index) => ({
               id: `${id}-o${index}`,
               label: option.label,
+              ...(option.key === undefined ? {} : { key: option.key }),
             })),
             taskId: null,
             taskNumber: null,
@@ -473,13 +476,50 @@ describe("the decision answered", () => {
     decisionId = result.waiting ?? "";
   });
 
-  const event = (id: string) => ({
+  const event = (id: string, said: Record<string, unknown> = {}) => ({
     source: "console" as const,
     kind: "console:decision.answered",
     at: NOW.toISOString(),
     plugin: null,
     project: { id: "p", key: "hr" },
-    data: { decisionId: id },
+    data: { decisionId: id, ...said },
+  });
+
+  it("approves from the event's key alone when the decision cannot be read", async () => {
+    theBoard.answer(decisionId, "approve", MANAGER);
+    theBoard.decisions.delete(decisionId);
+    await onDecisionAnswered(
+      ctx.as(CONSOLE),
+      event(decisionId, {
+        option: "Approve",
+        optionKey: "approve",
+        actor: { id: personOf(MANAGER).id, login: "minho", name: "MINHO" },
+      }),
+    );
+    expect(ctx.all("requests")[0]?.data).toMatchObject({
+      state: "approved",
+      decidedBy: personOf(MANAGER).id,
+      decidedAt: NOW.toISOString(),
+      note: null,
+    });
+    expect((await annualOf(ctx, ALICE)).available).toBe(13);
+  });
+
+  it("reads a decision raised before options carried keys by its labels", async () => {
+    const stored = theBoard.decisions.get(decisionId);
+    if (stored === undefined) {
+      throw new Error("no decision");
+    }
+    theBoard.decisions.set(decisionId, {
+      ...stored,
+      options: stored.options.map(({ key: _key, ...rest }) => rest),
+    });
+    theBoard.answer(decisionId, "reject", MANAGER, "not this week");
+    await onDecisionAnswered(ctx.as(CONSOLE), event(decisionId));
+    expect(ctx.all("requests")[0]?.data).toMatchObject({
+      state: "rejected",
+      note: "not this week",
+    });
   });
 
   it("approves: the request moves, the days are taken, once", async () => {
@@ -516,6 +556,73 @@ describe("the decision answered", () => {
   it("ignores a decision it knows nothing of", async () => {
     await onDecisionAnswered(ctx.as(CONSOLE), event("00000000-0000-7000-8000-00000000dead"));
     expect(ctx.all("requests")[0]?.data).toMatchObject({ state: "requested" });
+  });
+});
+
+describe("the people events", () => {
+  const peopleEvent = (kind: "deactivated" | "reactivated", login: string) => ({
+    source: "console" as const,
+    kind: `console:person.${kind}`,
+    at: NOW.toISOString(),
+    plugin: null,
+    project: null,
+    data: { login, actor: null },
+  });
+
+  async function enrolledBob(people: RestPerson[]): Promise<{ ctx: TestContext; theBoard: Board }> {
+    const theBoard = board();
+    const ctx = contextWith(theBoard, {}, people);
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2024-01-10" });
+    return { ctx, theBoard };
+  }
+
+  const bobRecord = (ctx: TestContext) =>
+    ctx.all("people").find((record) => record.data.personId === personOf(BOB).id);
+
+  it("turns leave off on the day the directory says and asks HR to settle, once; the daily job adds nothing", async () => {
+    const people = [HR, MANAGER, ALICE, BOB].map((who) =>
+      restPerson(personOf(who).id, personOf(who).login, personOf(who).name),
+    );
+    const { ctx, theBoard } = await enrolledBob(people);
+    people[3] = restPerson(personOf(BOB).id, "bob", "BOB", "deactivated");
+    await onPersonDeactivated(ctx.as(CONSOLE), peopleEvent("deactivated", "bob"));
+    await onPersonDeactivated(ctx.as(CONSOLE), peopleEvent("deactivated", "bob"));
+    expect(bobRecord(ctx)?.data).toMatchObject({ leave: false, leftOn: "2026-11-01" });
+    expect(theBoard.tasks.map((task) => task.title)).toEqual([expect.stringContaining("BOB left")]);
+    const outcome = await runDaily(ctx.as(CONSOLE));
+    expect(outcome.turnedOff).toBe(0);
+    expect(theBoard.tasks).toHaveLength(1);
+  });
+
+  it("takes the day from the event where the directory does not say, and ignores a login never enrolled", async () => {
+    const people = [HR, MANAGER, ALICE, BOB].map((who) =>
+      restPerson(personOf(who).id, personOf(who).login, personOf(who).name),
+    );
+    const { ctx, theBoard } = await enrolledBob(people);
+    await onPersonDeactivated(ctx.as(CONSOLE), peopleEvent("deactivated", "carol"));
+    expect(theBoard.tasks).toHaveLength(0);
+    await onPersonDeactivated(ctx.as(CONSOLE), peopleEvent("deactivated", "bob"));
+    expect(bobRecord(ctx)?.data).toMatchObject({ leave: false, leftOn: "2026-11-06" });
+    expect(theBoard.tasks).toHaveLength(1);
+  });
+
+  it("asks HR once when someone who left comes back, and nothing of a person whose leave is on", async () => {
+    const people = [HR, MANAGER, ALICE, BOB].map((who) =>
+      restPerson(personOf(who).id, personOf(who).login, personOf(who).name),
+    );
+    const { ctx, theBoard } = await enrolledBob(people);
+    await onPersonReactivated(ctx.as(CONSOLE), peopleEvent("reactivated", "bob"));
+    expect(theBoard.tasks).toHaveLength(0);
+    await onPersonDeactivated(ctx.as(CONSOLE), peopleEvent("deactivated", "bob"));
+    await onPersonReactivated(ctx.as(CONSOLE), peopleEvent("reactivated", "bob"));
+    await onPersonReactivated(ctx.as(CONSOLE), peopleEvent("reactivated", "bob"));
+    expect(theBoard.tasks.map((task) => task.title)).toEqual([
+      expect.stringContaining("BOB left"),
+      expect.stringContaining("BOB is back"),
+    ]);
+    expect(theBoard.tasks[1]?.body).toContain("console plugin hr enroll bob --leave on");
+    expect(bobRecord(ctx)?.data).toMatchObject({ leave: false });
   });
 });
 

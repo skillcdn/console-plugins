@@ -52,8 +52,17 @@ export interface ServerWords {
   readonly manualTaskBody: (period: string, rows: readonly string[]) => string;
   readonly leftTaskTitle: (who: string) => string;
   readonly leftTaskBody: (who: string, day: string, remaining: string) => string;
+  readonly backTaskTitle: (who: string) => string;
+  readonly backTaskBody: (who: string, login: string, day: string) => string;
   readonly noReason: string;
 }
+
+/**
+ * The keys the plugin gives the two options of its decisions, answered back to the hook as
+ * `optionKey`, so that an answer is read by key and never by its label, whatever language the
+ * label was written in.
+ */
+export const OPTION_KEYS = { approve: "approve", reject: "reject" } as const;
 
 const ENGLISH: ServerWords = {
   approve: "Approve",
@@ -95,6 +104,9 @@ const ENGLISH: ServerWords = {
   leftTaskTitle: (who) => `${who} left: settle their leave`,
   leftTaskBody: (who, day, remaining) =>
     `${who} was deactivated in the console on ${day}; their leave is now off and nothing accrues. Days left unused: ${remaining}. Settle them as the policy and the law say (a payout, or nothing), with \`console plugin hr adjust\`.`,
+  backTaskTitle: (who) => `${who} is back in the console: decide about their leave`,
+  backTaskBody: (who, login, day) =>
+    `${who} was reactivated in the console on ${day}. Their leave has stayed off since they left. If they are back on the payroll, turn it on with \`console plugin hr enroll ${login} --leave on --hired-on <day>\`, saying from which day their service counts.`,
   noReason: "(none given)",
 };
 
@@ -136,6 +148,9 @@ const KOREAN: ServerWords = {
   leftTaskTitle: (who) => `${who} 퇴직: 휴가 정산`,
   leftTaskBody: (who, day, remaining) =>
     `${who}은(는) ${day}에 콘솔에서 비활성화되었습니다. 휴가는 꺼졌고 더 발생하지 않습니다. 미사용 잔여: ${remaining}. 규정과 법에 따라(수당 또는 없음) \`console plugin hr adjust\`로 정산하세요.`,
+  backTaskTitle: (who) => `${who} 복귀: 휴가 처리 결정`,
+  backTaskBody: (who, login, day) =>
+    `${who}은(는) ${day}에 콘솔에서 다시 활성화되었습니다. 휴가는 퇴직 이후 꺼진 채입니다. 다시 재직 중이라면 \`console plugin hr enroll ${login} --leave on --hired-on <날짜>\`로 켜고, 근속을 어느 날부터 세는지 정하세요.`,
   noReason: "(사유 없음)",
 };
 

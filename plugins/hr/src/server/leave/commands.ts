@@ -59,7 +59,7 @@ import {
   stamp,
   typeByKey,
 } from "../store.js";
-import { daysText, nameIn, serverWords, spanOf } from "../words.js";
+import { daysText, nameIn, OPTION_KEYS, serverWords, spanOf } from "../words.js";
 import { balanceOf, syncPerson } from "./engine.js";
 import { builtInHolidays, KR_YEARS } from "./holidays.js";
 import { type PolicyDraft, PRESETS, presetOf } from "./presets.js";
@@ -373,7 +373,10 @@ export const request = defineCommand({
           available: availableText,
           pending: pendingText,
         }),
-        options: [{ label: labels.approve }, { label: labels.reject }],
+        options: [
+          { label: labels.approve, key: OPTION_KEYS.approve },
+          { label: labels.reject, key: OPTION_KEYS.reject },
+        ],
         ...(approverId === null ? {} : { deciderId: approverId }),
         about: { collection: requests.name, id: created.id },
       });
@@ -479,7 +482,10 @@ export const cancel = defineCommand({
           span,
           reason: reason.length === 0 ? boardWords.noReason : reason,
         }),
-        options: [{ label: boardWords.cancelApprove }, { label: boardWords.cancelReject }],
+        options: [
+          { label: boardWords.cancelApprove, key: OPTION_KEYS.approve },
+          { label: boardWords.cancelReject, key: OPTION_KEYS.reject },
+        ],
         ...(approverId === undefined ? {} : { deciderId: approverId }),
         about: { collection: requests.name, id: found.id },
       });
