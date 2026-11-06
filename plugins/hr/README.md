@@ -125,8 +125,48 @@ What the administrator does, which the hand-over task quotes:
 
 Nothing beyond the console: no `storage:sql`, no outbound host, no files. The plugin is built for `@skillcdn/console` 0.4.3 or later on the 0.4 line, which its manifest will say as `console` once the console reads the field ([ADR-0006](../../docs/adr/0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md)): that console answers a decision by the key of the option chosen and delivers the workspace's people events to a plugin that reads the directory. On 0.4.2, the first console with plugins, the plugin runs, reads answers by their labels and learns of a leaver from the daily job alone.
 
+## The second pass, planned
+
+What the first look at the pages asked for (2026-11-06), designed here before it is built, as the first pass was: the rows below join or change the table above when they land. Nothing of them is built yet, and nothing is published, so the records change shape without an `upgrades` entry. It is built against the console's next round, which takes what is proposed there ("What waits for the console", below); each proposal has its interim here, named beside it.
+
+### Approval, as general as a line of approvers
+
+| Row | Who starts it | What it is | Test |
+|---|---|---|---|
+| Keep the teams: a key, a name, the approvers of the team's people, and how they decide (any one of them, all of them, one after another) | HR | the command `team`, the query `teams`, a collection `teams`; a person's record names their team by its key, and may name approvers of its own, which win over the team's | written and listed; a team unknown refused; a person's own approvers over the team's; HR's alone |
+| Decide who approves what: an ordered list of rules, each a condition (the kinds of leave, days at least, a request late) and the steps that approve it; a step is a set of approvers and `any` or `all`; the approvers of a step are the person's own, the team's, the person's manager in the directory once the console has one, the holders of `hr`, or the board project's owners | HR | the field `approval` of the configuration record (below); the request's decision goes to the first approver of the first step, and to every approver of it once the console takes several; `all`, and the next step, raise the next decision when one is answered | the first matching rule; a step's `any` closes on one answer, `all` waits for every one; a second step after the first; the owners where nothing names anyone; a rule malformed refused |
+| Record leave for someone else | an approver, for the people their lines approve; HR, for anyone | `request --person <login>`: an approver's is approved by them as it is written, marked as recorded by the approver, the person told by an event of the plugin; HR's as today | an approver for their people, refused for anyone else; the record names who wrote it and for whom; a member for another refused |
+
+### How leave is taken, per kind
+
+| Row | Who starts it | What it is | Test |
+|---|---|---|---|
+| Ask in advance: nothing, n days before, by a time the day before, or by a time the same day, read in the workspace's time zone | HR, per kind | the field `notice` of a kind of leave | a request after the time refused, or marked late where the kind allows it |
+| A request late or after the fact: refused, allowed and marked for the approver, or written only by an approver or HR | HR, per kind | the field `late` of a kind; it replaces the setting `backdatingDays`, with one bound on how far back any request may lie | each path; HR never bound |
+| Approve without asking: never, always, or when the request is at most n days and in time | HR, per kind | the field `autoApprove` of a kind, read with the approval rules | within the bound approved as written, beyond it a decision |
+| Take a day, a half or a quarter | HR, per kind; the person on the request | the field `unit` of a kind; the request's `half` becomes `part`, a morning or afternoon half or one of four quarters, the ledger counting quarters as it does | each unit; a part the kind does not take refused |
+
+### What HR owns, on HR's page
+
+| Row | Who starts it | What it is | Test |
+|---|---|---|---|
+| Keep the configuration: the approval rules, the cancellation rule, who sees balances and the calendar, the working days, the holiday calendar, the notice on the leave page | HR, on the Setup page or with `configure --set` | one record of a collection `config`, read by `hr`, its versions kept; the manifest's `settings` keep only what an administrator decides when enabling, which is nothing yet | each key with its allowed values; a member refused; the defaults where nothing was set |
+
+These are HR's decisions, not an administrator's, and the console's settings page is an administrator's alone. The record is the plugin's own, written through a command the `hr` role alone may run, versioned, every write a `plugin.command` event on the board; nothing secret and no capability is in it, and the administrator holds every role still.
+
+### Words, pages, widgets
+
+- The person who approves is the **결재자** in Korean (the line of them the 결재선, the act 결재) and the approver in English; the role `manager` keeps its key and takes the name.
+- A policy's `name` and `description` become maps by language, as a kind's are, and a policy's summary is built by the page in the reader's language. What goes on the board is written in the workspace's first language, its body in every language of the workspace one after another, until the console shows each reader their own; then as a map.
+- The pages take the console's look: a page head with the title, a line and the action at the right; each section a panel of its own, set apart from the next; eyebrow labels, the console's facts, avatars, progress bars and empty states; the filter rows as the console's view switch, not as buttons. The overview is a balance card with a bar, the leave to come, who is out with faces, the holidays; the leave page a head card and the kinds as cards whose figures line up; the people page a row per person opening a page of their own; the setup page the four objects, each a panel, with a first-run wizard of three questions (the country, who approves, who sees what) and a policy's fields grouped and folded behind its preset.
+- The widgets: the balance as a figure with a bar, the next expiry and the way to request; today's leave as faces with the kind, and for an approver what waits for them. Within the sizes the console has; `sizes` declared when the console takes them.
+- The calendar starts the week as the workspace does, and an approver may keep it to their people.
+
+### What waits for the console
+
+Proposed there, adopted here by version when released: widgets a person arranges, in sizes a widget declares; the board's items in every reader's language; several deciders on one decision; the manifest's `console` range; the settings form's controls and groups; a manager in the directory. None of it blocks the pass above.
+
 ## Not yet
 
 - Attendance (working time, absences, check-in and check-out) and the people's records, the plugin's next features, under the same roles and records; sick leave accrued by hours worked, as US state laws have it, waits for attendance.
-- Leave in units smaller than a half day (Korea's 2027 rule), hours for part-time schedules, blackout spans, multi-level approval, a file attached to a request (a medical certificate), a document on the board at year end: on the roadmap's open points, decided with the person.
-- A console on this machine with the pages looked at: reported as not run until the console's `pnpm dev:plugins` takes a plugin from another checkout, or the deployment installs it ([docs/guide/local-console.md](../../docs/guide/local-console.md)).
+- Leave by the hour (Korea's 2027 rule) and hours for part-time schedules, blackout spans, a file attached to a request (a medical certificate), a document on the board at year end: on the roadmap's open points, decided with the person.
