@@ -123,7 +123,7 @@ What the administrator does, which the hand-over task quotes:
 
 ## What the deployment must provide
 
-Nothing beyond the console: no `storage:sql`, no outbound host, no files. The plugin is built for `@skillcdn/console` 0.4.3 or later on the 0.4 line: that console answers a decision by the key of the option chosen and delivers the workspace's people events to a plugin that reads the directory. On 0.4.2, the first console with plugins, the plugin runs, reads answers by their labels and learns of a leaver from the daily job alone.
+Nothing beyond the console: no `storage:sql`, no outbound host, no files. The plugin is built for `@skillcdn/console` 0.4.3 or later on the 0.4 line, which its manifest will say as `console` once the console reads the field ([ADR-0006](../../docs/adr/0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md)): that console answers a decision by the key of the option chosen and delivers the workspace's people events to a plugin that reads the directory. On 0.4.2, the first console with plugins, the plugin runs, reads answers by their labels and learns of a leaver from the daily job alone.
 
 ## Not yet
 

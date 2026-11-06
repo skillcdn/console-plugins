@@ -66,7 +66,7 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 
 ## Versions
 
-- A published plugin's major and minor are the console's line, its patch its own ([ADR-0005](../adr/0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md)): `patch` for every change within a line, with words beginning `Breaking:` where it removes or renames what exists; `minor` only for the console's next line, for every published plugin at once.
+- Each plugin is versioned on its own under semver ([ADR-0006](../adr/0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md)): `patch` for a fix or an addition that changes nothing that exists; `minor` for a change to what exists and, while the major is 0, for a breaking change, with words beginning `Breaking:`; `major` waits for the console's 1.0. The consoles a plugin runs on are its manifest's `console` range once the console reads it, and its README's words meanwhile.
 - A change to the shape of a record raises `dataVersion` with an entry in `upgrades`, in the same change, and the changeset says so.
 - `@skillcdn/console` and the shared tools come from the catalog, as `catalog:`; a plugin pins nothing of its own ([ADR-0003](../adr/0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md)).
 

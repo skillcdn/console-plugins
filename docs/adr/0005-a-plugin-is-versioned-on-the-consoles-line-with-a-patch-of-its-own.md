@@ -1,6 +1,6 @@
 # ADR-0005: A plugin is versioned on the console's line, with a patch of its own
 
-- Status: Accepted
+- Status: Superseded by [ADR-0006](0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md), which versions each plugin on its own and has it declare the consoles it runs on
 - Date: 2026-11-06
 - Amends [ADR-0002](0002-one-package-per-plugin-published-to-the-registry-under-one-scope-and-versioned-on-its-own.md) (point 3, how a plugin's version is bumped) and [ADR-0003](0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md) (point 2, what moving to the next line does to the versions); the rest of both stands. The rule is held by `scripts/check-version-line.mjs`; what a changeset says is in [.changeset/README.md](../../.changeset/README.md), and the procedure in [guide/releasing.md](../guide/releasing.md).
 

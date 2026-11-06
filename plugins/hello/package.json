@@ -1,6 +1,6 @@
 {
   "name": "@skillcdn/console-plugin-hello",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "description": "Hello, a plugin of the SkillCDN Console: the plugin console-plugin init writes, kept here as the worked example of this repository's conventions and the smoke test of its toolchain.",
   "license": "MIT",
