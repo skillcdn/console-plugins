@@ -1,0 +1,574 @@
+/* The plugin's own classes begin with pl-hr-; the console's tokens and sc-* classes give the look. */
+
+/* A page pads itself; the console's box around a widget pads the widget. */
+.pl-hr-page {
+  display: grid;
+  gap: var(--sc-space-5);
+  padding: var(--sc-space-4);
+  color: var(--sc-color-text);
+  font-family: var(--sc-font-sans);
+}
+
+.pl-hr-widget {
+  color: var(--sc-color-text);
+  font-family: var(--sc-font-sans);
+  font-size: var(--sc-text-sm);
+}
+
+/* The console's grids set a display of their own, which would win over the browser's hidden;
+   these selectors are more specific than any class alone. */
+.pl-hr-page [hidden],
+.pl-hr-widget [hidden] {
+  display: none;
+}
+
+.pl-hr-stack {
+  display: grid;
+  gap: var(--sc-space-4);
+  min-width: 0;
+}
+
+.pl-hr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--sc-space-3);
+}
+
+/* A field (a label around its control) or a bare control in a toolbar takes a column's width. */
+.pl-hr-toolbar > label {
+  flex: 0 1 16rem;
+}
+
+.pl-hr-toolbar > input {
+  flex: 1 1 16rem;
+  max-width: 24rem;
+}
+
+.pl-hr-section {
+  display: grid;
+  gap: var(--sc-space-3);
+  min-width: 0;
+}
+
+/* Figures at a glance */
+
+.pl-hr-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-tile {
+  display: grid;
+  gap: var(--sc-space-1);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border: 1px solid var(--sc-color-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-bg-raised);
+}
+
+.pl-hr-tile-label {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-tile-value {
+  font-size: var(--sc-text-2xl);
+  font-weight: var(--sc-weight-bold);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-tile-sub {
+  color: var(--sc-color-text-faint);
+  font-size: var(--sc-text-sm);
+}
+
+/* Tables: scrolling within their box where they are wider than the frame. */
+
+.pl-hr-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.pl-hr-table {
+  width: 100%;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-table th {
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border-bottom: 1px solid var(--sc-color-border);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-medium);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pl-hr-table td {
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border-bottom: 1px solid var(--sc-color-border);
+  vertical-align: top;
+}
+
+.pl-hr-numeric {
+  text-align: right;
+  font-variant-numeric: var(--sc-numeric);
+  white-space: nowrap;
+}
+
+.pl-hr-row-clickable {
+  cursor: pointer;
+}
+
+.pl-hr-row-open td {
+  background: var(--sc-color-accent-subtle);
+}
+
+.pl-hr-row-clickable:hover td {
+  background: var(--sc-color-bg-inset);
+}
+
+/* Facts: a label over a value, several in a row. */
+
+.pl-hr-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--sc-space-2) var(--sc-space-4);
+  margin: 0;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-facts dt {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-facts dd {
+  margin: var(--sc-space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.pl-hr-summary {
+  display: block;
+  font-size: var(--sc-text-xs);
+}
+
+/* Cards: one per kind of leave, per preset. */
+
+.pl-hr-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-cards-wide {
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+}
+
+.pl-hr-card {
+  display: grid;
+  align-content: start;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  padding: var(--sc-space-4);
+  border: 1px solid var(--sc-color-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-bg-raised);
+}
+
+.pl-hr-card-name {
+  margin: 0;
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-hr-card-available {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-space-2);
+  margin: 0;
+}
+
+.pl-hr-card-figure {
+  font-size: var(--sc-text-2xl);
+  font-weight: var(--sc-weight-bold);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-card-unit {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-card-period,
+.pl-hr-card-about {
+  margin: 0;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-card-label {
+  margin: 0;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+/* Lists of people, of holidays */
+
+.pl-hr-list {
+  display: grid;
+  gap: var(--sc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-day {
+  color: var(--sc-color-text-muted);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-person {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sc-space-1) var(--sc-space-2);
+}
+
+.pl-hr-person-login {
+  color: var(--sc-color-text-muted);
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-names {
+  display: grid;
+  gap: 2px;
+}
+
+/* A kind of leave carries one of the console's series colours, as a dot or a swatch. */
+
+.pl-hr-type::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--pl-hr-series, var(--sc-color-accent));
+}
+
+.pl-hr-swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--sc-radius-sm);
+  background: var(--pl-hr-series, var(--sc-color-accent));
+  vertical-align: middle;
+}
+
+/* What a form says of itself, under it. */
+
+.pl-hr-status {
+  margin: 0;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-status:empty {
+  display: none;
+}
+
+.pl-hr-ok {
+  color: var(--sc-color-success);
+}
+
+/* The organization's notice and what people wrote: text as it was written, wrapped. */
+
+.pl-hr-notice {
+  margin: 0;
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border: 1px solid var(--sc-color-border);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-bg-inset);
+  font-size: var(--sc-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pl-hr-prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pl-hr-commands {
+  display: grid;
+  justify-items: start;
+  gap: var(--sc-space-1);
+  margin-top: var(--sc-space-2);
+}
+
+.pl-hr-code,
+.pl-hr-key {
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-code {
+  display: inline-block;
+  padding: var(--sc-space-1) var(--sc-space-2);
+  border-radius: var(--sc-radius-sm);
+  background: var(--sc-color-bg-inset);
+}
+
+/* Small forms in place: cancelling a request, a row of checkboxes. */
+
+.pl-hr-inline {
+  display: inline-flex;
+  margin-left: var(--sc-space-2);
+}
+
+.pl-hr-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-inline-form input {
+  width: auto;
+  min-width: 10rem;
+}
+
+.pl-hr-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-3);
+}
+
+/* The panel of a person's record, under the table. */
+
+.pl-hr-panel {
+  display: grid;
+  gap: var(--sc-space-4);
+  padding: var(--sc-space-4);
+  border: 1px solid var(--sc-color-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-bg-raised);
+}
+
+.pl-hr-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-panel-title,
+.pl-hr-block-title {
+  margin: 0;
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-hr-block {
+  display: grid;
+  gap: var(--sc-space-3);
+  padding-top: var(--sc-space-3);
+  border-top: 1px solid var(--sc-color-border);
+}
+
+/* Widgets */
+
+.pl-hr-widget-number {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-space-2);
+  margin: 0;
+}
+
+.pl-hr-widget-value {
+  font-size: var(--sc-text-2xl);
+  font-weight: var(--sc-weight-bold);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-widget-unit {
+  color: var(--sc-color-text-muted);
+}
+
+.pl-hr-widget-line {
+  margin: var(--sc-space-1) 0 0;
+  font-size: var(--sc-text-sm);
+}
+
+/* The calendar: a month as seven columns. */
+
+.pl-hr-calendar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-calendar-month {
+  margin: 0;
+  font-size: var(--sc-text-lg);
+}
+
+.pl-hr-calendar-nav {
+  display: flex;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--sc-color-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-border);
+}
+
+.pl-hr-calendar-weekday {
+  padding: var(--sc-space-2);
+  background: var(--sc-color-bg-raised);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-medium);
+  text-align: center;
+}
+
+.pl-hr-calendar-weekday-off {
+  color: var(--sc-color-text-faint);
+}
+
+.pl-hr-calendar-cell {
+  display: grid;
+  align-content: start;
+  gap: var(--sc-space-1);
+  min-width: 0;
+  min-height: 6rem;
+  padding: var(--sc-space-2);
+  background: var(--sc-color-bg-raised);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-calendar-blank,
+.pl-hr-calendar-off {
+  background: var(--sc-color-bg-inset);
+}
+
+.pl-hr-calendar-day {
+  font-variant-numeric: var(--sc-numeric);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-calendar-off .pl-hr-calendar-day {
+  color: var(--sc-color-text-faint);
+}
+
+.pl-hr-calendar-today .pl-hr-calendar-day {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-accent);
+  color: var(--sc-color-accent-contrast);
+}
+
+.pl-hr-holiday {
+  color: var(--sc-color-danger);
+  font-weight: var(--sc-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+/* An entry of the calendar: approved solid, waiting dashed and muted. */
+
+.pl-hr-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1);
+  min-width: 0;
+  padding: var(--sc-space-1) var(--sc-space-2);
+  border: 1px solid transparent;
+  border-left: 3px solid var(--pl-hr-series, var(--sc-color-accent));
+  border-radius: var(--sc-radius-sm);
+  background: var(--sc-color-bg-inset);
+}
+
+.pl-hr-chip-requested {
+  border-style: dashed;
+  border-color: var(--sc-color-border-strong);
+  border-left-style: dashed;
+  background: transparent;
+  color: var(--sc-color-text-muted);
+}
+
+.pl-hr-chip-name {
+  font-weight: var(--sc-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.pl-hr-chip-half {
+  color: var(--sc-color-text-muted);
+}
+
+.pl-hr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-3);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-legend-sample {
+  display: inline-block;
+  width: 1rem;
+  height: 0.75rem;
+  border-radius: var(--sc-radius-sm);
+}
+
+.pl-hr-legend-approved {
+  border-left: 3px solid var(--sc-color-accent);
+  background: var(--sc-color-bg-inset);
+}
+
+.pl-hr-legend-requested {
+  border: 1px dashed var(--sc-color-border-strong);
+  border-left: 3px dashed var(--sc-color-border-strong);
+}
+
+.pl-hr-legend-holiday {
+  border: 1px solid var(--sc-color-danger);
+  background: var(--sc-color-danger-subtle);
+}
+
+.pl-hr-legend-off {
+  border: 1px solid var(--sc-color-border);
+  background: var(--sc-color-bg-inset);
+}
