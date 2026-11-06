@@ -1,12 +1,12 @@
 ---
 name: SkillCDN Console Plugins
-description: "The reference plugins of the SkillCDN Console (leave, customers, money, and more to come), each one npm package a deployment installs and an administrator turns on, with the skills an agent works it by; and how a repository of several plugins is kept. Use to work a plugin of the console through its skills, or to see how a plugin, or a repository of them, is written."
+description: "The reference plugins of the SkillCDN Console (HR, CRM, finance, and more to come), each one npm package a deployment installs and an administrator turns on, with the skills an agent works it by; and how a repository of several plugins is kept. Use to work a plugin of the console through its skills, or to see how a plugin, or a repository of them, is written."
 license: MIT
 language: en
 translations:
   ko:
     name: SkillCDN 콘솔 플러그인
-    description: "SkillCDN 콘솔의 공식 플러그인(연차, 고객, 재무, 그리고 앞으로 더). 각각은 배포가 설치하고 관리자가 켜는 npm 패키지 하나이며, 에이전트가 쓰는 스킬이 함께 있습니다. 플러그인 여러 개를 한 저장소에 두는 법도 여기 있습니다. 콘솔의 플러그인을 스킬로 다룰 때, 또는 플러그인이나 플러그인 저장소가 어떻게 쓰이는지 볼 때 쓰세요."
+    description: "SkillCDN 콘솔의 공식 플러그인(인사, 고객 관리, 재무, 그리고 앞으로 더). 각각은 배포가 설치하고 관리자가 켜는 npm 패키지 하나이며, 에이전트가 쓰는 스킬이 함께 있습니다. 플러그인 여러 개를 한 저장소에 두는 법도 여기 있습니다. 콘솔의 플러그인을 스킬로 다룰 때, 또는 플러그인이나 플러그인 저장소가 어떻게 쓰이는지 볼 때 쓰세요."
 documents:
   - docs
 exclude:

@@ -14,7 +14,7 @@
 
 > **Status: pre-alpha.** The first plugins are being written, one at a time, against a console whose plugin API still moves with its line ([docs/roadmap.md](docs/roadmap.md) says what exists). A plugin here is rebuilt against the console it runs on.
 
-A plugin adds a feature of an organization's work to the [SkillCDN Console](https://github.com/skillcdn/console) (leave, customers, money) under the console's own rule, people decide and agents work: commands and queries an agent runs through `console plugin <key>`, pages and widgets people see in the console's tabs, records the console keeps, decisions and tasks on a project of the plugin's, and the skills an agent reads first. Each is one npm package a deployment builds into its image and an administrator turns on ([ADR-0049](https://github.com/skillcdn/console/blob/main/docs/adr/0049-a-plugin-is-an-npm-package-installed-into-the-image-and-enabled-by-an-administrator.md) to [ADR-0054](https://github.com/skillcdn/console/blob/main/docs/adr/0054-a-plugins-pages-run-in-a-sandboxed-frame-and-speak-only-to-their-plugin.md) of the console).
+A plugin adds an area of an organization's work to the [SkillCDN Console](https://github.com/skillcdn/console) (HR, CRM, finance) under the console's own rule, people decide and agents work: commands and queries an agent runs through `console plugin <key>`, pages and widgets people see in the console's tabs, records the console keeps, decisions and tasks on a project of the plugin's, and the skills an agent reads first. Each is one npm package a deployment builds into its image and an administrator turns on ([ADR-0049](https://github.com/skillcdn/console/blob/main/docs/adr/0049-a-plugin-is-an-npm-package-installed-into-the-image-and-enabled-by-an-administrator.md) to [ADR-0054](https://github.com/skillcdn/console/blob/main/docs/adr/0054-a-plugins-pages-run-in-a-sandboxed-frame-and-speak-only-to-their-plugin.md) of the console).
 
 This repository holds the plugins KDX Labs writes for its own console and publishes for anyone's, one directory and one package each, and is the shape it proposes for a repository that keeps several plugins together: one toolchain, one check, one release workflow, and each plugin still a complete package of its own. The contract of a plugin is the console's, [docs/specs/plugins.md](https://github.com/skillcdn/console/blob/main/docs/specs/plugins.md): every field of the manifest, every member of `ctx`, every capability, bound and refusal. Nothing of it is defined or repeated here, and a plugin that lives in a repository of its own, as the console's `building-a-plugin` skill writes one by default, owes this shape nothing ([ADR-0001](docs/adr/0001-this-repository-holds-the-reference-plugins-and-proposes-a-shape-for-a-repository-of-several.md)).
 
@@ -23,11 +23,11 @@ This repository holds the plugins KDX Labs writes for its own console and publis
 | Plugin | Package | Tab | What it does | Status |
 |---|---|---|---|---|
 | [`plugins/hello/`](plugins/hello/) | `@skillcdn/console-plugin-hello` | Operations | The plugin `console-plugin init` writes, adapted to this repository's conventions: greetings kept as records, a command, a query, a page, a widget and a skill. The worked example a new plugin starts from, and the smoke test of the toolchain; private, never published. | example |
-| `plugins/leave/` | `@skillcdn/console-plugin-leave` | People | Leave requests and their approval as decisions, balances per person and the year's accrual; attendance beside it, or as a plugin of its own on the same board project. | planned, next |
-| `plugins/crm/` | `@skillcdn/console-plugin-crm` | Customers | Customers, contacts and deals, with the follow-ups as tasks on the board. | planned |
-| `plugins/finance/` | `@skillcdn/console-plugin-finance` | Money | Expenses, invoices and budgets, approvals as decisions, the figures read from the records. | planned |
+| `plugins/hr/` | `@skillcdn/console-plugin-hr` | People | HR: leave requests and their approval as decisions, balances and the year's accrual first; attendance (working days, absences, check-in and check-out) and the people's records in the same plugin after. | planned, next |
+| `plugins/crm/` | `@skillcdn/console-plugin-crm` | Customers | CRM: customers, contacts and deals as records with search, the follow-ups as tasks on the board, the pipeline on a page. | planned |
+| `plugins/finance/` | `@skillcdn/console-plugin-finance` | Money | Finance: expenses, invoices and budgets as records, approvals as decisions, the figures read from the records. | planned |
 
-Each plugin's README carries its design: a row per thing the feature does, who starts it, what it became in the plugin and the test that proves it; and what an administrator consents to, binds and fills when they enable it.
+A plugin is a whole area of the organization's work, named as a company names the function (HR, CRM, Finance), so that it takes over what that function does by hand; a feature within an area (leave, attendance) is a command, a page or a skill of the plugin, not a plugin of its own. The console's tab groups stay the console's plain words. Each plugin's README carries its design: a row per thing the feature does, who starts it, what it became in the plugin and the test that proves it; and what an administrator consents to, binds and fills when they enable it.
 
 ## Install one into a console
 
@@ -35,7 +35,7 @@ A deployment installs a plugin by building it into its image from a list and a l
 
 ```sh
 cd plugins                      # the deployment's own list: a package.json and its lockfile, nothing that runs
-npm install --save-exact --package-lock-only --ignore-scripts @skillcdn/console-plugin-leave@0.1.0
+npm install --save-exact --package-lock-only --ignore-scripts @skillcdn/console-plugin-hr@0.1.0
 ```
 
 The image is then built and rolled out as a release of the deployment, and an administrator enables the plugin on the console's settings page, or their agent does with `console plugin <key> enable`, consenting to each capability the manifest asks, making or choosing its board project, naming the projects it is on and filling its settings. Writing the install as a task for the deployment's people is the last step of writing a plugin ([docs/guide/releasing.md](docs/guide/releasing.md)).

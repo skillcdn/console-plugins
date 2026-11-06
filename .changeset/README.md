@@ -4,10 +4,10 @@ A changeset says what a change means to whoever installs a plugin: the bump, and
 
 ```md
 ---
-"@skillcdn/console-plugin-leave": minor
+"@skillcdn/console-plugin-hr": minor
 ---
 
-A request may be cancelled before it is approved: `console plugin leave cancel <id>`.
+A leave request may be cancelled before it is approved: `console plugin hr cancel <id>`.
 ```
 
 Each plugin is versioned on its own. Bumps: `patch` for a fix, `minor` for something new. Before `1.0.0`, a change that removes or renames something is `minor` as well: `major` would make the version `1.0.0`. A change that moves the shape of a plugin's records raises its `dataVersion` with an entry in `upgrades` in the same change, and the changeset says so. A change to a published plugin without a changeset is not released until one is added; a private plugin, the example `hello`, is never versioned or tagged.
