@@ -2,9 +2,13 @@
 
 How a plugin's change becomes a version a deployment installs: a changeset with the change, the version pull request the release workflow opens, the publish through the registry's trusted publishing when it is merged, and the install handed to the deployment as a task ([ADR-0002](../adr/0002-one-package-per-plugin-published-to-the-registry-under-one-scope-and-versioned-on-its-own.md)). Nothing is published, tagged or installed without the person's word, and the install itself is the deployment's release, planned and started by its people.
 
+## The version: the console's line, and a patch of the plugin's own
+
+A published plugin's major and minor are those of the `@skillcdn/console` it is built against, the catalog's; its patch counts its own releases on that line ([ADR-0005](../adr/0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md)). `@skillcdn/console-plugin-hr` 0.4.x is the HR plugin for a console 0.4.x; whoever installs reads which patch of the line a version needs in its changelog entry ("built for console 0.4.3 or later"). Within a line every release is a `patch`; the console's next line is a `minor` of every published plugin, taken together; never a `major` while the major is 0. `pnpm check` holds the numbers to the line (`scripts/check-version-line.mjs`).
+
 ## A changeset with every change
 
-`pnpm changeset` writes `.changeset/<name>.md` naming the plugin and the bump, with a line or two for the administrator who enables the plugin and the deployment that installs it; a file written by hand does the same ([.changeset/README.md](../../.changeset/README.md)). `patch` for a fix, `minor` for something new; before 1.0 a change that removes or renames something is `minor` with words that begin `Breaking:`; a change that moves the shape of a plugin's records raises `dataVersion` with an `upgrades` entry in the same change, and the changeset says so. A private plugin is never versioned.
+`pnpm changeset` writes `.changeset/<name>.md` naming the plugin and the bump, with a line or two for the administrator who enables the plugin and the deployment that installs it; a file written by hand does the same ([.changeset/README.md](../../.changeset/README.md)). `patch` for every change within a line, a fix or something new alike; `Breaking:` first in its words where it changes or removes what exists, a command or its arguments, a query's answer, a role, a setting, a capability asked anew; "built for console 0.4.x or later" where it needs a later patch of the console than before; a change that moves the shape of a plugin's records raises `dataVersion` with an `upgrades` entry in the same change, and the changeset says so. `minor` is for one change alone, the console's next line, written for every published plugin in the change that moves the catalog. A private plugin is never versioned, and its changesets wait for its first version.
 
 ## The version pull request, and the publish
 
@@ -12,14 +16,14 @@ On every push to `main`, the release workflow (`.github/workflows/release.yml`) 
 
 ## The first version, by hand
 
-The registry learns which workflow may publish a package when the package exists, so the first version of each plugin is published by a maintainer, once, signed in to the registry as a member of the organization:
+The registry learns which workflow may publish a package when the package exists, so the first version of each plugin is published by a maintainer, once, signed in to the registry as a member of the organization. In one change: the plugin's `package.json` loses `private: true`, gains `publishConfig: { "access": "public" }` (which `pnpm check` holds) and takes the version of the previous line's `.0`, a version never published (`0.3.0` for a console 0.4), beside its pending `minor` changeset; this is the one number ever written by hand. The workflow then opens the version pull request that lands the plugin on `<line>.0` with its changelog. From that pull request's branch, built and checked:
 
 ```sh
 pnpm turbo run build --filter @skillcdn/console-plugin-<key>
 pnpm --filter @skillcdn/console-plugin-<key> publish --access public      # prepack copies the license in; postpack takes it out
 ```
 
-The plugin's `package.json` loses `private: true` and gains `publishConfig: { "access": "public" }` in the same change, and `pnpm check` holds the latter. Then, on the registry, the package's settings name its trusted publisher: GitHub Actions, the organization `skillcdn`, the repository `console-plugins`, the workflow `release.yml`. From then on every version is the workflow's; a fork repeats this under its own scope and repository.
+Then, on the registry, the package's settings name its trusted publisher: GitHub Actions, the organization `skillcdn`, the repository `console-plugins`, the workflow `release.yml`. The pull request is merged last: the workflow finds the version published and publishes nothing, and from then on every version is the workflow's. A fork repeats this under its own scope and repository.
 
 ## The repository's settings
 
@@ -40,8 +44,8 @@ cd plugins       # the deployment repository's list of plugins
 npm install --save-exact --package-lock-only --ignore-scripts @skillcdn/console-plugin-<key>@<version>
 ```
 
-The hand-over is a task on the deployment's board, written as the console's skill `planning-the-board` writes one, or the same words in chat where there is no board: the package and its version, and that the console must be at least the version the plugin is built for; how it is installed; what the deployment must provide, from the plugin's README (`CREATEROLE` for `storage:sql`, the hosts of `outbound`, a bound on the files); what the administrator does when they enable it, from the same README (the capabilities they consent to, the board project, the projects, the settings to fill and the secrets to set, the roles and who gets them); and where the plugin's skills are once it runs (`console plugin <key> skills`). The deployment's agent installs it as a release of the deployment, the administrator enables it, and the plugin is proven on that console as it was on the local one: that is the delivery.
+The hand-over is a task on the deployment's board, written as the console's skill `planning-the-board` writes one, or the same words in chat where there is no board: the package and its version, and that the console must be on the version's line and at least the patch the changelog names; how it is installed; what the deployment must provide, from the plugin's README (`CREATEROLE` for `storage:sql`, the hosts of `outbound`, a bound on the files); what the administrator does when they enable it, from the same README (the capabilities they consent to, the board project, the projects, the settings to fill and the secrets to set, the roles and who gets them); and where the plugin's skills are once it runs (`console plugin <key> skills`). The deployment's agent installs it as a release of the deployment, the administrator enables it, and the plugin is proven on that console as it was on the local one: that is the delivery.
 
 ## A new line of the console
 
-When `@skillcdn/console` moves to its next line, the catalog in `pnpm-workspace.yaml` moves in one change with every plugin rebuilt and checked against it, `pluginApi` raised where the contract moved, and a `minor` changeset per published plugin saying which console it is now built for ([ADR-0003](../adr/0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md)). A deployment upgrades its console first, then installs the plugins built for it.
+When `@skillcdn/console` moves to its next line, the catalog in `pnpm-workspace.yaml` moves in one change with every plugin rebuilt and checked against it, `pluginApi` raised where the contract moved, and a `minor` changeset per published plugin saying which console it is now built for ([ADR-0003](../adr/0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md)); the version pull request lands every one of them on `<line>.0`. A line skipped is reached the same way, the version set by hand to the previous line's `.0` beside the changeset. A deployment upgrades its console first, then installs the plugins built for it. A patch of the console within the line moves the catalog's patch when a plugin needs what it added, with a `patch` changeset of that plugin naming it.

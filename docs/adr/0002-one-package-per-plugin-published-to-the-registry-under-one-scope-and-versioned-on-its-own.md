@@ -1,6 +1,6 @@
 # ADR-0002: One package per plugin, published to the registry under one scope and versioned on its own
 
-- Status: Accepted
+- Status: Accepted; point 3 amended by [ADR-0005](0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md), which puts a plugin's major and minor on the console's line
 - Date: 2026-11-06
 
 ## Context

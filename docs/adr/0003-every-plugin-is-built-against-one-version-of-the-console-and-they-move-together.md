@@ -1,6 +1,6 @@
 # ADR-0003: Every plugin is built against one version of the console, and they move together
 
-- Status: Accepted
+- Status: Accepted; point 2 amended by [ADR-0005](0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md), under which the `minor` of the next line lands every plugin on `<line>.0`
 - Date: 2026-11-06
 
 ## Context
