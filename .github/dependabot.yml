@@ -1,0 +1,41 @@
+# What Dependabot proposes, and how (AGENTS.md, "Dependencies"). A proposal is a change like any
+# other: CI runs `pnpm check` on it, and it is merged when green.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # The same three days as `minimumReleaseAge` in pnpm-workspace.yaml: a release younger than
+    # that is not installable, so it is not proposed either.
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    ignore:
+      # The console's line is adopted by decision, every plugin rebuilt against it in one change
+      # with a changeset each (docs/adr/0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md).
+      - dependency-name: "@skillcdn/*"
+      # The Node.js major is pinned on purpose (.nvmrc, devEngines) and moves by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # Everything here is a development tool: a plugin has no runtime dependencies, since its
+      # build bundles what it imports.
+      toolchain:
+        patterns:
+          - "@biomejs/*"
+          - "@changesets/*"
+          - "@types/*"
+          - "esbuild"
+          - "turbo"
+          - "typescript"
+          - "vitest"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

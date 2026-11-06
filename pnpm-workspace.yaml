@@ -1,0 +1,27 @@
+packages:
+  - "plugins/*"
+
+# One version per shared tool. Workspace packages reference these as "catalog:".
+# @skillcdn/console is the one version every plugin here is built against: before 1.0 the plugin
+# API moves with the console's line, so the plugins are rebuilt together when it moves
+# (docs/adr/0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md).
+catalog:
+  "@skillcdn/console": ^0.4.2
+  "@types/node": ^24.19.1
+  esbuild: ^0.28.2
+  typescript: ^7.0.2
+  vitest: ^5.0.3
+
+# Supply-chain guard: never resolve a version published less than 3 days ago (minutes).
+# For an urgent security fix, list the package under minimumReleaseAgeExclude in the same change
+# and take it out again afterwards, saying so in the commit message.
+minimumReleaseAge: 4320
+
+# The packages this organization publishes itself are excluded as a pattern: a fresh
+# @skillcdn/* release is adopted at once, and the risk the rule guards against is elsewhere.
+minimumReleaseAgeExclude:
+  - "@skillcdn/*"
+
+# Dependency install scripts run only for packages approved here (`pnpm approve-builds`).
+allowBuilds:
+  esbuild: true

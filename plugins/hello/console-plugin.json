@@ -1,0 +1,65 @@
+{
+  "key": "hello",
+  "name": { "en": "Hello", "ko": "인사" },
+  "description": {
+    "en": "Greetings kept as records: who greeted whom, and the latest of them.",
+    "ko": "레코드로 남는 인사: 누가 누구에게 인사했는지, 그리고 가장 최근의 인사."
+  },
+  "agentNote": {
+    "en": "Keeps greetings as records; greet someone with the command greet, read the latest with the query latest.",
+    "ko": "인사를 레코드로 보관합니다. greet 명령으로 인사하고, latest 조회로 최근 인사를 읽습니다."
+  },
+  "pluginApi": 1,
+  "server": "dist/server/index.js",
+  "web": "dist/web",
+  "skills": "skills",
+  "capabilities": [],
+  "roles": {
+    "greeter": {
+      "name": { "en": "Greeter", "ko": "인사하는 사람" },
+      "description": {
+        "en": "Greets people, and reads the greetings.",
+        "ko": "사람들에게 인사하고, 인사를 읽습니다."
+      }
+    }
+  },
+  "defaultRole": "greeter",
+  "board": { "needs": "none" },
+  "settings": [
+    {
+      "key": "greeting",
+      "type": "text",
+      "name": { "en": "Greeting", "ko": "인사말" },
+      "description": {
+        "en": "The word a greeting starts with when the command is given none.",
+        "ko": "명령에 말이 주어지지 않았을 때 인사가 시작되는 말."
+      },
+      "default": "Hello",
+      "max": 40
+    }
+  ],
+  "menu": { "group": "operations" },
+  "pages": [
+    {
+      "key": "greetings",
+      "name": { "en": "Greetings", "ko": "인사" },
+      "level": "workspace",
+      "roles": ["greeter"]
+    }
+  ],
+  "widgets": [
+    {
+      "key": "latest",
+      "name": { "en": "Latest greeting", "ko": "최근 인사" },
+      "place": "home:top",
+      "size": "third",
+      "roles": ["greeter"]
+    }
+  ],
+  "store": {
+    "homepage": "https://github.com/skillcdn/console-plugins/tree/main/plugins/hello#readme",
+    "repository": "https://github.com/skillcdn/console-plugins",
+    "keywords": ["example"]
+  },
+  "dataVersion": 1
+}

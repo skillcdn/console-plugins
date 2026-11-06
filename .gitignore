@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output and caches
+dist/
+*.tsbuildinfo
+.turbo/
+coverage/
+
+# Secrets: real values never enter git. No file here needs any.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+secrets/
+
+# The plugins directory scripts/plugins-dir.mjs writes for a console on this machine
+.plugins-dir/
+
+# Local data and scratch files
+.data/
+tmp/
+
+# Logs
+*.log
+
+# What is copied next to a plugin while it is packed (scripts/pack-files.mjs)
+plugins/*/LICENSE.md
+
+# The binding of a checkout to a project of a console: it may name the organization's console,
+# so it stays out of a public repository (the console's `console use` says so)
+.skillcdn-console.json
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Agent tooling: personal overrides stay local
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md

@@ -1,0 +1,43 @@
+{
+  "name": "skillcdn-console-plugins",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The reference plugins of the SkillCDN Console, one npm package each, and a proposed shape for a repository that holds several.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=12.4.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.11.0",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "check": "biome ci . && node scripts/check-text-safety.mjs && node scripts/check-licenses.mjs && skillcdn check && node scripts/check-plugins.mjs && turbo run build typecheck test",
+    "check:text": "node scripts/check-text-safety.mjs",
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "check:plugins": "skillcdn check && node scripts/check-plugins.mjs",
+    "plugins-dir": "turbo run build && node scripts/plugins-dir.mjs",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3",
+    "@skillcdn/cli": "^0.4.1",
+    "@skillcdn/console": "catalog:",
+    "esbuild": "catalog:",
+    "turbo": "^2.11.6",
+    "typescript": "catalog:"
+  }
+}
