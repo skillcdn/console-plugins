@@ -115,7 +115,13 @@ interface Board {
   readonly tasks: { title: string; body: string }[];
   /** The people the console refuses a decision to; "everyone" refuses it to all. */
   readonly refuse: Set<string>;
-  answer(id: string, option: "approve" | "reject" | "own", by: PluginCaller, note?: string): void;
+  answer(
+    id: string,
+    option: "approve" | "reject" | "own",
+    by: PluginCaller,
+    note?: string,
+    agent?: string,
+  ): void;
 }
 
 function board(): Board {
@@ -125,7 +131,7 @@ function board(): Board {
     decisions,
     tasks,
     refuse: new Set(),
-    answer(id, option, by, note) {
+    answer(id, option, by, note, agent) {
       const decision = decisions.get(id);
       if (decision === undefined) {
         throw new Error(`no decision ${id}`);
@@ -147,6 +153,7 @@ function board(): Board {
           option: chosen?.id ?? "",
           note: note ?? null,
           by: restPerson(personOf(by).id, personOf(by).login, personOf(by).name),
+          agent,
           at: "2026-11-06T01:00:00.000Z",
         },
       });
@@ -557,6 +564,23 @@ describe("the decision answered", () => {
     expect(ctx.all("ledger").filter((line) => line.data.kind === "use")).toHaveLength(1);
     expect((await annualOf(ctx, ALICE)).available).toBe(13);
     expect(ctx.emitted.filter((item) => item.kind === "leave-approved")).toHaveLength(1);
+  });
+
+  it("takes an answer through an agent as its person's", async () => {
+    theBoard.answer(decisionId, "approve", MANAGER, "as we said", "their agent");
+    await onDecisionAnswered(ctx.as(CONSOLE), event(decisionId));
+    expect(ctx.all("requests")[0]?.data).toMatchObject({
+      state: "approved",
+      decidedBy: personOf(MANAGER).id,
+      note: "as we said",
+    });
+  });
+
+  it("does not let a person's agent approve that person's own leave", async () => {
+    theBoard.answer(decisionId, "approve", ALICE, undefined, "their agent");
+    await onDecisionAnswered(ctx.as(CONSOLE), event(decisionId));
+    expect(ctx.all("requests")[0]?.data).toMatchObject({ state: "returned" });
+    expect((await annualOf(ctx, ALICE)).available).toBe(15);
   });
 
   it("rejects: the request moves and the balance is whole", async () => {

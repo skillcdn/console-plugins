@@ -25,6 +25,7 @@ The plugin keeps the leave of the workspace's people as records of the console: 
 | Read the person's requests, newest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>] [--from <day>] [--to <day>]` |
 | Cancel a request: one waiting at once; one approved as HR has it (freely before it starts, after a decision, or by HR alone) | `console plugin hr cancel <id> [--reason <words>]` |
 | For a manager: what waits for them, and the requests of everyone below them | `console plugin hr requests --scope waiting`, `console plugin hr requests --scope team` |
+| For a manager: answer a request as they tell you, by the option's number as `console decision <id>` prints it, or in their own words, which send it back to the person. The record names you beside them | `console answer <id> --option <n> [--note <words>]`, `console answer <id> --own "<words>"` |
 | For a manager, at any level above the person: record leave for them, approved as it is written; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
 | See who is out within a span of up to three months, as HR lets the person see | `console plugin hr calendar [--from <day>] [--to <day>]` |
 | The holidays of a year | `console plugin hr holidays [--year <n>]` |

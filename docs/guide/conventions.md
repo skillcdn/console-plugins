@@ -41,7 +41,7 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 ## People decide
 
 - A decision is raised with `ctx.console.decisions.ask`, with options, addressed to the person a setting or the record names (`deciderId`), `about` the record it is for; the command answers `waiting` with the decision's id and the record keeps `decisionId`. The plugin learns the answer in `on["console:decision.answered"]`, reads its record first and does nothing when the record already moved, since delivery is at least once; it never answers a decision and never computes what a person must choose.
-- What a person may do, their agent may do, through the same command, under the person's roles: a plugin refuses a caller for being an agent (`ctx.caller.agent`) only for a security reason its design states. Answering a decision stays a person's, which the console holds.
+- What a person may do, their agent may do, through the same command, under the person's roles: a plugin refuses a caller for being an agent (`ctx.caller.agent`) only for a security reason its design states. That holds for a decision too: their agent answers it with `console answer`, in the person's name, the console's record names the agent beside them, and a hook reads who answered, not how. It is the plugin that never answers one.
 - Work left for later is a task on the board project (`ctx.console.tasks.create`), worked by whoever takes it; a plugin changes, closes and comments its own items only.
 - A job writes what it did into records and, where people should know, a task, a decision or a page under `plugins/<key>/`; one run of a job at a time is the console's rule, and a job that finds its last run unfinished in the records does the rest, not everything again.
 

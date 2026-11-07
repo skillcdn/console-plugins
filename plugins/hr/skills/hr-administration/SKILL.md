@@ -86,7 +86,7 @@ When the console deactivates a person, the plugin turns their leave off from tha
 
 ## Rules
 
-- Nothing here decides a request: a decision is a person's, on the board. HR records what was decided elsewhere with `request --approved`, and says where it was decided in the reason.
+- The plugin decides no request. Whoever the line asks answers on the board, or tells you what to answer and you write it with `console answer`; nobody approves their own leave, through an agent or not. HR records what was decided elsewhere with `request --approved`, and says where it was decided in the reason.
 - Every adjustment has a note that says why; a figure without a reason is not written.
 - The law is HR's to apply: when a policy's figure and the law differ (a termination settled on the hire-date basis, an attendance rate under 80%, a new rule), HR corrects the balance by adjustment, and the plugin counts as told.
 - Set up before enrolling; enroll before the first request. A person is enrolled once, and changed with the same command.
