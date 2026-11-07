@@ -406,7 +406,7 @@ const ENGLISH: ServerWords = {
   announcementDrafted: (title) => `Saved the draft "${title}".`,
   announcementPublished: (title) => `Published "${title}".`,
   announcementChanged: (title) => `Changed "${title}".`,
-  announcementWithdrawn: (title) => `Took "${title}" down. It is a draft again.`,
+  announcementWithdrawn: (title) => `Took "${title}" down. It is your draft now.`,
   announcementRemoved: (title) => `Removed "${title}".`,
   pictureAttached: "Attached the picture. Put the line in the body to show it.",
 };
@@ -641,7 +641,7 @@ const KOREAN: ServerWords = {
   announcementDrafted: (title) => `"${title}"을(를) 임시 저장했습니다.`,
   announcementPublished: (title) => `"${title}"을(를) 게시했습니다.`,
   announcementChanged: (title) => `"${title}"을(를) 수정했습니다.`,
-  announcementWithdrawn: (title) => `"${title}"의 게시를 내렸습니다. 임시 저장으로 돌아갔습니다.`,
+  announcementWithdrawn: (title) => `"${title}"의 게시를 내렸습니다. 내 임시 저장으로 옮겼습니다.`,
   announcementRemoved: (title) => `"${title}"을(를) 삭제했습니다.`,
   pictureAttached: "이미지를 첨부했습니다. 표시하려면 이 줄을 본문에 넣으세요.",
 };

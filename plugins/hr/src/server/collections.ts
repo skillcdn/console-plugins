@@ -256,8 +256,8 @@ export const config = defineCollection("config", {
 });
 
 /**
- * HR's alone through the console's own routes: a draft is nobody else's to read, and the queries
- * hand out what is published.
+ * Its writer's alone through the console's own routes, so that a draft is nobody else's to read,
+ * whoever else holds the role. The queries hand out what is published.
  */
 export const announcements = defineCollection("announcements", {
   schema: z.object({
@@ -274,9 +274,10 @@ export const announcements = defineCollection("announcements", {
     editedAt: z.nullable(line(40)),
     writtenAt: line(40),
   }),
-  indexes: ["state", "pinned", "category", "publishedAt", "writtenAt"],
+  indexes: ["state", "pinned", "category", "publishedAt", "writtenAt", "authorId"],
   search: ["title", "body"],
-  read: ["hr"],
+  owner: "authorId",
+  readOwn: ["hr"],
 });
 
 /**

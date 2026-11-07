@@ -47,11 +47,11 @@ A request travels a line: the steps of the default line, which is the person's m
 
 ## Announcements
 
-What HR tells everyone, on the page `announcements` and on the front page. An announcement is a draft, seen by HR alone, until it is published. Publish what the person asked you to publish, and say what went out.
+What HR tells everyone, on the page `announcements` and on the front page. An announcement is a draft until it is published, and a draft is its writer's alone: you reach the drafts of the person you work for and nobody else's, while anyone in HR changes what is published. What is taken down becomes the draft of whoever took it down. Publish what the person asked you to publish, and say what went out.
 
 | Do | Command |
 |---|---|
-| Read the drafts, or what is published | `console plugin hr announcements --scope drafts`, `console plugin hr announcements` |
+| Read the person's drafts, or what is published | `console plugin hr announcements --scope drafts`, `console plugin hr announcements` |
 | Write a draft; `--category` is `general`, `policy`, `benefits`, `event` or `appointment` | `console plugin hr announcement --title <words> --body <markdown> [--category <key>] [--pinned on\|off] [--pinned-until <day>\|none]` |
 | Publish it, take it down back to a draft, or remove it and its pictures for good | `console plugin hr announcement <id> --publish`, `--withdraw`, `--remove` |
 | Change one, a draft or what is published: the fields given | `console plugin hr announcement <id> --body <markdown>` |

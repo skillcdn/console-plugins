@@ -1,8 +1,9 @@
-// Announcements: what HR tells everyone. A draft is HR's alone; what is published everyone reads
-// through the queries here, since the record itself stays HR's. Whoever holds the role writes,
-// publishes and takes down, a person on the page or their agent through the same command, and the
-// console's record says which. Nobody's reading is tracked: a command leaves an event for every
-// open frame, and what is new is told by the date.
+// Announcements: what HR tells everyone. A draft is its writer's alone, and their agent's; what is
+// published is HR's together, and everyone reads it through the queries here, since the record
+// itself stays its writer's. Whoever holds the role writes, publishes and takes down, a person on
+// the page or their agent through the same command, and the console's record says which. Nobody's
+// reading is tracked: a command leaves an event for every open frame, and what is new is told by
+// the date.
 import {
   arg,
   defineCommand,
@@ -99,10 +100,17 @@ export async function latestAnnouncements(
     .map((record) => rowOf(record, clock, directory));
 }
 
-/** The record, unless it was removed. */
-async function live(ctx: PluginContext, id: string): Promise<PluginRecord<Announcement> | null> {
+/** The record, unless it was removed or is someone else's draft, which is as if it were not there. */
+async function reachable(
+  ctx: PluginContext,
+  id: string,
+  personId: string,
+): Promise<PluginRecord<Announcement> | null> {
   const record = await ctx.records(announcements).get(id);
-  return record === null || record.archivedAt !== null ? null : record;
+  if (record === null || record.archivedAt !== null) {
+    return null;
+  }
+  return record.data.state === "published" || record.data.authorId === personId ? record : null;
 }
 
 /** Takes away the files of an announcement that its text does not show. */
@@ -169,7 +177,7 @@ export const announcement = defineCommand({
       throw new PluginError("one_move", no.oneMove);
     }
     const records = ctx.records(announcements);
-    const existing = args.id === undefined ? null : await live(ctx, args.id);
+    const existing = args.id === undefined ? null : await reachable(ctx, args.id, actor.id);
     if (args.id !== undefined && existing === null) {
       throw new PluginError("unknown_announcement", no.noAnnouncement);
     }
@@ -212,6 +220,8 @@ export const announcement = defineCommand({
     const going = args.publish === true && !published;
     const next: Announcement = {
       ...before,
+      // What comes down goes to whoever took it down, the one to mend it, since a draft is someone's.
+      authorId: withdrawn ? actor.id : before.authorId,
       title: args.title?.trim() ?? before.title,
       body: args.body ?? before.body,
       category: args.category ?? before.category,
@@ -284,7 +294,7 @@ export const announcementPicture = defineCommand({
     requirePerson(actor);
     const words = serverWords(ctx.language);
     const no = words.refused;
-    const existing = await live(ctx, args.id);
+    const existing = await reachable(ctx, args.id, actor.id);
     if (existing === null) {
       throw new PluginError("unknown_announcement", no.noAnnouncement);
     }
@@ -314,7 +324,7 @@ export const announcementPicture = defineCommand({
 
 export const announcementsQuery = defineQuery({
   about:
-    "The announcements: those on top, then the newest, by category or by words; --scope drafts lists HR's drafts.",
+    "The announcements: those on top, then the newest, by category or by words; --scope drafts lists your own drafts.",
   args: {
     scope: arg.enum(["published", "drafts"], { about: "which", optional: true }),
     category: arg.enum(ANNOUNCEMENT_CATEGORIES, { about: "of one category", optional: true }),
@@ -340,6 +350,7 @@ export const announcementsQuery = defineQuery({
     const records = ctx.records(announcements);
     const where = {
       state: drafts ? "draft" : "published",
+      ...(drafts ? { authorId: actor.id } : {}),
       ...(args.category === undefined ? {} : { category: args.category }),
     };
     const limit = args.limit ?? PAGE;
@@ -357,7 +368,7 @@ export const announcementsQuery = defineQuery({
     const pinned = browsing ? await pinnedNow(ctx, clock) : [];
     const shown = new Set(pinned.map((record) => record.id));
     const counted = actor.hr
-      ? await records.aggregate({ where: { state: "draft" }, count: true })
+      ? await records.aggregate({ where: { state: "draft", authorId: actor.id }, count: true })
       : null;
     return {
       pinned: (args.after === undefined && args.category === undefined ? pinned : []).map(
@@ -373,7 +384,8 @@ export const announcementsQuery = defineQuery({
 });
 
 export const announcementView = defineQuery({
-  about: "One announcement in full: its text and who wrote it. A draft is HR's alone to read.",
+  about:
+    "One announcement in full: its text and who wrote it. A draft is read by its writer alone.",
   args: {
     id: arg.record("announcements", { about: "the announcement", positional: true }),
   },
@@ -381,8 +393,8 @@ export const announcementView = defineQuery({
   async run(ctx, args): Promise<AnnouncementView> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    const record = await live(ctx, args.id);
-    if (record === null || (record.data.state !== "published" && !actor.hr)) {
+    const record = await reachable(ctx, args.id, actor.id);
+    if (record === null) {
       throw new PluginError(
         "unknown_announcement",
         serverWords(ctx.language).refused.noAnnouncement,

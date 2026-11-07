@@ -43,6 +43,8 @@ function caller(
 const HR_ID = "00000000-0000-7000-8000-000000000001";
 const HR = caller(HR_ID, "hana", ["hr", "member"]);
 const HR_AGENT = caller(HR_ID, "hana", ["hr", "member"], { agent: "an agent" });
+const HR_TOO_ID = "00000000-0000-7000-8000-000000000002";
+const HR_TOO = caller(HR_TOO_ID, "hyun", ["hr", "member"]);
 const ALICE = caller("00000000-0000-7000-8000-000000000003", "alice", ["member"]);
 const KOREAN_ALICE = caller("00000000-0000-7000-8000-000000000003", "alice", ["member"], {
   language: "ko",
@@ -108,8 +110,53 @@ describe("a draft", () => {
     expect((await listOf(ctx, ALICE)).drafts).toBeNull();
   });
 
-  it("stands on a record only HR reads through the console's routes", () => {
-    expect(announcements.read).toEqual(["hr"]);
+  it("is its writer's: nobody else in HR lists it, counts it, finds it or reads it", async () => {
+    const ctx = context();
+    const id = await draft(ctx);
+    const other = await listOf(ctx, HR_TOO, { scope: "drafts" });
+    expect(other.items).toEqual([]);
+    expect(other.drafts).toBe(0);
+    expect((await listOf(ctx, HR_TOO, { scope: "drafts", search: "Year-end" })).items).toEqual([]);
+    await expect(announcementView.run(ctx.as(HR_TOO), { id })).rejects.toMatchObject({
+      code: "unknown_announcement",
+    });
+    expect((await listOf(ctx, HR, { scope: "drafts", search: "Year-end" })).items).toHaveLength(1);
+  });
+
+  it("is not changed, published, given a picture or removed by anyone else in HR", async () => {
+    const ctx = context();
+    const id = await draft(ctx);
+    const other = ctx.as(HR_TOO);
+    for (const args of [
+      { id, title: "Taken over" },
+      { id, publish: true },
+      { id, remove: true },
+    ]) {
+      await expect(announcement.run(other, args)).rejects.toMatchObject({
+        code: "unknown_announcement",
+      });
+    }
+    await expect(announcementPicture.run(other, { id, picture: picture() })).rejects.toMatchObject({
+      code: "unknown_announcement",
+    });
+    expect(ctx.all("announcements")[0]).toMatchObject({
+      data: { title: "Year-end party", state: "draft", authorId: HR_ID },
+    });
+  });
+
+  it("is its person's for their agent too", async () => {
+    const ctx = context();
+    const id = await draft(ctx);
+    const agent = ctx.as(HR_AGENT);
+    expect((await listOf(ctx, HR_AGENT, { scope: "drafts" })).items).toHaveLength(1);
+    await announcement.run(agent, { id, title: "Through an agent" });
+    expect(ctx.all("announcements")[0]).toMatchObject({ data: { title: "Through an agent" } });
+  });
+
+  it("stands on a record its writer alone reads through the console's routes", () => {
+    expect(announcements.read).toEqual([]);
+    expect(announcements.readOwn).toEqual(["hr"]);
+    expect(announcements.owner).toBe("authorId");
     expect(announcementPictures.read).toEqual(["member", "hr"]);
     expect(Object.keys(announcementPictures.schema.shape)).toEqual([]);
   });
@@ -126,6 +173,29 @@ describe("a draft", () => {
     await expect(announcement.run(ctx.as(ALICE), { title: "x" })).rejects.toMatchObject({
       code: "hr_only",
     });
+  });
+});
+
+describe("what is published", () => {
+  it("is HR's together: anyone there changes it, whoever wrote it", async () => {
+    const ctx = context();
+    const id = await published(ctx);
+    await announcement.run(ctx.as(HR_TOO), { id, title: "Corrected" });
+    expect(ctx.all("announcements")[0]).toMatchObject({
+      data: { title: "Corrected", state: "published", authorId: HR_ID },
+    });
+  });
+
+  it("becomes a draft of whoever takes it down", async () => {
+    const ctx = context();
+    const id = await published(ctx);
+    const result = await announcement.run(ctx.as(HR_TOO), { id, withdraw: true });
+    expect(result.text).toContain("your draft");
+    expect(ctx.all("announcements")[0]).toMatchObject({
+      data: { state: "draft", authorId: HR_TOO_ID },
+    });
+    expect((await listOf(ctx, HR_TOO, { scope: "drafts" })).items).toHaveLength(1);
+    expect((await listOf(ctx, HR, { scope: "drafts" })).items).toEqual([]);
   });
 });
 
