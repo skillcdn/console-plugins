@@ -6,6 +6,7 @@ import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
   type BalanceReport,
+  type Bucket,
   type EntryView,
   type LeaveType,
   type PersonBrief,
@@ -67,11 +68,11 @@ export interface LeaveView {
 /** The lines of a ledger shown before the rest is folded. */
 const RECENT_LINES = 10;
 
-function bucketsTable(balance: TypeBalance, view: LeaveView): HTMLElement {
+function bucketsTable(buckets: readonly Bucket[], view: LeaveView): HTMLElement {
   const { words, format } = view;
   return table(
     [words.bucketOn, words.bucketKind, words.daysHeader, words.remaining, words.expiresOn],
-    balance.buckets.map((bucket) =>
+    buckets.map((bucket) =>
       row([
         format.day(bucket.on),
         bucket.projected ? badge(words.projected, "neutral") : words.kind[bucket.kind],
@@ -123,8 +124,8 @@ function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
       el("p", "kind-note", words.expiringBy(format.days(item.days), format.day(item.on))),
     );
   }
-  if (balance.buckets.length > 0) {
-    card.append(fold(words.showBuckets, bucketsTable(balance, view)));
+  if (balance.buckets !== undefined && balance.buckets.length > 0) {
+    card.append(fold(words.showBuckets, bucketsTable(balance.buckets, view)));
   }
   return card;
 }
@@ -200,7 +201,7 @@ function cancelControl(
           status,
           words,
           "cancel",
-          why.length > 0 ? { request: item.id, reason: why } : { request: item.id },
+          why.length > 0 ? { id: item.id, reason: why } : { id: item.id },
         );
         if (result !== null) {
           say(status, result.waiting === null ? words.cancelDone : words.cancelWaiting, "ok");
@@ -280,13 +281,13 @@ export function ledgerTable(entries: readonly EntryView[], view: LeaveView): HTM
     return empty(words.ledgerEmpty);
   }
   const headers = [words.bucketOn, words.bucketKind, words.daysHeader, words.expiresOn, words.note];
-  const rows = entries.map(({ entry, note }) =>
+  const rows = entries.map((entry) =>
     row([
       format.day(entry.on),
       words.kind[entry.kind],
       num(format.signed(entry.days)),
       entry.expiresOn === null ? DASH : format.day(entry.expiresOn),
-      cell(el("span", "prose", note)),
+      cell(el("span", "prose", entry.note)),
     ]),
   );
   const recent = table(headers, rows.slice(0, RECENT_LINES));
@@ -367,7 +368,7 @@ export async function renderLeave(
 
   const refreshMain = sequenced(async (fresh) => {
     const [balanceResult, requestsResult] = await Promise.allSettled([
-      frame.query("balance") as Promise<BalanceReport>,
+      frame.query("balance", { buckets: true }) as Promise<BalanceReport>,
       frame.query("requests", { scope: "mine", limit: 200 }) as Promise<readonly RequestView[]>,
     ]);
     if (!fresh()) {

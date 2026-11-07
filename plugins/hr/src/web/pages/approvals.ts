@@ -175,7 +175,7 @@ export async function renderApprovals(
         frame.query("requests", { scope: "waiting", limit: 200 }) as Promise<
           readonly RequestView[]
         >,
-        frame.query("people", { balances: false }) as Promise<PeopleReport>,
+        frame.query("people") as Promise<PeopleReport>,
       ]);
       if (fresh()) {
         manages = hr || report.people.length > 0 || waiting.length > 0;
@@ -199,7 +199,7 @@ export async function renderApprovals(
       return;
     }
     try {
-      const report = (await frame.query("people", { balances: false })) as PeopleReport;
+      const report = (await frame.query("people")) as PeopleReport;
       const people = report.people
         .filter((row) => row.record?.leave === true)
         .map((row) => row.person);

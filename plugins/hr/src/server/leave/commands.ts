@@ -248,6 +248,9 @@ export async function prepareRequest(
   const words = serverWords(actor.language);
   const no = words.refused;
   requirePerson(actor);
+  if (asked.approved === true) {
+    requireHr(actor);
+  }
   const target: PersonBrief =
     asked.person === undefined
       ? { id: actor.id, login: actor.login, name: actor.name }
@@ -358,8 +361,7 @@ export async function prepareRequest(
 }
 
 export const request = defineCommand({
-  about:
-    "Requests leave for the person you act as; with --person a manager records it for their people, HR for anyone. The approval is a decision for the line, unless the kind needs none.",
+  about: "Requests leave; --person records it for someone you manage, or for anyone as HR.",
   args: {
     from: arg.day({ about: "the first day", positional: true }),
     to: arg.day({
@@ -462,10 +464,9 @@ export const request = defineCommand({
 });
 
 export const cancel = defineCommand({
-  about:
-    "Cancels a request of the person you act as: one still waiting at once; one approved as HR's configuration says, at once, after a decision, or by HR alone.",
+  about: "Cancels a request: one waiting at once, one approved as HR's configuration says.",
   args: {
-    request: arg.record("requests", { about: "the request, by its id", positional: true }),
+    id: arg.record("requests", { about: "the request", positional: true }),
     reason: arg.text({ about: "why", optional: true, max: 2000 }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
@@ -476,7 +477,7 @@ export const cancel = defineCommand({
     const no = words.refused;
     const config = await configOf(ctx);
     const clock = await clockOf(ctx);
-    const found = await ctx.records(requests).get(args.request);
+    const found = await ctx.records(requests).get(args.id);
     if (found === null) {
       throw new PluginError("not_found", no.noSuchRequest);
     }
@@ -542,8 +543,7 @@ export const cancel = defineCommand({
 });
 
 export const adjust = defineCommand({
-  about:
-    "HR: writes days to a person's balance, positive to give (a grant, a correction, a settlement) or negative to take, with a note; a credit expires at the period's end unless --expires says otherwise.",
+  about: "HR: gives or takes days of a person's balance, with a note.",
   args: {
     person: arg.person({ about: "whose balance", positional: true }),
     days: arg.number({ about: "days to give, negative to take, in quarters", min: -366, max: 366 }),
@@ -633,8 +633,7 @@ export const adjust = defineCommand({
 });
 
 export const accrue = defineCommand({
-  about:
-    "HR: writes now what the policies owe by today, for one person or everyone with leave on: the days due, the expiries, the carry-overs; what the daily job does, run by hand.",
+  about: "HR: writes now what the policies owe by today, as the daily job does.",
   args: {
     person: arg.person({ about: "one person; everyone unless said", optional: true }),
   },
@@ -680,8 +679,7 @@ export async function accrueAll(
 }
 
 export const enroll = defineCommand({
-  about:
-    "HR: writes or changes a person's record and turns their leave on or off: the day they were hired, their policy, their working days, their title.",
+  about: "HR: writes a person's record and turns their leave on or off.",
   args: {
     person: arg.person({ about: "whom", positional: true }),
     leave: arg.enum(ON_OFF, { about: "whether leave is managed for them", optional: true }),
@@ -772,8 +770,7 @@ export const enroll = defineCommand({
 });
 
 export const offboard = defineCommand({
-  about:
-    "HR: writes the day a person leaves; nothing accrues after it, no leave is requested past it, and the daily job turns their leave off once it has passed.",
+  about: "HR: writes the day a person leaves; nothing accrues after it.",
   args: {
     person: arg.person({ about: "who leaves", positional: true }),
     on: arg.day({ about: "their last day; today unless said", optional: true }),
@@ -854,8 +851,7 @@ async function unsetDefaultPolicies(ctx: PluginContext, except: string): Promise
 }
 
 export const policy = defineCommand({
-  about:
-    "HR: writes a leave policy by its key, from a preset and the fields given, or changes the fields given of one that exists; presets lists the presets and their fields.",
+  about: "HR: writes a leave policy by its key, from a preset and the fields given.",
   args: {
     key: arg.text({ about: "the policy's key, a lowercase word", positional: true, max: 32 }),
     preset: arg.enum(PRESET_KEYS, {
@@ -1049,8 +1045,7 @@ function parseNames(
 }
 
 export const type = defineCommand({
-  about:
-    "HR: writes a kind of leave by its key, or changes one: names, pay, balance, reason, the part of a day it is taken in, the notice it asks, late requests, approval as written.",
+  about: "HR: writes a kind of leave by its key: balance, notice, late requests, approval.",
   args: {
     key: arg.text({ about: "the kind's key, a lowercase word", positional: true, max: 32 }),
     name: arg.list(arg.text({ max: 90 }), {
@@ -1196,10 +1191,9 @@ export const type = defineCommand({
 });
 
 export const holiday = defineCommand({
-  about:
-    "HR: writes a holiday of the organization's own on a day, by name, or removes the holiday of a day.",
+  about: "HR: writes a holiday of the organization's own, or removes a day's holidays.",
   args: {
-    on: arg.day({ about: "the day", positional: true }),
+    day: arg.day({ about: "the day", positional: true }),
     name: arg.list(arg.text({ max: 90 }), {
       about: "names by language, en=Founding day,ko=창립기념일",
       optional: true,
@@ -1216,13 +1210,13 @@ export const holiday = defineCommand({
     const actor = actorOf(ctx);
     requireHr(actor);
     const words = serverWords(ctx.language);
-    const existing = await listAll<Holiday>(ctx.records(holidays), { where: { on: args.on } });
+    const existing = await listAll<Holiday>(ctx.records(holidays), { where: { on: args.day } });
     if (args.remove === true) {
       for (const record of existing) {
         await ctx.records(holidays).archive(record.id);
       }
-      await ctx.events.emit("holidays-changed", { year: yearOf(args.on) });
-      return { text: words.holidayRemoved(args.on), data: { removed: existing.length } };
+      await ctx.events.emit("holidays-changed", { year: yearOf(args.day) });
+      return { text: words.holidayRemoved(args.day), data: { removed: existing.length } };
     }
     const manual = existing.find((record) => record.data.source === "manual");
     const names = parseNames(args.name, words, manual?.data.name);
@@ -1230,9 +1224,9 @@ export const holiday = defineCommand({
       throw new PluginError("name", words.refused.nameNeeded);
     }
     const next: Holiday = {
-      on: args.on,
+      on: args.day,
       name: names ?? manual?.data.name ?? { en: "Holiday" },
-      year: yearOf(args.on),
+      year: yearOf(args.day),
       source: "manual",
       kind: args.kind ?? manual?.data.kind ?? "company",
     };
@@ -1241,7 +1235,7 @@ export const holiday = defineCommand({
         ? await ctx.records(holidays).create(next)
         : await ctx.records(holidays).update(manual.id, next);
     await ctx.events.emit("holidays-changed", { year: next.year });
-    return { text: words.holidaySaved(args.on), data: saved };
+    return { text: words.holidaySaved(args.day), data: saved };
   },
 });
 
@@ -1274,8 +1268,7 @@ export async function writeHolidays(
 }
 
 export const generateHolidays = defineCommand({
-  about:
-    "HR: writes a year's public holidays from a built-in calendar (Korea, or the US federal one), adding what is missing; the daily job does the year ahead where a calendar is set.",
+  about: "HR: writes a year's public holidays from a built-in calendar.",
   args: {
     year: arg.number({ about: "the year", positional: true, integer: true, min: 1970, max: 2200 }),
     calendar: arg.enum(["kr", "us"], {
@@ -1315,8 +1308,7 @@ export async function seedTypes(ctx: PluginContext, country: "kr" | "us" | null)
 }
 
 export const setup = defineCommand({
-  about:
-    "HR: sets leave up in one go for a country: the kinds of leave, a default policy from its preset, and the public holidays of this year and the next; each may be changed afterwards.",
+  about: "HR: sets leave up for a country in one go: kinds, a default policy, holidays.",
   args: {
     country: arg.enum(["kr", "us"], { about: "whose rules to start from", positional: true }),
     basis: arg.enum(["anniversary", "fiscal"], {
@@ -1398,8 +1390,7 @@ function parsed<T>(
 }
 
 export const configure = defineCommand({
-  about:
-    "HR: changes the configuration, the fields given: the line and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
+  about: "HR: changes the fields given of the configuration.",
   args: {
     line: arg.text({
       about:

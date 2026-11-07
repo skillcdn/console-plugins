@@ -374,7 +374,8 @@ export interface TypeBalance {
   readonly adjusted: number;
   /** What may be requested today: the unexpired credits less what is used, pending and overdrawn. */
   readonly available: number;
-  readonly buckets: readonly Bucket[];
+  /** The credits one by one, where they were asked for: `balance --buckets`. */
+  readonly buckets?: readonly Bucket[];
   readonly expiring: readonly { readonly on: string; readonly days: number }[];
 }
 
@@ -416,13 +417,33 @@ export interface StepView {
   readonly state: "done" | "waiting" | "ahead";
 }
 
+/** What the queries say of a request: its line is told beside it, in names and not in ids. */
+export type RequestFacts = Pick<
+  LeaveRequest,
+  | "type"
+  | "from"
+  | "to"
+  | "part"
+  | "days"
+  | "reason"
+  | "state"
+  | "late"
+  | "rule"
+  | "note"
+  | "decisionId"
+  | "cancelDecisionId"
+  | "requestedAt"
+  | "decidedAt"
+>;
+
 export interface RequestView {
   readonly id: string;
-  readonly version: number;
   readonly person: PersonBrief;
-  readonly request: LeaveRequest;
+  readonly request: RequestFacts;
   /** Who wrote it, where that is not the person whose leave it is. */
   readonly recordedBy: PersonBrief | null;
+  /** Who decided it, once someone has. */
+  readonly decidedBy: PersonBrief | null;
   readonly line: readonly StepView[];
   /** Whether the caller is among those it waits for now. */
   readonly mine: boolean;
@@ -472,7 +493,8 @@ export interface CalendarReport {
 export interface PersonRow {
   readonly person: PersonBrief;
   readonly status: "active" | "deactivated";
-  readonly record: Person | null;
+  /** Their record of leave, without who they are, which `person` says. */
+  readonly record: Omit<Person, "personId" | "login" | "name"> | null;
   readonly manager: PersonBrief | null;
   readonly annual: {
     readonly available: number;
@@ -510,11 +532,16 @@ export interface ConfigReport {
   readonly people: readonly PersonBrief[];
 }
 
+/** A line of the ledger as the query `ledger` says it; `export` has every field. */
 export interface EntryView {
   readonly id: string;
-  readonly entry: Entry;
+  readonly on: string;
+  readonly kind: EntryKind;
+  readonly days: number;
+  readonly expiresOn: string | null;
   /** The line's note, in the caller's language where the plugin wrote it. */
   readonly note: string;
+  readonly requestId: string | null;
 }
 
 export const ANNOUNCEMENT_STATES = ["draft", "published"] as const;

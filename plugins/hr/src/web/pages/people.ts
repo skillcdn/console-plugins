@@ -355,7 +355,7 @@ async function personPage(
 
   const refresh = sequenced(async (fresh) => {
     const [balanceResult, requestsResult] = await Promise.allSettled([
-      frame.query("balance", { person: login }) as Promise<BalanceReport>,
+      frame.query("balance", { person: login, buckets: true }) as Promise<BalanceReport>,
       frame.query("requests", { person: login, limit: 100 }) as Promise<readonly RequestView[]>,
     ]);
     if (!fresh()) {

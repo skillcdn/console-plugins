@@ -2,7 +2,6 @@
 // drawn as it is walked, from the request to the approval, and each step says in words who it asks,
 // so that a second step of a manager reads as the manager's manager and nothing has to explain it.
 // Each change is saved with `configure`.
-import type { PluginRecord } from "@skillcdn/console/plugin/web";
 import {
   type ApprovalRule,
   type ApprovalStep,
@@ -463,16 +462,16 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
 
   const refresh = sequenced(async (fresh) => {
     try {
-      const [config, report, typeRecords] = await Promise.all([
+      const [config, report, typeList] = await Promise.all([
         frame.query("config") as Promise<ConfigReport>,
-        frame.query("people", { balances: false }) as Promise<PeopleReport>,
-        frame.query("types") as Promise<readonly PluginRecord<LeaveType>[]>,
+        frame.query("people") as Promise<PeopleReport>,
+        frame.query("types") as Promise<readonly LeaveType[]>,
       ]);
       if (!fresh()) {
         return;
       }
       people = report.people.filter((row) => row.status === "active").map((row) => row.person);
-      kinds = typeRecords.map((record) => record.data);
+      kinds = [...typeList];
       rules = [...config.config.rules];
       const line = lineEditor(config.config.line, people, view);
       const submit = submitButton(words.saveLine);

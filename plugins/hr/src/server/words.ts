@@ -162,12 +162,13 @@ export interface ServerWords {
   };
   readonly refused: Refusals;
   readonly untitled: string;
-  readonly announcementDrafted: (title: string) => string;
-  readonly announcementPublished: (title: string) => string;
-  readonly announcementChanged: (title: string) => string;
-  readonly announcementWithdrawn: (title: string) => string;
+  readonly announcementDrafted: (title: string, id: string) => string;
+  readonly announcementPublished: (title: string, id: string) => string;
+  readonly announcementChanged: (title: string, id: string) => string;
+  readonly announcementWithdrawn: (title: string, id: string) => string;
   readonly announcementRemoved: (title: string) => string;
-  readonly pictureAttached: string;
+  /** With the line to put in the text: what an agent goes on from. */
+  readonly pictureAttached: (line: string) => string;
 }
 
 /**
@@ -403,12 +404,13 @@ const ENGLISH: ServerWords = {
     announcementNeedsBody: "An announcement needs some text before it goes out.",
   },
   untitled: "Untitled",
-  announcementDrafted: (title) => `Saved the draft "${title}".`,
-  announcementPublished: (title) => `Published "${title}".`,
-  announcementChanged: (title) => `Changed "${title}".`,
-  announcementWithdrawn: (title) => `Took "${title}" down. It is your draft now.`,
+  announcementDrafted: (title, id) => `Saved the draft "${title}". Announcement ${id}.`,
+  announcementPublished: (title, id) => `Published "${title}". Announcement ${id}.`,
+  announcementChanged: (title, id) => `Changed "${title}". Announcement ${id}.`,
+  announcementWithdrawn: (title, id) =>
+    `Took "${title}" down. It is your draft now. Announcement ${id}.`,
   announcementRemoved: (title) => `Removed "${title}".`,
-  pictureAttached: "Attached the picture. Put the line in the body to show it.",
+  pictureAttached: (line) => `Attached the picture. Put this line in the body to show it:\n${line}`,
 };
 
 const KOREAN: ServerWords = {
@@ -638,12 +640,13 @@ const KOREAN: ServerWords = {
     announcementNeedsBody: "게시하려면 본문이 필요합니다.",
   },
   untitled: "제목 없음",
-  announcementDrafted: (title) => `"${title}"을(를) 임시 저장했습니다.`,
-  announcementPublished: (title) => `"${title}"을(를) 게시했습니다.`,
-  announcementChanged: (title) => `"${title}"을(를) 수정했습니다.`,
-  announcementWithdrawn: (title) => `"${title}"의 게시를 내렸습니다. 내 임시 저장으로 옮겼습니다.`,
+  announcementDrafted: (title, id) => `"${title}"을(를) 임시 저장했습니다. 공지 ${id}.`,
+  announcementPublished: (title, id) => `"${title}"을(를) 게시했습니다. 공지 ${id}.`,
+  announcementChanged: (title, id) => `"${title}"을(를) 수정했습니다. 공지 ${id}.`,
+  announcementWithdrawn: (title, id) =>
+    `"${title}"의 게시를 내렸습니다. 내 임시 저장으로 옮겼습니다. 공지 ${id}.`,
   announcementRemoved: (title) => `"${title}"을(를) 삭제했습니다.`,
-  pictureAttached: "이미지를 첨부했습니다. 표시하려면 이 줄을 본문에 넣으세요.",
+  pictureAttached: (line) => `이미지를 첨부했습니다. 표시하려면 이 줄을 본문에 넣으세요:\n${line}`,
 };
 
 const PACKS: Readonly<Record<string, ServerWords>> = { en: ENGLISH, ko: KOREAN };

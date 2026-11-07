@@ -9,8 +9,8 @@
     "ko": "워크스페이스 구성원의 휴가와 공지사항: 각자의 매니저에게 가는 신청, 한국·미국 법규나 자체 규정에 따른 잔여 일수, 인사 담당이 전하는 공지. 근태와 구성원 기록은 다음에 더합니다."
   },
   "agentNote": {
-    "en": "Leave: request, cancel, balance, requests and calendar for the person you act as; a manager records leave for their people. Announcements: read with announcements; HR writes with announcement.",
-    "ko": "휴가: 대신 일하는 사람의 request·cancel과 balance·requests·calendar 읽기. 매니저는 팀원의 휴가를 대신 등록합니다. 공지는 announcements로 읽고, 인사 담당은 announcement로 쓰고 게시합니다."
+    "en": "A person's leave, who is out, and what HR announced; HR keeps the rules of leave and writes the announcements here.",
+    "ko": "구성원의 휴가와 누가 쉬는지, 인사 공지를 다룹니다. 인사 담당은 휴가 규정을 관리하고 공지를 씁니다."
   },
   "pluginApi": 1,
   "console": ">=0.4.4 <0.5.0",

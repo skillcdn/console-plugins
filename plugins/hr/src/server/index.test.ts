@@ -697,7 +697,7 @@ describe("cancel", () => {
     const ctx = await korea(theBoard);
     const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const id = (ctx.all("requests")[0] as { id: string }).id;
-    const cancelled = await cancel.run(ctx.as(ALICE), { request: id });
+    const cancelled = await cancel.run(ctx.as(ALICE), { id });
     expect(cancelled.text).toContain("Cancelled");
     expect(ctx.all("requests")[0]?.data).toMatchObject({ state: "cancelled" });
     expect(result.waiting).toBeDefined();
@@ -708,7 +708,7 @@ describe("cancel", () => {
     const ctx = await korea(theBoard);
     const id = await approved(ctx, "2026-11-10", "2026-11-11");
     expect((await annualOf(ctx, ALICE)).available).toBe(13);
-    await cancel.run(ctx.as(ALICE), { request: id, reason: "plans changed" });
+    await cancel.run(ctx.as(ALICE), { id, reason: "plans changed" });
     expect(ctx.all("requests")[0]?.data).toMatchObject({
       state: "cancelled",
       note: "plans changed",
@@ -720,17 +720,17 @@ describe("cancel", () => {
   it("leaves leave that has begun to HR", async () => {
     const ctx = await korea(theBoard);
     const id = await approved(ctx, "2026-11-05", "2026-11-09");
-    await expect(cancel.run(ctx.as(ALICE), { request: id })).rejects.toMatchObject({
+    await expect(cancel.run(ctx.as(ALICE), { id })).rejects.toMatchObject({
       code: "started",
     });
-    await cancel.run(ctx, { request: id });
+    await cancel.run(ctx, { id });
     expect(ctx.all("requests")[0]?.data).toMatchObject({ state: "cancelled" });
   });
 
   it("raises a decision where the setting asks for one, and keeps the leave when refused", async () => {
     const ctx = await korea(theBoard, { cancellation: "approval" });
     const id = await approved(ctx, "2026-11-10", "2026-11-11");
-    const result = await cancel.run(ctx.as(ALICE), { request: id });
+    const result = await cancel.run(ctx.as(ALICE), { id });
     expect(result.waiting).toBeDefined();
     expect(ctx.all("requests")[0]?.data).toMatchObject({
       state: "cancelling",
@@ -752,14 +752,14 @@ describe("cancel", () => {
   it("refuses another person's request, and HR alone cancels under the hr setting", async () => {
     const ctx = await korea(theBoard, { cancellation: "hr" });
     const id = await approved(ctx, "2026-11-10", "2026-11-11");
-    await expect(cancel.run(ctx.as(BOB), { request: id })).rejects.toMatchObject({
+    await expect(cancel.run(ctx.as(BOB), { id })).rejects.toMatchObject({
       code: "not_yours",
     });
-    await expect(cancel.run(ctx.as(ALICE), { request: id })).rejects.toMatchObject({
+    await expect(cancel.run(ctx.as(ALICE), { id })).rejects.toMatchObject({
       code: "hr_only",
     });
     await expect(
-      cancel.run(ctx.as(ALICE), { request: "00000000-0000-7000-8000-00000000beef" }),
+      cancel.run(ctx.as(ALICE), { id: "00000000-0000-7000-8000-00000000beef" }),
     ).rejects.toMatchObject({
       code: "not_found",
     });
@@ -908,18 +908,70 @@ describe("balances and visibility", () => {
 
   it("shows the ledger under the same rule", async () => {
     const ctx = await korea(board());
-    const lines = (await ledgerQuery.run(ctx.as(ALICE), {})) as EntryView[];
+    const lines = (await ledgerQuery.run(ctx.as(ALICE), { limit: 200 })) as EntryView[];
     // Eleven first-year days, each paid out unused at the first anniversary, and the year's grant.
     expect(lines).toHaveLength(23);
-    expect(lines.filter((line) => line.entry.kind === "payout")).toHaveLength(11);
-    expect(lines.filter((line) => line.entry.kind === "grant")).toHaveLength(1);
+    expect(lines.filter((line) => line.kind === "payout")).toHaveLength(11);
+    expect(lines.filter((line) => line.kind === "grant")).toHaveLength(1);
     await expect(ledgerQuery.run(ctx.as(BOB), { person: personOf(ALICE) })).rejects.toMatchObject({
       code: "not_visible",
     });
   });
+
+  it("answers the newest lines of the ledger, each as it is read", async () => {
+    const ctx = await korea(board());
+    const lines = (await ledgerQuery.run(ctx.as(ALICE), {})) as EntryView[];
+    expect(lines).toHaveLength(20);
+    expect(Object.keys(lines[0] ?? {}).sort()).toEqual([
+      "days",
+      "expiresOn",
+      "id",
+      "kind",
+      "note",
+      "on",
+      "requestId",
+    ]);
+  });
+
+  it("says the credits one by one only when asked", async () => {
+    const ctx = await korea(board());
+    const brief = (await balance.run(ctx.as(ALICE), {})) as BalanceReport;
+    expect(brief.types[0]?.available).toBe(15);
+    expect(brief.types[0]).not.toHaveProperty("buckets");
+    const whole = (await balance.run(ctx.as(ALICE), { buckets: true })) as BalanceReport;
+    expect(whole.types[0]?.buckets?.length).toBeGreaterThan(0);
+    const glance = (await overview.run(ctx.as(ALICE), {})) as OverviewReport;
+    expect(glance.balance?.types[0]).not.toHaveProperty("buckets");
+  });
 });
 
 describe("requests, calendar and the overview", () => {
+  it("says of a request what is read of it, the line in names", async () => {
+    const ctx = await korea(board());
+    const { waiting } = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    const [view] = (await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[];
+    expect(view?.request).toMatchObject({ state: "requested", decisionId: waiting });
+    expect(view?.request).not.toHaveProperty("steps");
+    expect(view?.request).not.toHaveProperty("personId");
+    expect(view?.line[0]?.deciders.map((person) => person.login)).toEqual(["minho"]);
+    expect(view?.decidedBy).toBeNull();
+  });
+
+  it("refuses --approved to anyone but HR, rather than leave it unread", async () => {
+    const ctx = await korea(board());
+    await expect(
+      request.run(ctx.as(MANAGER), {
+        from: "2026-11-10",
+        person: personOf(ALICE),
+        approved: true,
+      }),
+    ).rejects.toMatchObject({ code: "hr_only" });
+    await expect(
+      request.run(ctx.as(ALICE), { from: "2026-11-10", approved: true }),
+    ).rejects.toMatchObject({ code: "hr_only" });
+    expect(ctx.all("requests")).toEqual([]);
+  });
+
   it("lists one's own requests, the manager's people, and everyone's for HR", async () => {
     const ctx = await korea(board());
     await request.run(ctx.as(ALICE), { from: "2026-11-10", to: "2026-11-11" });
@@ -1026,11 +1078,15 @@ describe("requests, calendar and the overview", () => {
 describe("people, policies, types and holidays", () => {
   it("lists every member for HR with their records, a manager's people, and nobody for others", async () => {
     const ctx = await korea(board());
-    const all = (await peopleQuery.run(ctx, {})) as PeopleReport;
+    const all = (await peopleQuery.run(ctx, { balances: true })) as PeopleReport;
     expect(all.scope).toBe("all");
     expect(all.people).toHaveLength(4);
     const alice = all.people.find((row) => row.person.login === "alice");
     expect(alice?.annual).toEqual({ available: 15, used: 0, pending: 0 });
+    expect(alice?.record).toMatchObject({ leave: true, policy: null });
+    expect(alice?.record).not.toHaveProperty("login");
+    const plain = (await peopleQuery.run(ctx, {})) as PeopleReport;
+    expect(plain.people.every((row) => row.annual === null)).toBe(true);
     expect(all.people.find((row) => row.person.login === "bob")?.record).toBeNull();
     const team = (await peopleQuery.run(ctx.as(MANAGER), {})) as PeopleReport;
     expect(team.scope).toBe("team");
@@ -1090,6 +1146,7 @@ describe("people, policies, types and holidays", () => {
     expect(
       ((await presetsQuery.run(ctx, {})) as PresetView[]).map((preset) => preset.key),
     ).toContain("kr-statutory");
+    await expect(presetsQuery.run(ctx.as(ALICE), {})).rejects.toMatchObject({ code: "hr_only" });
   });
 
   it("writes a kind of leave with names by language, and keeps annual leave on the policy's balance", async () => {
@@ -1118,20 +1175,23 @@ describe("people, policies, types and holidays", () => {
     await expect(type.run(ctx, { key: "new", name: ["Study"] })).rejects.toMatchObject({
       code: "name",
     });
-    const visible = (await typesQuery.run(ctx.as(ALICE), {})) as { data: { key: string } }[];
-    expect(visible.map((record) => record.data.key)).toContain("study");
+    const visible = (await typesQuery.run(ctx.as(ALICE), {})) as { key: string }[];
+    expect(visible.map((type) => type.key)).toContain("study");
   });
 
   it("writes and removes the organization's holidays, and a year from a calendar", async () => {
     const ctx = contextWith(board());
-    await holiday.run(ctx, { on: "2026-12-31", name: ["en=Year-end day", "ko=종무식"] });
+    await holiday.run(ctx, { day: "2026-12-31", name: ["en=Year-end day", "ko=종무식"] });
     expect(ctx.all("holidays")).toHaveLength(1);
     const result = await generateHolidays.run(ctx, { year: 2027, calendar: "kr" });
     expect(result.data).toMatchObject({ written: expect.any(Number) });
+    expect(await holidaysQuery.run(ctx.as(ALICE), { year: 2026 })).toEqual(
+      expect.arrayContaining([expect.objectContaining({ on: "2026-12-31", kind: "company" })]),
+    );
     expect(
       ((await holidaysQuery.run(ctx.as(ALICE), { year: 2027 })) as unknown[]).length,
     ).toBeGreaterThan(15);
-    await holiday.run(ctx, { on: "2026-12-31", remove: true });
+    await holiday.run(ctx, { day: "2026-12-31", remove: true });
     expect(((await holidaysQuery.run(ctx.as(ALICE), { year: 2026 })) as unknown[]).length).toBe(0);
     await expect(generateHolidays.run(ctx, { year: 2040, calendar: "kr" })).rejects.toMatchObject({
       code: "no_year",
@@ -1784,7 +1844,7 @@ describe("a cancellation that takes a decision", () => {
     theBoard.answer(asked.waiting ?? "", "approve", MANAGER);
     await answered(ctx, asked.waiting ?? "");
     const id = ctx.all("requests")[0]?.id ?? "";
-    const cancelling = await cancel.run(ctx.as(ALICE), { request: id });
+    const cancelling = await cancel.run(ctx.as(ALICE), { id });
     expect(theBoard.decisions.get(cancelling.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
     const views = (await requestsQuery.run(ctx.as(MANAGER), {
       scope: "waiting",
@@ -1801,7 +1861,7 @@ describe("a cancellation of leave nobody had to approve", () => {
     const ctx = await korea(theBoard, { cancellation: "approval", line: "[]" });
     await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const id = ctx.all("requests")[0]?.id ?? "";
-    const cancelling = await cancel.run(ctx.as(ALICE), { request: id });
+    const cancelling = await cancel.run(ctx.as(ALICE), { id });
     expect(theBoard.decisions.get(cancelling.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
   });
 });

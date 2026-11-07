@@ -32,7 +32,7 @@ import { serverWords } from "./words.js";
 
 const FRESH_HOURS = 72;
 const EXCERPT_AT_MOST = 140;
-const PAGE = 20;
+const PAGE = 10;
 const PAGE_AT_MOST = 50;
 /** More than this many pinned would no longer be a top of anything. */
 const PINNED_AT_MOST = 20;
@@ -131,8 +131,7 @@ async function dropPictures(
 }
 
 export const announcement = defineCommand({
-  about:
-    "HR: writes an announcement, a draft until it is published; an id changes one. --publish, --withdraw and --remove act on it.",
+  about: "HR: writes an announcement, a draft until --publish; an id changes one.",
   args: {
     id: arg.record("announcements", {
       about: "the announcement to change; left out, a new draft",
@@ -268,20 +267,19 @@ export const announcement = defineCommand({
     const title = next.title.length > 0 ? next.title : words.untitled;
     return {
       text: going
-        ? words.announcementPublished(title)
+        ? words.announcementPublished(title, saved.id)
         : withdrawn
-          ? words.announcementWithdrawn(title)
+          ? words.announcementWithdrawn(title, saved.id)
           : published
-            ? words.announcementChanged(title)
-            : words.announcementDrafted(title),
+            ? words.announcementChanged(title, saved.id)
+            : words.announcementDrafted(title, saved.id),
       data: { id: saved.id, version: saved.version, state: next.state },
     };
   },
 });
 
 export const announcementPicture = defineCommand({
-  about:
-    "HR: attaches a picture to an announcement and answers the line that shows it, which then goes in the body.",
+  about: "HR: attaches a picture, given with --file <path>, and says the line that shows it.",
   args: {
     id: arg.record("announcements", { about: "the announcement", positional: true }),
     picture: arg.file({ about: "a PNG, JPEG, WebP or GIF" }),
@@ -315,28 +313,28 @@ export const announcementPicture = defineCommand({
       throw new PluginError("too_many_pictures", no.tooManyPictures(PICTURES_AT_MOST));
     }
     const file = await holders.files(picturesId).attach(args.picture);
-    return {
-      text: words.pictureAttached,
-      data: { file: file.id, line: imageLine(file.id, args.alt ?? ""), version },
-    };
+    const line = imageLine(file.id, args.alt ?? "");
+    return { text: words.pictureAttached(line), data: { file: file.id, line, version } };
   },
 });
 
 export const announcementsQuery = defineQuery({
-  about:
-    "The announcements: those on top, then the newest, by category or by words; --scope drafts lists your own drafts.",
+  about: "The announcements: those on top, then the newest; --scope drafts for your own.",
   args: {
-    scope: arg.enum(["published", "drafts"], { about: "which", optional: true }),
+    scope: arg.enum(["published", "drafts"], {
+      about: "published unless said; drafts, your own, for HR",
+      optional: true,
+    }),
     category: arg.enum(ANNOUNCEMENT_CATEGORIES, { about: "of one category", optional: true }),
     search: arg.text({ about: "words to look for", optional: true, max: 100 }),
     limit: arg.number({
-      about: "how many on a page",
+      about: `how many on a page; ${PAGE} unless said`,
       optional: true,
       integer: true,
       min: 1,
       max: PAGE_AT_MOST,
     }),
-    after: arg.text({ about: "where the page begins", optional: true, max: 200 }),
+    after: arg.text({ about: "the after of the page before", optional: true, max: 200 }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<AnnouncementList> {
@@ -384,8 +382,7 @@ export const announcementsQuery = defineQuery({
 });
 
 export const announcementView = defineQuery({
-  about:
-    "One announcement in full: its text and who wrote it. A draft is read by its writer alone.",
+  about: "One announcement in full, its text in Markdown.",
   args: {
     id: arg.record("announcements", { about: "the announcement", positional: true }),
   },

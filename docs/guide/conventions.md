@@ -17,6 +17,16 @@ A plugin's README carries the table of phase 1, and the manifest and the tests a
 
 In this order, so that a reader of one knows where to look in the next: the title and a paragraph saying what the plugin does and for whom; **The design** (above); **Where things are**, the table of files; **Working on it**, the commands from the repository's root; **Enabling it**, what the administrator does, which the hand-over task quotes: the capabilities consented to, the board project made or chosen and the projects the plugin is on, the settings to fill and the secrets to set, the roles and who gets them, and where the skills are once it runs (`console plugin <key> skills`); **What the deployment must provide**, where the plugin asks it: `CREATEROLE` for `storage:sql`, the hosts of `outbound`, a bound on the files; and the version of the console it is built for.
 
+## Commands and queries
+
+What an agent reads of a plugin is paid for in its context on every task, so each layer says its own part and no more.
+
+- A command's `about` is printed for every command each time an agent reads `console plugin <key>`: one clause of what it does, at most 90 characters. What an argument takes, what it is unless said and when it is refused go on the argument's `about`, which `help <command>` prints, and in the skills.
+- A query answers what is read, shaped by hand: never whole records, whose envelope is the console's and is read with `console plugin <key> records`, and never a field twice. A list is bounded unless told otherwise, twenty lines where nothing says otherwise, and a page says how many it wants. What only a page or a rare caller needs comes behind a flag (`balance --buckets`).
+- A boolean flag turns something on, and is off unless given: a flag that is on unless said cannot be said from the command line. What must be said both ways is `on|off`.
+- A command that makes something says its id in `text`, and whatever the next step needs (`announcement-picture` says the line to write): `data` is for `--json` and the pages, and an agent should not need it to go on.
+- A positional that names a record is `<id>`, and a flag the caller's role does not allow is refused, never left unread.
+
 ## Languages
 
 Every plugin speaks the languages the repository speaks: English first, and Korean beside it today ([ADR-0004](../adr/0004-every-plugin-speaks-english-and-korean-from-its-first-commit.md)). The list is `LANGUAGES` in `scripts/check-plugins.mjs`, and a language is added when the console's pages speak it: its tag goes into the list, every plugin's manifest gains its entries, every `words.ts` a pack and every skill a translation, in one change, since the check refuses a plugin that lacks one.
@@ -58,6 +68,7 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 ## Skills
 
 - One skill per kind of work an agent does through the plugin, `skills/<key>/SKILL.md` for the main one and `skills/<key>-<work>/SKILL.md` for others, in the SkillCDN Format as the console's own skills are written: a title and a paragraph, the commands as a table of `console plugin <key> <command> ...`, the rules.
+- A skill says which command answers which request, the order of the steps and what the help cannot; it does not repeat every flag, which `help <command>` prints. Its `description` says what it does and when to use it in a person's words: `console plugin <key> skills` prints it for every skill.
 - A skill names this plugin's commands and the console's own (`console decision <id> --wait`, `console report`), never another plugin's; the check reads both.
 - The plugin's `SKILLCDN.md` carries the rules every skill of the plugin follows and stands alone: a console serves the plugin's skills from its package, without this repository's root manifest.
 
@@ -65,7 +76,7 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 
 - One test per row of the design, against `createTestContext` from `@skillcdn/console/plugin/testing`, with the collections the plugin declares: what the row does, what it refuses (a schema it does not fit, a role it lacks, a record another owns), what it tells people. `as(caller)` runs the same records as another person; `emitted` and `logged` say what the plugin said.
 - Every argument and schema has its hostile inputs: too long, too deep, malformed, what an agent could send on purpose.
-- `src/check.test.ts` is the template's and stays so: the package built and read as a console reads it.
+- `src/check.test.ts` is the template's and stays so: the package built and read as a console reads it. `plugins/hr/src/server/skills.test.ts` holds every command line a skill names to the definitions; a plugin with commands of its own takes a copy, until two make it worth sharing.
 - No network, no database, nothing of a console running in a test; a console of this machine is for a person's eyes ([local-console.md](local-console.md)).
 
 ## Versions

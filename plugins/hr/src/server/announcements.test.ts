@@ -343,6 +343,16 @@ describe("a change", () => {
     expect(result.text).toContain("Saved the draft");
   });
 
+  it("says the id, which is what an agent goes on from", async () => {
+    const ctx = context();
+    const written = await announcement.run(ctx, { title: "Offsite", body: "In May." });
+    const { id } = written.data as { id: string };
+    expect(written.text).toContain(id);
+    expect((await announcement.run(ctx, { id, publish: true })).text).toContain(id);
+    expect((await announcement.run(ctx, { id, title: "Offsite 2" })).text).toContain(id);
+    expect((await announcement.run(ctx, { id, withdraw: true })).text).toContain(id);
+  });
+
   it("refuses a last day on top that is no day", async () => {
     const ctx = context();
     await expect(
@@ -352,6 +362,15 @@ describe("a change", () => {
 });
 
 describe("the list", () => {
+  it("answers ten on a page unless told otherwise", async () => {
+    const ctx = context();
+    for (let index = 0; index < 12; index += 1) {
+      await published(ctx, `Notice ${index}`);
+    }
+    expect((await listOf(ctx, ALICE)).items).toHaveLength(10);
+    expect((await listOf(ctx, ALICE, { limit: 12 })).items).toHaveLength(12);
+  });
+
   it("puts what is pinned first, then the newest, and leaves a pin that ran out", async () => {
     const ctx = context();
     await published(ctx, "First");
@@ -419,6 +438,13 @@ describe("pictures", () => {
     expect(line).toBe(`![A room](file:${file})`);
     await announcement.run(ctx, { id, body: `Text\n\n${line}`, publish: true });
     expect((await listOf(ctx, ALICE)).items[0]?.cover).toBe(file);
+  });
+
+  it("say the line that shows them, which is what an agent goes on from", async () => {
+    const ctx = context();
+    const id = await draft(ctx);
+    const result = await announcementPicture.run(ctx, { id, picture: picture(), alt: "A room" });
+    expect(result.text).toContain((result.data as { line: string }).line);
   });
 
   it("answer the version the record moved to", async () => {

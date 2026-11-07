@@ -36,6 +36,7 @@ import {
   type RequestStep,
   type RequestView,
   type StepView,
+  type TypeBalance,
 } from "../../shared/contracts.js";
 import {
   addDays,
@@ -83,6 +84,9 @@ import { PRESETS, policyAbout, policyName } from "./presets.js";
 import { isCounted } from "./rules.js";
 
 const CALENDAR_DAYS_AT_MOST = 92;
+/** What a list answers unless told otherwise; a page says how many it wants. */
+const LINES = 20;
+const LINES_AT_MOST = 200;
 
 function briefOf(
   id: string,
@@ -173,11 +177,26 @@ function viewOf(
         : [];
   return {
     id: record.id,
-    version: record.version,
     person,
-    request: data,
+    request: {
+      type: data.type,
+      from: data.from,
+      to: data.to,
+      part: data.part,
+      days: data.days,
+      reason: data.reason,
+      state: data.state,
+      late: data.late,
+      rule: data.rule,
+      note: data.note,
+      decisionId: data.decisionId,
+      cancelDecisionId: data.cancelDecisionId,
+      requestedAt: data.requestedAt,
+      decidedAt: data.decidedAt,
+    },
     recordedBy:
       data.requestedBy === data.personId ? null : briefOf(data.requestedBy, directoryMap, null),
+    decidedBy: data.decidedBy === null ? null : briefOf(data.decidedBy, directoryMap, null),
     line: stepViews(data.steps, directoryMap, open),
     mine: (open || data.state === "cancelling") && asked.includes(actor.id),
     decisionPath: decisionPath(ctx, data.decisionId),
@@ -186,9 +205,10 @@ function viewOf(
   };
 }
 
-/** A person's record as the caller reads it: the note is HR's. */
-function shownTo(actor: Actor, record: Person): Person {
-  return actor.hr ? record : { ...record, note: "" };
+/** A person's record as the caller reads it: the note is HR's, and `person` says who they are. */
+function shownTo(actor: Actor, record: Person): NonNullable<PersonRow["record"]> {
+  const { personId: _id, login: _login, name: _name, ...rest } = record;
+  return actor.hr ? rest : { ...rest, note: "" };
 }
 
 /** A person's manager in the console, for a page. */
@@ -203,14 +223,22 @@ async function balanceReport(
   record: PluginRecord<Person> | null,
   directoryMap: Directory,
   asOf: string,
+  buckets = false,
 ): Promise<BalanceReport> {
   const data = record?.data ?? null;
   const policy = await policyFor(ctx, data);
   const types = data === null || !data.leave ? [] : balancedTypes(await allTypes(ctx));
-  const balances = [];
+  const balances: TypeBalance[] = [];
   for (const type of types) {
     if (data !== null) {
-      balances.push(await typeBalanceOf(ctx, data, policy?.data ?? null, type.data, asOf));
+      const { buckets: credits, ...figures } = await typeBalanceOf(
+        ctx,
+        data,
+        policy?.data ?? null,
+        type.data,
+        asOf,
+      );
+      balances.push(buckets && credits !== undefined ? { ...figures, buckets: credits } : figures);
     }
   }
   return {
@@ -233,11 +261,14 @@ async function balanceReport(
 }
 
 export const balance = defineQuery({
-  about:
-    "The days of leave a person has: granted, used, waiting, expiring and available, by kind, for the current period; the caller's unless --person names another they may see.",
+  about: "The days left by kind: granted, used, waiting, expiring and available.",
   args: {
     person: arg.person({ about: "whose; the caller's unless said", optional: true }),
     on: arg.day({ about: "as of a day; today unless said", optional: true }),
+    buckets: arg.boolean({
+      about: "with every credit the days come from and what is left of it",
+      optional: true,
+    }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<BalanceReport> {
@@ -256,16 +287,23 @@ export const balance = defineQuery({
       args.person === undefined
         ? briefOf(actor.id, directoryMap, record?.data ?? null, actor)
         : { id: args.person.id, login: args.person.login, name: args.person.name };
-    return balanceReport(ctx, target, record, directoryMap, args.on ?? clock.today);
+    return balanceReport(
+      ctx,
+      target,
+      record,
+      directoryMap,
+      args.on ?? clock.today,
+      args.buckets === true,
+    );
   },
 });
 
 export const requestsQuery = defineQuery({
-  about:
-    "Requests of leave: the caller's; --scope waiting, those waiting for their decision; --scope team, their people's; --scope all, everyone's, for HR; or one person's with --person.",
+  about: "Requests of leave, newest first: the caller's, or by --scope or --person.",
   args: {
     scope: arg.enum(["mine", "waiting", "team", "all"], {
-      about: "whose requests; mine unless said",
+      about:
+        "mine unless said; waiting, those waiting for the caller's decision; team, the people below them; all, for HR",
       optional: true,
     }),
     person: arg.person({ about: "one person's", optional: true }),
@@ -277,11 +315,11 @@ export const requestsQuery = defineQuery({
     to: arg.day({ about: "requests starting on or before this day", optional: true }),
     type: arg.text({ about: "one kind of leave", optional: true, max: 32 }),
     limit: arg.number({
-      about: "how many at most; 100 unless said",
+      about: `how many at most; ${LINES} unless said`,
       optional: true,
       integer: true,
       min: 1,
-      max: 200,
+      max: LINES_AT_MOST,
     }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
@@ -342,7 +380,7 @@ export const requestsQuery = defineQuery({
       ),
     );
     const kept = scope === "waiting" ? views.filter((view) => view.mine) : views;
-    return kept.slice(0, args.limit ?? 100);
+    return kept.slice(0, args.limit ?? LINES);
   },
 });
 
@@ -407,8 +445,7 @@ async function calendarEntries(
 }
 
 export const calendar = defineQuery({
-  about:
-    "Who is out when, within a span of up to three months, as HR's configuration lets the caller see; with the holidays of the span.",
+  about: "Who is out within a span of up to three months, and its holidays.",
   args: {
     from: arg.day({ about: "the first day; the first of this month unless said", optional: true }),
     to: arg.day({
@@ -458,13 +495,9 @@ export const calendar = defineQuery({
 });
 
 export const peopleQuery = defineQuery({
-  about:
-    "The people and their records of leave: for HR every member of the workspace, enrolled or not, with their annual balance; for a manager the people below them; for anyone else nobody.",
+  about: "The people and their records: everyone for HR, those below them for a manager.",
   args: {
-    balances: arg.boolean({
-      about: "with each person's annual balance; on unless said",
-      optional: true,
-    }),
+    balances: arg.boolean({ about: "with each person's annual balance", optional: true }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<PeopleReport> {
@@ -489,7 +522,7 @@ export const peopleQuery = defineQuery({
       const record = byPerson.get(id) ?? null;
       const known = directoryMap.get(id);
       let annualFigures: PersonRow["annual"] = null;
-      if (args.balances !== false && record !== null && record.data.leave && annual !== undefined) {
+      if (args.balances === true && record !== null && record.data.leave && annual !== undefined) {
         const policy = await policyFor(ctx, record.data);
         const figures = await typeBalanceOf(
           ctx,
@@ -532,8 +565,7 @@ export const peopleQuery = defineQuery({
 });
 
 export const policiesQuery = defineQuery({
-  about:
-    "The leave policies, whole, for HR; a member reads their own policy's summary with balance.",
+  about: "HR: the leave policies, whole.",
   roles: [ROLE_HR],
   async run(ctx): Promise<PolicyView[]> {
     const actor = actorOf(ctx);
@@ -564,25 +596,26 @@ export const policiesQuery = defineQuery({
 });
 
 export const presetsQuery = defineQuery({
-  about: "The presets a policy starts from, each with what it says and every field it sets.",
-  roles: [ROLE_MEMBER, ROLE_HR],
-  async run(): Promise<readonly PresetView[]> {
+  about: "HR: the presets a policy starts from, with every field each sets.",
+  roles: [ROLE_HR],
+  async run(ctx): Promise<readonly PresetView[]> {
+    requireHr(actorOf(ctx));
     return PRESETS;
   },
 });
 
 export const typesQuery = defineQuery({
-  about: "The kinds of leave that may be requested, in order; for HR the disabled ones too.",
+  about: "The kinds of leave that may be requested; HR sees the disabled ones too.",
   roles: [ROLE_MEMBER, ROLE_HR],
-  async run(ctx): Promise<PluginRecord<LeaveType>[]> {
+  async run(ctx): Promise<LeaveType[]> {
     const actor = actorOf(ctx);
-    const all = await allTypes(ctx);
-    return actor.hr ? all : all.filter((type) => type.data.enabled);
+    const all = (await allTypes(ctx)).map((type) => type.data);
+    return actor.hr ? all : all.filter((type) => type.enabled);
   },
 });
 
 export const holidaysQuery = defineQuery({
-  about: "The holidays of a year, public and the organization's own.",
+  about: "The holidays of a year.",
   args: {
     year: arg.number({
       about: "the year; this year unless said",
@@ -593,29 +626,28 @@ export const holidaysQuery = defineQuery({
     }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
-  async run(ctx, args): Promise<PluginRecord<Holiday>[]> {
+  async run(ctx, args): Promise<Holiday[]> {
     const clock = await clockOf(ctx);
     const year = args.year ?? yearOf(clock.today);
     const items = await listAll<Holiday>(ctx.records(holidays), {
       where: { year },
       order: { field: "on" },
     });
-    return items;
+    return items.map((item) => item.data);
   },
 });
 
 export const ledgerQuery = defineQuery({
-  about:
-    "The lines of a person's ledger of leave, newest first: every grant, use, adjustment, expiry and payout; the caller's unless --person names another they may see.",
+  about: "A person's ledger of leave, newest first: every grant, use, adjustment and expiry.",
   args: {
     person: arg.person({ about: "whose; the caller's unless said", optional: true }),
     type: arg.text({ about: "one kind of leave; annual unless said", optional: true, max: 32 }),
     limit: arg.number({
-      about: "how many at most; 100 unless said",
+      about: `how many at most; ${LINES} unless said`,
       optional: true,
       integer: true,
       min: 1,
-      max: 200,
+      max: LINES_AT_MOST,
     }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
@@ -633,15 +665,20 @@ export const ledgerQuery = defineQuery({
       where: { personId: targetId, type: args.type ?? ANNUAL },
       order: { field: "on", descending: true },
     });
-    return items
-      .slice(0, args.limit ?? 100)
-      .map((item) => ({ id: item.id, entry: item.data, note: noteIn(item.data.note, words) }));
+    return items.slice(0, args.limit ?? LINES).map((item) => ({
+      id: item.id,
+      on: item.data.on,
+      kind: item.data.kind,
+      days: item.data.days,
+      expiresOn: item.data.expiresOn,
+      note: noteIn(item.data.note, words),
+      requestId: item.data.requestId,
+    }));
   },
 });
 
 export const overview = defineQuery({
-  about:
-    "The caller's leave at a glance: their balance, their leave to come, what waits for their decision, who is out today, the next holidays and the latest announcements.",
+  about: "The caller's leave at a glance, who is out today and the latest announcements.",
   roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx): Promise<OverviewReport> {
     const actor = actorOf(ctx);
@@ -738,7 +775,7 @@ function csvLine(values: readonly (string | number | null)[]): string {
 }
 
 export const exportQuery = defineQuery({
-  about: "HR: the ledger or the requests of a year as a CSV file, for payroll or the auditors.",
+  about: "HR: the ledger or the requests of a year as a CSV file.",
   args: {
     year: arg.number({ about: "the year", positional: true, integer: true, min: 1970, max: 2200 }),
     what: arg.enum(["ledger", "requests"], {
@@ -842,8 +879,7 @@ export const exportQuery = defineQuery({
 });
 
 export const preview = defineQuery({
-  about:
-    "What a request would be before it is made: its days, whether it is in time, what is available, who would approve it, and the refusal the command would answer.",
+  about: "What a request would come to, the refusal included, with nothing written.",
   args: {
     from: arg.day({ about: "the first day", positional: true }),
     to: arg.day({ about: "the last day", optional: true, positional: true }),
@@ -896,8 +932,7 @@ export const preview = defineQuery({
 });
 
 export const configQuery = defineQuery({
-  about:
-    "HR's configuration: the line and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
+  about: "HR: the configuration: the line, cancelling, who sees what, the working days.",
   roles: [ROLE_HR],
   async run(ctx): Promise<ConfigReport> {
     const actor = actorOf(ctx);

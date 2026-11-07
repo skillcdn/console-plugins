@@ -2,7 +2,7 @@
 // HTML; the console's `sc-` classes for the look and the plugin's own `pl-hr-` classes beside them;
 // the formatters of a language; and the way a form runs a command, with its button held while
 // the command runs and the refusal shown under it in the words it came in.
-import type { PluginFrame, PluginRecord } from "@skillcdn/console/plugin/web";
+import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import type {
   LeaveType,
   Part,
@@ -770,8 +770,8 @@ export function nameIn(names: Readonly<Record<string, string>>, language: string
 /** The kinds of leave by key, as the console answers them to the caller; empty where it refuses. */
 export async function loadTypes(frame: PluginFrame): Promise<Map<string, LeaveType>> {
   try {
-    const records = (await frame.query("types")) as readonly PluginRecord<LeaveType>[];
-    return new Map(records.map((record) => [record.data.key, record.data]));
+    const types = (await frame.query("types")) as readonly LeaveType[];
+    return new Map(types.map((type) => [type.key, type]));
   } catch {
     return new Map();
   }

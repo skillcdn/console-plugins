@@ -1,6 +1,5 @@
 // Setup, the holidays of a year: those of a built-in calendar, written in one go, and the
 // organization's own, added and removed by hand.
-import type { PluginRecord } from "@skillcdn/console/plugin/web";
 import type { Holiday } from "../../shared/contracts.js";
 import { isDay, yearOf } from "../../shared/days.js";
 import {
@@ -41,9 +40,9 @@ export async function holidaysTab(body: HTMLElement, view: SetupView): Promise<v
   const refresh = sequenced(async (fresh) => {
     yearLabel.textContent = String(year);
     try {
-      const records = (await frame.query("holidays", { year })) as readonly PluginRecord<Holiday>[];
+      const holidays = (await frame.query("holidays", { year })) as readonly Holiday[];
       if (fresh()) {
-        draw(records);
+        draw(holidays);
       }
     } catch (error) {
       if (fresh()) {
@@ -95,7 +94,7 @@ export async function holidaysTab(body: HTMLElement, view: SetupView): Promise<v
     }
     const names = [...(en.length > 0 ? [`en=${en}`] : []), ...(ko.length > 0 ? [`ko=${ko}`] : [])];
     const result = await runCommand(frame, submit, addStatus, words, "holiday", {
-      on: on.value,
+      day: on.value,
       name: names,
       kind: kind.value,
     });
@@ -108,21 +107,20 @@ export async function holidaysTab(body: HTMLElement, view: SetupView): Promise<v
     }
   });
 
-  function draw(records: readonly PluginRecord<Holiday>[]): void {
-    if (records.length === 0) {
+  function draw(holidays: readonly Holiday[]): void {
+    if (holidays.length === 0) {
       list.replaceChildren(empty(words.holidaysEmpty));
       return;
     }
     const rows = el("ul", "rows");
-    for (const record of records) {
-      const holiday = record.data;
+    for (const holiday of holidays) {
       const item = el("li", "rows-item");
       const remove = button(
         words.remove,
         () => {
           void (async () => {
             const result = await runCommand(frame, remove, status, words, "holiday", {
-              on: holiday.on,
+              day: holiday.on,
               remove: true,
             });
             if (result !== null) {

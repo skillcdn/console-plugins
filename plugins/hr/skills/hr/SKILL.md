@@ -1,53 +1,59 @@
 ---
 name: hr
-description: "Leave through the HR plugin, for the person you work for: request leave, cancel a request, read the balance, the requests, the calendar of who is out and the holidays. Use when a person asks to take a day off, to book leave, to cancel it, how many days they have left, who is out, or when the next holiday is: console plugin hr request <from> [<to>], cancel <id>, balance, requests, calendar, holidays."
+description: "Leave and announcements through the HR plugin, for the person you work for: request or cancel leave, read the balance, who is out and the holidays, read what HR announced; for a manager, answer and record the leave of the people below them. Use when a person asks for a day off, to cancel leave, how many days they have left, who is out, when the next holiday is, or what was announced."
 license: MIT
 metadata:
   author: skillcdn
 skillcdn:
   translations:
     ko:
-      title: HR 플러그인으로 휴가 다루기
-      description: "대신 일하는 사람의 휴가를 HR 플러그인으로 다룹니다: 휴가 신청, 신청 취소, 잔여·신청 내역·휴가 캘린더·공휴일 조회. 하루 쉬겠다, 휴가를 잡아 달라, 취소해 달라, 며칠 남았나, 누가 휴가인가, 다음 공휴일은 언제인가를 물을 때 쓰세요: console plugin hr request <from> [<to>], cancel <id>, balance, requests, calendar, holidays."
+      title: HR 플러그인으로 휴가와 공지 다루기
+      description: "대신 일하는 사람의 휴가와 공지를 HR 플러그인으로 다룹니다: 휴가 신청과 취소, 잔여·누가 쉬는지·공휴일 조회, 인사 공지 읽기, 매니저라면 아래 구성원의 휴가 결재와 대신 등록. 하루 쉬겠다, 휴가를 취소해 달라, 며칠 남았나, 누가 휴가인가, 다음 공휴일은 언제인가, 공지가 뭐가 있나를 물을 때 쓰세요."
 ---
 # Leave through HR
 
-The plugin keeps the leave of the workspace's people as records of the console: who has how many days, who asked for which days, what was decided. An agent acts as the person whose token it holds: their balance, their requests, their cancellations. A request goes to the person's manager in the console and on through whatever steps HR added, one decision after another on the board project; the agent waits for each as it waits for any decision.
+The plugin keeps the workspace's leave as records of the console. You act as the person whose token you hold. A request goes to that person's manager and on through whatever steps HR added, one decision after another on the board project, and you wait for each as for any decision.
 
 ## Commands
 
+`console plugin hr` lists what the person may run, and `console plugin hr help <command>` says one in full. A query prints JSON; add `--limit <n>` to a list to read less.
+
 | Do | Command |
 |---|---|
-| See what the plugin says of the person: days left, by kind, with what is used, waiting and expiring | `console plugin hr balance` |
-| See what a request would come to before making it: its days, whether it is in time, the balance, who approves it, and the refusal it would meet | `console plugin hr preview <from> [<to>] [--type <key>] [--part <part>]` |
-| Request leave: one day, or a span; `--type` picks the kind (`annual` unless said; `console plugin hr types` lists them); `--part` takes a part of one day, as the kind allows: `am`, `pm`, or the quarters `q1` to `q4`; `--reason` where the kind asks for it | `console plugin hr request <from> [<to>] [--type <key>] [--part <part>] [--reason <words>]` |
-| Wait for the answer when the command exits with 3 and prints the decision's id | `console decision <id> --wait 100` |
-| Read the person's requests, newest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>] [--from <day>] [--to <day>]` |
-| Cancel a request: one waiting at once; one approved as HR has it (freely before it starts, after a decision, or by HR alone) | `console plugin hr cancel <id> [--reason <words>]` |
-| For a manager: what waits for them, and the requests of everyone below them | `console plugin hr requests --scope waiting`, `console plugin hr requests --scope team` |
-| For a manager: answer a request as they tell you, by the option's number as `console decision <id>` prints it, or in their own words, which send it back to the person. The record names you beside them | `console answer <id> --option <n> [--note <words>]`, `console answer <id> --own "<words>"` |
-| For a manager, at any level above the person: record leave for them, approved as it is written; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
-| See who is out within a span of up to three months, as HR lets the person see | `console plugin hr calendar [--from <day>] [--to <day>]` |
-| The holidays of a year | `console plugin hr holidays [--year <n>]` |
-| The lines of the person's ledger: every grant, use, adjustment and expiry | `console plugin hr ledger [--type <key>]` |
-| The kinds of leave that may be requested | `console plugin hr types` |
-| The person's whole picture: balance, leave to come, what waits for their decision, who is out today, the next holidays, the latest announcements | `console plugin hr overview` |
-| What HR has announced: those on top, the newest, by category or by words | `console plugin hr announcements [--category <key>] [--search <words>] [--limit <n>]` |
-| One announcement in full, its text in Markdown | `console plugin hr announcement-view <id>` |
-
-`--json` prints the whole answer of any of them.
+| Days left, by kind | `console plugin hr balance` |
+| What a request would come to: its days, the balance, who approves, the refusal it would meet | `console plugin hr preview <from> [<to>] [--type <key>] [--part <part>]` |
+| Request leave: a day or a span. `--type` from `types`, `annual` unless said; `--part` `am`, `pm` or `q1` to `q4` where the kind allows; `--reason` where it asks | `console plugin hr request <from> [<to>] [--type <key>] [--part <part>] [--reason <words>]` |
+| The person's requests, newest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>]` |
+| Cancel a request of theirs: one waiting at once, one approved as HR has it | `console plugin hr cancel <id> [--reason <words>]` |
+| Who is out, up to three months at a time | `console plugin hr calendar [--from <day>] [--to <day>]` |
+| The kinds of leave; the holidays of a year | `console plugin hr types`, `console plugin hr holidays [--year <n>]` |
+| The lines behind the balance; every credit with what is left of it | `console plugin hr ledger [--type <key>]`, `console plugin hr balance --buckets` |
+| All at once: balance, leave to come, what waits for them, who is out today, the next holidays, the latest announcements | `console plugin hr overview` |
+| What HR announced, those on top and the newest; one in full, in Markdown | `console plugin hr announcements [--category <key>] [--search <words>]`, `console plugin hr announcement-view <id>` |
 
 ## How a request goes
 
-1. Read `console plugin hr preview <from> [<to>]` first when the person asks for days: it says how many days the span counts for, the balance, who would approve it and whether it is in time, without writing anything. A span is counted in working days: weekends and holidays are not leave, and `calendar` shows the holidays.
-2. `console plugin hr request <from> [<to>]`. The command refuses, in the person's language, a kind it does not know, a span with no working day, more days than are available (the message says how many are), a span that overlaps a request of the person's, a reason missing where the kind requires one, a part of a day the kind does not take, a day past the notice where the kind refuses it or leaves it to a manager, and a first day too far back; say the refusal to the person as it was said, and ask what they want instead.
-3. Where someone must approve, the command prints the decision's id and exits with 3: the request waits for the first step of its line. Wait with `console decision <id> --wait 100`; a line of several steps goes on by itself, so read `requests` to see how far it has come, its state and the note, and say that to the person. Where nobody has to approve, the leave is recorded at once.
-4. A request returned by whoever decided (an answer in their own words rather than approve or reject) carries their words in its note: read them to the person, who cancels and asks again as the words say.
+1. When the person asks for days, read `preview` first: it counts the span in working days, weekends and holidays not being leave, and writes nothing.
+2. Run `request` once. It refuses in the person's language; say the refusal as it was said, and ask what they want instead.
+3. Where someone must approve, the command prints the decision's id and exits with 3. Wait with `console decision <id> --wait 100`. A line of several steps goes on by itself, so read `requests` to see how far it has come and say that to the person. Where nobody has to approve, the leave is recorded at once.
+4. An answer in someone's own words returns the request, with their words in its note: read them to the person, who cancels it and asks again as the words say.
+
+## For a manager
+
+Whoever stands above a person in the console, at any depth, holds this with no role of their own.
+
+| Do | Command |
+|---|---|
+| What waits for them; the requests of everyone below them; those people | `console plugin hr requests --scope waiting`, `console plugin hr requests --scope team`, `console plugin hr people` |
+| Answer a request as they tell you. Its decision is `request.decisionId`; `console decision <id>` prints the options by number. Their own words send it back to the person. The record names you beside them | `console answer <id> --option <n> [--note <words>]`, `console answer <id> --own "<words>"` |
+| Record leave for someone below them, approved as it is written; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
+| The balance or the ledger of someone below them | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
 
 ## Rules
 
-- Request what the person asked, once; a request repeated is a second request and the second overlaps the first.
-- Never request, cancel or read for another person unless the person you work for manages them: the command refuses it, and HR's work is the skill `hr-administration`.
-- Say the numbers the plugin says, with the day they hold for; do not compute a balance yourself, and do not promise days the plugin has not promised.
-- The reason is the person's: give it as they gave it, and do not add to it.
-- Say what was done in the run's report, with the request's id the command printed.
+- Request what the person asked, once: a request repeated overlaps the first.
+- Act for someone else only where the person you work for manages them, and cancel only their own requests: HR cancels for others. HR's work is the skill `hr-administration`, and writing announcements the skill `hr-announcements`.
+- Say the numbers the plugin says, with the day they hold for. Do not compute a balance, and do not promise days the plugin has not promised.
+- The reason is the person's: give it as they gave it, and add nothing.
+- Nobody approves their own leave, through an agent or not.
+- Say what was done in the run's report, with the id the command printed.

@@ -1,7 +1,6 @@
 // Setup, the kinds of leave: each a card that says in a line how it is taken, and a form in four
 // parts: what it is, what it draws on, how far ahead it is asked and what happens past that, and
 // when it is approved as written.
-import type { PluginRecord } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
   AUTO_MODES,
@@ -286,9 +285,9 @@ export async function typesTab(body: HTMLElement, view: SetupView): Promise<void
 
   const refresh = sequenced(async (fresh) => {
     try {
-      const records = (await frame.query("types")) as readonly PluginRecord<LeaveType>[];
+      const types = (await frame.query("types")) as readonly LeaveType[];
       if (fresh()) {
-        draw(records);
+        draw(types);
       }
     } catch (error) {
       if (fresh()) {
@@ -312,17 +311,15 @@ export async function typesTab(body: HTMLElement, view: SetupView): Promise<void
     );
   }
 
-  function draw(records: readonly PluginRecord<LeaveType>[]): void {
-    keys = records.map((record) => record.data.key);
-    if (records.length === 0) {
+  function draw(types: readonly LeaveType[]): void {
+    keys = types.map((type) => type.key);
+    if (types.length === 0) {
       list.replaceChildren(empty(words.typesEmpty));
       return;
     }
     const cards = el("ul", "type-cards");
-    const sorted = [...records].sort((a, b) => a.data.order - b.data.order);
-    cards.append(
-      ...sorted.map((record) => typeCard(record.data, view, () => openEditor(record.data))),
-    );
+    const sorted = [...types].sort((a, b) => a.order - b.order);
+    cards.append(...sorted.map((type) => typeCard(type, view, () => openEditor(type))));
     list.replaceChildren(cards);
   }
 
