@@ -14,16 +14,23 @@ Each plugin is versioned on its own under semver, from 0.1.0 ([ADR-0006](../adr/
 
 On every push to `main`, the release workflow (`.github/workflows/release.yml`) looks at what is pending. With changesets pending, it opens or updates one pull request, `chore(repo): version packages`, that bumps the version and the changelog of every plugin that moved; a maintainer reviews and merges it. With nothing pending and a version the registry does not have, it builds every plugin, packs the ones the plan names, and publishes each tarball with `pnpm publish` through trusted publishing: no stored token, a short-lived identity the job proves to the registry, and a provenance attestation on every published version; it then makes a GitHub release and a tag per package (`@skillcdn/console-plugin-<key>@<version>`).
 
-## The first version, by hand
+## The first version of a plugin
 
-The registry learns which workflow may publish a package when the package exists, so the first version of each plugin is published by a maintainer, once, signed in to the registry as a member of the organization. In one change: the plugin's `package.json` loses `private: true` and gains `publishConfig: { "access": "public" }` (which `pnpm check` holds); its version stays `0.0.0`, as the adaptation of the template set it, and its pending `minor` changeset, the one that says what the plugin does, lands it on `0.1.0`: no number is chosen by hand. The workflow then opens the version pull request with the version and the changelog. From that pull request's branch, built and checked:
+The registry names a trusted publisher only on a package that exists, and a publisher named there expires unless it publishes within two days. So a maintainer makes the package exist, once, and the workflow publishes the first version ([ADR-0007](../adr/0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md)). The maintainer is signed in to the registry as a member of the organization who may publish, with `npm login`, run outside this repository, where `npm` refuses to run; pnpm reads the same login.
 
-```sh
-pnpm turbo run build --filter @skillcdn/console-plugin-<key>
-pnpm --filter @skillcdn/console-plugin-<key> publish --access public      # prepack copies the license in; postpack takes it out
-```
+1. In one change, the plugin's `package.json` loses `private: true` and gains `publishConfig: { "access": "public" }` (which `pnpm check` holds). Its version stays `0.0.0`, as the adaptation of the template set it, and its pending `minor` changeset, the one that says what the plugin does, lands it on `0.1.0`: no number is chosen by hand. Pushed to `main`, it makes the workflow open the version pull request.
+2. From a clean `main`, up to date with the remote, built and checked:
 
-Then, on the registry, the package's settings name its trusted publisher: GitHub Actions, the organization `skillcdn`, the repository `console-plugins`, the workflow `release.yml`. The pull request is merged last: the workflow finds the version published and publishes nothing, and from then on every version is the workflow's. A fork repeats this under its own scope and repository.
+   ```sh
+   pnpm turbo run build --filter @skillcdn/console-plugin-<key>
+   pnpm --filter @skillcdn/console-plugin-<key> publish --access public --otp <code>   # prepack copies the license in; postpack takes it out
+   ```
+
+3. On the registry, the package's settings name its trusted publisher: GitHub Actions, the organization `skillcdn`, the repository `console-plugins`, the workflow `release.yml`, no environment. The registry checks nothing when it is saved: the first publish is what proves it.
+4. The version pull request is merged, the same day. The workflow publishes `0.1.0` with provenance, a tag and a GitHub release, and from then on every version is the workflow's. Where the publisher had expired, it is deleted and named again, and the failed job run again.
+5. The placeholder is deprecated, outside this repository too: `npm deprecate "@skillcdn/console-plugin-<key>@0.0.0" "A placeholder that named the package; use a later version."`
+
+A fork repeats this under its own scope and repository.
 
 ## The repository's settings
 
@@ -33,7 +40,7 @@ Checked once by whoever administers the repository, and again by a fork:
 - Actions: workflow permissions read-only (each job declares what it needs), and "Allow GitHub Actions to create and approve pull requests" on, for the version pull request.
 - Security: private vulnerability reporting on ([SECURITY.md](../../SECURITY.md)), secret scanning on, Dependabot alerts on; the actions are kept current by `.github/dependabot.yml`.
 - Branch protection: none yet, while maintainers push to `main`; the checks are what CI runs on every push.
-- The registry: the organization's members who may publish by hand, and the trusted publisher of every published package.
+- The registry: the organization's members who may publish, and the trusted publisher of every published package; once that has published, the package's publishing access set to require two-factor authentication and disallow tokens, which leaves the workflow's identity working.
 
 ## The install, handed to a deployment
 

@@ -1,6 +1,6 @@
 # ADR-0002: One package per plugin, published to the registry under one scope and versioned on its own
 
-- Status: Accepted; point 3 was amended by [ADR-0005](0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md) and stands as written again since [ADR-0006](0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md) superseded it
+- Status: Accepted; point 3 was amended by [ADR-0005](0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md) and stands as written again since [ADR-0006](0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md) superseded it; the first publish of point 2 is superseded by [ADR-0007](0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md)
 - Date: 2026-11-06
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR-0006: A plugin has a version of its own and declares the consoles it runs on
 
-- Status: Accepted
+- Status: Accepted; who publishes the first version, in point 4, is superseded by [ADR-0007](0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md)
 - Date: 2026-11-06
 - Supersedes [ADR-0005](0005-a-plugin-is-versioned-on-the-consoles-line-with-a-patch-of-its-own.md). Point 3 of [ADR-0002](0002-one-package-per-plugin-published-to-the-registry-under-one-scope-and-versioned-on-its-own.md) stands again as written; point 2 of [ADR-0003](0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md) is amended as point 3 below says. The rule is held by `scripts/check-versions.mjs`; what a changeset says is in [.changeset/README.md](../../.changeset/README.md), and the procedure in [guide/releasing.md](../guide/releasing.md).
 
