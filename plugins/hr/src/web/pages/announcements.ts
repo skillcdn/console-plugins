@@ -81,7 +81,7 @@ export function categoryBadge(category: AnnouncementCategory, words: Words): HTM
 export function rowMarks(row: AnnouncementRow, words: Words): HTMLElement[] {
   return [
     ...(row.onTop ? [badge(words.announcementPinned, "accent")] : []),
-    ...(row.fresh ? [el("span", "ann-fresh", words.announcementFresh)] : []),
+    ...(row.fresh ? [badge(words.announcementFresh, "point")] : []),
   ];
 }
 

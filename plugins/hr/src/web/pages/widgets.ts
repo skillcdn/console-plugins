@@ -361,6 +361,9 @@ export async function renderApprovalsWidget(
   });
 }
 
+/** More than the tallest tile has room for: `keepWhatFits` says how many it shows. */
+const ROWS_AT_MOST = 24;
+
 /** The announcement a widget leads with. */
 function leading(
   row: AnnouncementRow,
@@ -390,13 +393,37 @@ function leading(
   return node;
 }
 
+/**
+ * Keeps the rows a tile has room for, each whole. A tile's height follows the width of the page, so
+ * that how many fit is known only here, and a row out of sight must not take the focus either.
+ */
+function keepWhatFits(list: HTMLElement): void {
+  const rows = [...list.children].filter((row) => row instanceof HTMLElement);
+  const observer = new ResizeObserver(() => {
+    const first = rows[0];
+    if (!list.isConnected || first === undefined) {
+      observer.disconnect();
+      return;
+    }
+    // A list may be as tall as its rows, so that it says its room with all of them in it.
+    for (const row of rows) {
+      row.hidden = false;
+    }
+    const room = Math.max(1, Math.floor(list.clientHeight / first.offsetHeight));
+    rows.forEach((row, index) => {
+      row.hidden = index >= room;
+    });
+  });
+  observer.observe(document.documentElement);
+}
+
 function announcementRows(
   rows: readonly AnnouncementRow[],
   frame: PluginFrame,
   words: Words,
   format: Formatters,
 ): HTMLElement {
-  const list = el("ul", "widget-rows");
+  const list = el("ul", "widget-rows ann-rows");
   for (const row of rows) {
     const item = el("li", "widget-row");
     const open = el("button", "widget-open");
@@ -416,6 +443,7 @@ function announcementRows(
     item.append(open);
     list.append(item);
   }
+  keepWhatFits(list);
   return list;
 }
 
@@ -426,8 +454,10 @@ export async function renderAnnouncementsWidget(
 ): Promise<void> {
   const format = formattersFor(frame.context.language, words);
   await mount(root, frame, words, async (size) => {
-    const report = (await frame.query("announcements", { limit: 6 })) as AnnouncementList;
-    const rows = [...report.pinned, ...report.items];
+    const report = (await frame.query("announcements", {
+      limit: ROWS_AT_MOST,
+    })) as AnnouncementList;
+    const rows = [...report.pinned, ...report.items].slice(0, ROWS_AT_MOST);
     const first = rows[0];
     if (first === undefined) {
       return [muted(words.announcementsNone)];
@@ -437,20 +467,20 @@ export async function renderAnnouncementsWidget(
       case "small":
         return [leading(first, frame, words, format, size)];
       case "medium":
-        return [announcementRows(rows.slice(0, 5), frame, words, format)];
+        return [announcementRows(rows, frame, words, format)];
       case "wide":
       case "full": {
         const split = el("div", "widget-split");
         split.append(
           leading(first, frame, words, format, size),
-          announcementRows(rest.slice(0, 4), frame, words, format),
+          announcementRows(rest, frame, words, format),
         );
         return [split];
       }
       default:
         return [
           leading(first, frame, words, format, size),
-          ...(rest.length === 0 ? [] : [announcementRows(rest.slice(0, 3), frame, words, format)]),
+          ...(rest.length === 0 ? [] : [announcementRows(rest, frame, words, format)]),
         ];
     }
   });

@@ -148,7 +148,7 @@
       },
       "place": "home:top",
       "sizes": ["small", "medium", "large", "wide"],
-      "defaultSize": "medium",
+      "defaultSize": "large",
       "roles": ["member"]
     },
     {

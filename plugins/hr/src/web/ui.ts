@@ -19,7 +19,7 @@ export const PREFIX = "pl-hr-";
 export const DASH = "—";
 
 export type CommandResult = Awaited<ReturnType<PluginFrame["command"]>>;
-export type Tone = "success" | "warning" | "danger" | "neutral" | "accent";
+export type Tone = "success" | "warning" | "danger" | "neutral" | "accent" | "point";
 export type ButtonKind = "primary" | "secondary" | "ghost" | "danger";
 
 export interface Option<K extends string = string> {

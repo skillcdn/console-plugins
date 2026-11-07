@@ -227,6 +227,11 @@
   border-top: var(--sc-hairline);
 }
 
+/* The line sets it off from what stands above it, where something does. */
+.pl-hr-fold:first-child {
+  border-top: 0;
+}
+
 .pl-hr-fold-title {
   padding: var(--sc-space-3) 0;
   color: var(--sc-color-text-muted);
@@ -924,7 +929,6 @@
   font-weight: var(--sc-weight-medium);
 }
 
-.pl-hr-steps,
 .pl-hr-rule-list,
 .pl-hr-type-cards {
   display: grid;
@@ -1546,21 +1550,6 @@
   gap: var(--sc-space-1);
 }
 
-.pl-hr-ann-fresh {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  min-width: 1.15rem;
-  height: 1.15rem;
-  padding: 0 0.3rem;
-  border-radius: var(--sc-radius-full);
-  background: var(--sc-color-accent-solid);
-  color: var(--sc-color-accent-contrast);
-  font-size: 0.65rem;
-  font-weight: var(--sc-weight-bold);
-  line-height: 1;
-}
-
 .pl-hr-ann-meta {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
@@ -1961,6 +1950,7 @@
 .pl-hr-widget-split {
   display: grid;
   flex: 1;
+  grid-template-rows: minmax(0, 1fr);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sc-space-5);
   align-items: stretch;
@@ -1982,8 +1972,48 @@
   align-content: start;
 }
 
-.pl-hr-widget-rows .pl-hr-ann-fresh {
+/* With rows under it, a picture keeps a band of 5:2, the rows take the room, and it takes what is left. */
+.pl-hr-widget-large .pl-hr-widget-lead:not(:last-child) {
   flex: none;
+}
+
+.pl-hr-widget-large .pl-hr-widget-lead:not(:last-child):has(.pl-hr-widget-lead-picture) {
+  flex: 1 0 auto;
+}
+
+.pl-hr-widget-large .pl-hr-widget-lead:not(:last-child) .pl-hr-widget-lead-picture {
+  min-height: 40vw;
+}
+
+/* One height, as many as the tile has room for: keepWhatFits in the page hides the rest. */
+.pl-hr-widget .pl-hr-ann-rows {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.pl-hr-ann-rows .pl-hr-widget-row {
+  flex: none;
+  height: 1.875rem;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-ann-rows .pl-hr-widget-row[hidden] {
+  display: none;
+}
+
+.pl-hr-ann-rows .pl-hr-widget-open {
+  padding: 0;
+}
+
+.pl-hr-ann-rows .pl-hr-widget-open:hover .pl-hr-widget-row-main {
+  color: var(--sc-color-accent);
+}
+
+.pl-hr-widget-large .pl-hr-widget-lead:has(.pl-hr-widget-lead-picture) + .pl-hr-ann-rows {
+  flex: 0 1 auto;
 }
 
 .pl-hr-rows-open {
