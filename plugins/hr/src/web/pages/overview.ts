@@ -1,9 +1,10 @@
 // The overview: the person's leave at a glance, from the query of the same name. How many days they
 // have, their leave to come, what waits for their decision, who is out today, the next holidays and
-// the organization's announcement, each a pane of its own. A request's reason is never here.
+// the latest announcements, each a pane of its own. A request's reason is never here.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
+  type AnnouncementRow,
   type CalendarEntry,
   type Holiday,
   type LeaveType,
@@ -42,6 +43,7 @@ import {
   who,
 } from "../ui.js";
 import type { Words } from "../words.js";
+import { dayOfRow, rowMarks } from "./announcements.js";
 
 interface View {
   readonly frame: PluginFrame;
@@ -227,14 +229,41 @@ function holidayList(holidays: readonly Holiday[], view: View): HTMLElement {
   return list;
 }
 
+function announcementsPanel(rows: readonly AnnouncementRow[], view: View): HTMLElement {
+  const { frame, words, format } = view;
+  const list = el("ul", "rows");
+  for (const row of rows) {
+    const item = el("li", "rows-item");
+    const open = el("button", "rows-open");
+    open.type = "button";
+    open.addEventListener("click", () => {
+      frame.navigate(`/plugins/hr/announcements/${row.id}`);
+    });
+    const main = el("span", "rows-main");
+    main.append(el("span", "rows-title", row.title), ...rowMarks(row, words));
+    open.append(main, el("span", "rows-side sc-muted", dayOfRow(row, frame, format)));
+    item.append(open);
+    list.append(item);
+  }
+  return panelWith(
+    words.announcementsTitle,
+    [
+      button(
+        words.announcementsSeeAll,
+        () => frame.navigate("/plugins/hr/announcements"),
+        "ghost",
+        true,
+      ),
+    ],
+    list,
+  );
+}
+
 function build(report: OverviewReport, view: View, hr: boolean): HTMLElement[] {
   const { words, format } = view;
   const parts: HTMLElement[] = [];
   if (!report.enrolled) {
     parts.push(notEnrolled(report, view, hr));
-  }
-  if (report.announcement.trim().length > 0) {
-    parts.push(panel(words.announcementTitle, el("div", "announcement", report.announcement)));
   }
   const main = stack();
   const mine = myLeave(report, view);
@@ -248,6 +277,9 @@ function build(report: OverviewReport, view: View, hr: boolean): HTMLElement[] {
     main.append(upcoming(report.upcoming, view));
   }
   const side = stack();
+  if (report.announcements.length > 0) {
+    side.append(announcementsPanel(report.announcements, view));
+  }
   side.append(
     panel(words.outTodayTitle, outTodayList(report.outToday, view)),
     panel(words.nextHolidaysTitle, holidayList(report.nextHolidays, view)),

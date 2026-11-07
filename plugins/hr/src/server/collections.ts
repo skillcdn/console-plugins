@@ -4,6 +4,10 @@
 import { defineCollection, z } from "@skillcdn/console/plugin";
 import {
   ACCRUAL_MODES,
+  ANNOUNCEMENT_BODY_AT_MOST,
+  ANNOUNCEMENT_CATEGORIES,
+  ANNOUNCEMENT_STATES,
+  ANNOUNCEMENT_TITLE_AT_MOST,
   APPROVER_SOURCES,
   AUTO_MODES,
   BALANCE_VISIBILITIES,
@@ -260,9 +264,44 @@ export const config = defineCollection("config", {
     calendarShowsType: z.boolean(),
     workDays: z.array(wordsOf(WEEKDAYS)).min(1).max(7),
     holidayCalendar: wordsOf(HOLIDAY_CALENDARS),
-    announcement: line(20_000),
   }),
   read: ["hr"],
+});
+
+/**
+ * HR's alone through the console's own routes: a draft is nobody else's to read, and the queries
+ * hand out what is published.
+ */
+export const announcements = defineCollection("announcements", {
+  schema: z.object({
+    title: line(ANNOUNCEMENT_TITLE_AT_MOST),
+    body: line(ANNOUNCEMENT_BODY_AT_MOST),
+    category: wordsOf(ANNOUNCEMENT_CATEGORIES),
+    state: wordsOf(ANNOUNCEMENT_STATES),
+    pinned: z.boolean(),
+    pinnedUntil: z.nullable(day),
+    picturesId: z.nullable(id),
+    authorId: id,
+    publishedBy: z.nullable(id),
+    publishedAt: z.nullable(line(40)),
+    editedAt: z.nullable(line(40)),
+    writtenAt: line(40),
+  }),
+  indexes: ["state", "pinned", "category", "publishedAt", "writtenAt"],
+  search: ["title", "body"],
+  read: ["hr"],
+});
+
+/**
+ * What holds an announcement's pictures. A file is read under the rule of its record, and an
+ * announcement's readers are everyone while its record is HR's, so the files stand on a record of
+ * their own that says nothing. A file's id is only ever in a text: no route lists them, so what is
+ * held for a draft stays out of reach until the text that names it is published.
+ */
+export const announcementPictures = defineCollection("announcement-pictures", {
+  schema: z.object({}),
+  read: ["member", "manager", "hr"],
+  history: false,
 });
 
 export const marks = defineCollection("marks", {
@@ -285,5 +324,7 @@ export const collections = [
   requests,
   ledger,
   holidays,
+  announcements,
+  announcementPictures,
   marks,
 ];

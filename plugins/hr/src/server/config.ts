@@ -16,7 +16,6 @@ export const DEFAULT_CONFIG: Config = {
   calendarShowsType: false,
   workDays: ["mon", "tue", "wed", "thu", "fri"],
   holidayCalendar: "none",
-  announcement: "",
 };
 
 export async function configRecord(ctx: PluginContext): Promise<PluginRecord<Config> | null> {

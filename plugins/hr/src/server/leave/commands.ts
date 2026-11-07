@@ -1484,7 +1484,7 @@ function parsed<T>(
 
 export const configure = defineCommand({
   about:
-    "HR: changes the configuration, the fields given: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar, the announcement.",
+    "HR: changes the configuration, the fields given: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
   args: {
     line: arg.text({
       about:
@@ -1530,11 +1530,6 @@ export const configure = defineCommand({
       about: "whose public holidays the daily job writes for the year ahead",
       optional: true,
     }),
-    announcement: arg.markdown({
-      about: "the organization's words about leave, above the request form",
-      optional: true,
-      max: 20_000,
-    }),
   },
   roles: [ROLE_HR],
   async run(ctx, args) {
@@ -1572,9 +1567,6 @@ export const configure = defineCommand({
     }
     if (args["holiday-calendar"] !== undefined) {
       patch.holidayCalendar = args["holiday-calendar"] as Config["holidayCalendar"];
-    }
-    if (args.announcement !== undefined) {
-      patch.announcement = args.announcement;
     }
     const saved = await writeConfig(ctx, patch);
     await ctx.events.emit("config-changed", { fields: Object.keys(patch) });

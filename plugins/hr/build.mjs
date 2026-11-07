@@ -1,6 +1,8 @@
 // Builds the plugin as the console installs it: the server module, one ESM file with everything
-// it runs bundled in; the web bundle, self-contained; and its stylesheet beside it, with what it
+// it runs bundled in; the web bundle, self-contained, with what a page imports when it is opened
+// split off beside it, so that a widget does not carry the editor; and its stylesheet, with what it
 // imports pulled in. The tests build the same way before checking the package.
+import { rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -8,6 +10,8 @@ import { build } from "esbuild";
 
 /** Builds the plugin whose root is `root` into its `dist/`. */
 export async function buildPlugin(root) {
+  // The split files are named by what they hold, so that the last build's would stay behind.
+  rmSync(join(root, "dist/web"), { recursive: true, force: true });
   await build({
     entryPoints: [join(root, "src/server/index.ts")],
     bundle: true,
@@ -23,7 +27,10 @@ export async function buildPlugin(root) {
     platform: "browser",
     format: "esm",
     target: "es2022",
+    splitting: true,
     outdir: join(root, "dist/web"),
+    chunkNames: "chunks/[name]-[hash]",
+    minify: true,
     logLevel: "warning",
   });
   await build({

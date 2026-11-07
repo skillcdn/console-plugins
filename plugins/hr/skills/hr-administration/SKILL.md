@@ -27,7 +27,7 @@ HR's agent holds the role `hr` through the person it works for. What it does is 
 | Write a year's public holidays from a built-in calendar | `console plugin hr generate-holidays <year> [--calendar kr\|us]` |
 | Write a holiday of the organization's own, or remove a day's | `console plugin hr holiday <day> --name en=<words> --name ko=<words> [--kind company\|public]`, `console plugin hr holiday <day> --remove` |
 
-What is not a policy is the configuration, HR's own, on the Setup page or with `configure`: how approved leave is cancelled, how far back a request may start, who sees balances and the calendar, the working days, the calendar the job writes holidays from, and the announcement on the leave page.
+What is not a policy is the configuration, HR's own, on the Setup page or with `configure`: how approved leave is cancelled, how far back a request may start, who sees balances and the calendar, the working days and the calendar the job writes holidays from.
 
 | Do | Command |
 |---|---|
@@ -44,6 +44,19 @@ A request travels a line: the steps of the default line, or of the first excepti
 | Set the exceptions, the first that holds winning; `kinds` and `teams` empty mean all | `console plugin hr configure --rules '[{"name":"Long leave","kinds":[],"teams":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]'` |
 | Write a team and its approvers | `console plugin hr team <key> --name <words> --approvers <login>,<login>` |
 | Read the teams, remove one nobody is on | `console plugin hr teams`, `console plugin hr team <key> --remove` |
+
+## Announcements
+
+What HR tells everyone, on the page `announcements` and on the front page. You write drafts; a person publishes, on the page, and the commands refuse an agent anything that reaches everyone: publishing, changing what is published, taking it down, removing it. Say where the draft is and leave the decision to them.
+
+| Do | Command |
+|---|---|
+| Read the drafts, or what is published | `console plugin hr announcements --scope drafts`, `console plugin hr announcements` |
+| Write a draft; `--category` is `general`, `policy`, `benefits`, `event` or `appointment` | `console plugin hr announcement --title <words> --body <markdown> [--category <key>] [--pinned on\|off] [--pinned-until <day>\|none]` |
+| Change a draft: the fields given | `console plugin hr announcement <id> --body <markdown>` |
+| Give a draft a picture, then put the line it answers in the body | `console plugin hr announcement-picture <id> --file <path> [--alt <words>]` |
+
+The body is Markdown in the part the page's toolbar reaches: `## heading`, `### subheading`, lists, nested up to three levels, `> quote`, `---`, `**bold**`, `*italic*`, `++underline++`, `~~strike~~`, `==highlight==`, and `[words](https://...)`, or a link whose address is a path of the console, such as `/plugins/hr/leave`. A newline is a line break. Tables, code and pictures from elsewhere stay as text. A picture is a line of its own, as `announcement-picture` answers it, and only a picture of that announcement shows.
 
 ## People
 

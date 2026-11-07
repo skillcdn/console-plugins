@@ -3,13 +3,19 @@
 // takes its own words from words.ts in the language the console sends it. The entry reads which
 // page or widget the frame shows and hands the root to its renderer under pages/.
 import { connect, type PluginFrame } from "@skillcdn/console/plugin/web";
+import { renderAnnouncements } from "./pages/announcements.js";
 import { renderApprovals } from "./pages/approvals.js";
 import { renderCalendar } from "./pages/calendar.js";
 import { renderLeave } from "./pages/leave.js";
 import { renderOverview } from "./pages/overview.js";
 import { renderPeople } from "./pages/people.js";
 import { renderSetup } from "./pages/setup.js";
-import { renderApprovalsWidget, renderBalanceWidget, renderTodayWidget } from "./pages/widgets.js";
+import {
+  renderAnnouncementsWidget,
+  renderApprovalsWidget,
+  renderBalanceWidget,
+  renderTodayWidget,
+} from "./pages/widgets.js";
 import { errorBlock } from "./ui.js";
 import { type Words, wordsFor } from "./words.js";
 
@@ -21,10 +27,14 @@ async function render(root: HTMLElement, frame: PluginFrame, words: Words): Prom
       return renderTodayWidget(root, frame, words);
     case "approvals":
       return renderApprovalsWidget(root, frame, words);
+    case "announcements":
+      return renderAnnouncementsWidget(root, frame, words);
     default:
       break;
   }
   switch (frame.context.page) {
+    case "announcements":
+      return renderAnnouncements(root, frame, words);
     case "leave":
       return renderLeave(root, frame, words);
     case "calendar":

@@ -66,6 +66,7 @@ import {
   standingOf,
   teamsByKey,
 } from "../access.js";
+import { latestAnnouncements } from "../announcements.js";
 import { holidays, ledger, people, policies, requests } from "../collections.js";
 import { configOf, configRecord, DEFAULT_CONFIG } from "../config.js";
 import {
@@ -677,7 +678,7 @@ export const ledgerQuery = defineQuery({
 
 export const overview = defineQuery({
   about:
-    "The caller's leave at a glance: their balance, their leave to come, what waits for their decision, who is out today, the next holidays and the announcement.",
+    "The caller's leave at a glance: their balance, their leave to come, what waits for their decision, who is out today, the next holidays and the latest announcements.",
   roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
   async run(ctx): Promise<OverviewReport> {
     const actor = actorOf(ctx);
@@ -757,7 +758,7 @@ export const overview = defineQuery({
       waiting,
       outToday: entries,
       nextHolidays: nextHolidays.slice(0, 5).map((item) => item.data),
-      announcement: config.announcement,
+      announcements: await latestAnnouncements(ctx, clock, directoryMap, 3),
       counts,
       ready: written.items.length > 0,
     };
@@ -951,7 +952,7 @@ export const teamsQuery = defineQuery({
 
 export const configQuery = defineQuery({
   about:
-    "HR's configuration: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar, the announcement.",
+    "HR's configuration: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
   roles: [ROLE_HR],
   async run(ctx): Promise<ConfigReport> {
     const actor = actorOf(ctx);

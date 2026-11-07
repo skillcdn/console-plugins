@@ -1,10 +1,13 @@
-// The widgets of the front page: my leave, who is out, and what waits for an approval. A widget is
+// The widgets of the front page: the announcements, my leave, who is out, and what waits for an
+// approval. A widget is
 // told the size it has, fills the cells of that size and redraws when it gets another one; each lays
 // itself out for the room it has, and shows less rather than scrolling. It pads nothing: the box the
 // console draws around it does. Never a reason.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
+  type AnnouncementList,
+  type AnnouncementRow,
   type CalendarEntry,
   type CalendarReport,
   type LeaveType,
@@ -12,9 +15,11 @@ import {
   waitingDecision,
 } from "../../shared/contracts.js";
 import { addDays, dateOf, eachDay, weekdayOf } from "../../shared/days.js";
+import { picture } from "../rich-text.js";
 import {
   avatar,
   button,
+  dayOfInstant,
   el,
   errorBlock,
   eyebrow,
@@ -35,6 +40,7 @@ import {
   who,
 } from "../ui.js";
 import type { Words } from "../words.js";
+import { categoryBadge, dayOfRow, rowMarks } from "./announcements.js";
 import { weekFrom } from "./calendar.js";
 
 type Size = NonNullable<PluginFrame["context"]["size"]>;
@@ -352,5 +358,100 @@ export async function renderApprovalsWidget(
       list.append(el("li", "widget-more", words.andMore(String(waiting.length - atMost))));
     }
     return [head, list];
+  });
+}
+
+/** The announcement a widget leads with. */
+function leading(
+  row: AnnouncementRow,
+  frame: PluginFrame,
+  words: Words,
+  format: Formatters,
+  size: Size,
+): HTMLElement {
+  const node = el("button", "widget-lead");
+  node.type = "button";
+  node.addEventListener("click", () => {
+    frame.navigate(`/plugins/hr/announcements/${row.id}`);
+  });
+  if (row.cover !== null) {
+    node.append(picture(frame, row.cover, "", "widget-lead-picture"));
+  }
+  const marks = el("span", "ann-marks");
+  marks.append(categoryBadge(row.category, words), ...rowMarks(row, words));
+  const text = el("span", "widget-lead-text");
+  text.append(marks, el("span", "widget-lead-title", row.title));
+  // Small, the picture takes the room the words would have.
+  if (row.excerpt.length > 0 && (size !== "small" || row.cover === null)) {
+    text.append(el("span", "widget-lead-excerpt", row.excerpt));
+  }
+  text.append(el("span", "ann-meta", dayOfRow(row, frame, format)));
+  node.append(text);
+  return node;
+}
+
+function announcementRows(
+  rows: readonly AnnouncementRow[],
+  frame: PluginFrame,
+  words: Words,
+  format: Formatters,
+): HTMLElement {
+  const list = el("ul", "widget-rows");
+  for (const row of rows) {
+    const item = el("li", "widget-row");
+    const open = el("button", "widget-open");
+    open.type = "button";
+    open.addEventListener("click", () => {
+      frame.navigate(`/plugins/hr/announcements/${row.id}`);
+    });
+    open.append(
+      el("span", "widget-row-main", row.title),
+      ...rowMarks(row, words),
+      el(
+        "span",
+        "widget-row-side sc-muted",
+        format.monthDay(dayOfInstant(frame, row.publishedAt ?? row.writtenAt)),
+      ),
+    );
+    item.append(open);
+    list.append(item);
+  }
+  return list;
+}
+
+export async function renderAnnouncementsWidget(
+  root: HTMLElement,
+  frame: PluginFrame,
+  words: Words,
+): Promise<void> {
+  const format = formattersFor(frame.context.language, words);
+  await mount(root, frame, words, async (size) => {
+    const report = (await frame.query("announcements", { limit: 6 })) as AnnouncementList;
+    const rows = [...report.pinned, ...report.items];
+    const first = rows[0];
+    if (first === undefined) {
+      return [muted(words.announcementsNone)];
+    }
+    const rest = rows.slice(1);
+    switch (size) {
+      case "small":
+        return [leading(first, frame, words, format, size)];
+      case "medium":
+        return [announcementRows(rows.slice(0, 5), frame, words, format)];
+      case "wide":
+      case "full": {
+        const split = el("div", "widget-split");
+        split.append(
+          leading(first, frame, words, format, size),
+          announcementRows(rest.slice(0, 4), frame, words, format),
+        );
+        return [split];
+      }
+      default:
+        return [
+          leading(first, frame, words, format, size),
+          ...(rest.length === 0 ? [] : [announcementRows(rest.slice(0, 3), frame, words, format)]),
+        ];
+    }
   });
 }

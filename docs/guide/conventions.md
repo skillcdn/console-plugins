@@ -52,7 +52,7 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 - A page has a head (`sc-page-head`) and each of its sections is a pane (`sc-panel`), with the console's view switch (`sc-subtabs`), facts, avatars (`frame.people.picture`), progress bars and empty states; it pads itself by `--sc-space-4`, and a calendar starts its week on `frame.context.workspace.firstDay`.
 - A widget declares the `sizes` it comes in, one of them at most four cells across, and lays itself out for each, from `frame.context.size` and `frame.onSize`; it fills its cells and shows less rather than scrolling.
 - A page refreshes on `frame.onEvent(["records", "command"])` for what its own plugin changed, and on `["plugin"]` for the events it emitted; the logic stays in the server module, so that the command line and the pages do the same thing.
-- A bundle holds no secret and imports nothing from elsewhere; a framework, where a plugin chooses one, is bundled, and `@skillcdn/console/plugin/web/react` is there for React.
+- A bundle holds no secret and imports nothing from elsewhere; a framework, where a plugin chooses one, is bundled, and `@skillcdn/console/plugin/web/react` is there for React. What only one page opens, an editor above all, is imported with `import()`, so that `build.mjs` splits it off and a widget does not carry it.
 
 ## Skills
 

@@ -242,8 +242,6 @@ export interface Config {
   readonly calendarShowsType: boolean;
   readonly workDays: Weekday[];
   readonly holidayCalendar: HolidayCalendar;
-  /** The organization's words about leave, shown above the request form. */
-  readonly announcement: string;
 }
 
 /** A team: its people name it, and its approvers approve them unless they have their own. */
@@ -555,6 +553,81 @@ export interface EntryView {
   readonly note: string;
 }
 
+export const ANNOUNCEMENT_STATES = ["draft", "published"] as const;
+export type AnnouncementState = (typeof ANNOUNCEMENT_STATES)[number];
+
+export const ANNOUNCEMENT_CATEGORIES = [
+  "general",
+  "policy",
+  "benefits",
+  "event",
+  "appointment",
+] as const;
+export type AnnouncementCategory = (typeof ANNOUNCEMENT_CATEGORIES)[number];
+
+export const ANNOUNCEMENT_TITLE_AT_MOST = 120;
+/** A record holds 64 KiB, and a Korean character takes three bytes of it. */
+export const ANNOUNCEMENT_BODY_AT_MOST = 16_000;
+export const PICTURES_AT_MOST = 20;
+/** What a picture may be: what a browser shows, and nothing that runs. */
+export const PICTURE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+export type PictureType = (typeof PICTURE_TYPES)[number];
+
+/** An announcement as it is kept. The body is the text of ./rich-text.ts. */
+export interface Announcement {
+  readonly title: string;
+  readonly body: string;
+  readonly category: AnnouncementCategory;
+  readonly state: AnnouncementState;
+  readonly pinned: boolean;
+  /** The last day it stays on top, or null for as long as it is pinned. */
+  readonly pinnedUntil: string | null;
+  /** The record of `announcement-pictures` that holds its files, once it has one. */
+  readonly picturesId: string | null;
+  readonly authorId: string;
+  readonly publishedBy: string | null;
+  readonly publishedAt: string | null;
+  /** The last change after it was published. */
+  readonly editedAt: string | null;
+  readonly writtenAt: string;
+}
+
+/** An announcement in a list. */
+export interface AnnouncementRow {
+  readonly id: string;
+  readonly title: string;
+  readonly category: AnnouncementCategory;
+  readonly state: AnnouncementState;
+  /** Whether it stands on top today. */
+  readonly onTop: boolean;
+  readonly pinned: boolean;
+  readonly pinnedUntil: string | null;
+  /** Published in the last days: a mark by the date, since nobody's reading is tracked. */
+  readonly fresh: boolean;
+  readonly excerpt: string;
+  /** Its first picture, the file's id. */
+  readonly cover: string | null;
+  readonly author: PersonBrief;
+  readonly publishedAt: string | null;
+  readonly editedAt: string | null;
+  readonly writtenAt: string;
+}
+
+export interface AnnouncementList {
+  readonly pinned: readonly AnnouncementRow[];
+  readonly items: readonly AnnouncementRow[];
+  /** Where the next page begins. */
+  readonly after: string | null;
+  /** How many drafts wait, for HR. */
+  readonly drafts: number | null;
+}
+
+/** One announcement, to read or to change. */
+export interface AnnouncementView extends AnnouncementRow {
+  readonly body: string;
+  readonly version: number;
+}
+
 export interface OverviewReport {
   readonly person: PersonBrief;
   readonly roles: readonly string[];
@@ -565,7 +638,7 @@ export interface OverviewReport {
   readonly waiting: readonly RequestView[];
   readonly outToday: readonly CalendarEntry[];
   readonly nextHolidays: readonly Holiday[];
-  readonly announcement: string;
+  readonly announcements: readonly AnnouncementRow[];
   readonly counts: {
     readonly enrolled: number;
     readonly waiting: number;

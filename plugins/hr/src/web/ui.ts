@@ -791,6 +791,14 @@ export function todayDay(frame: PluginFrame): string {
   return dayIn(new Date(), frame.context.workspace?.timeZone ?? "UTC");
 }
 
+/** The day an instant falls on, on the workspace's clock. */
+export function dayOfInstant(frame: PluginFrame, instant: string): string {
+  const at = new Date(instant);
+  return Number.isNaN(at.getTime())
+    ? instant
+    : dayIn(at, frame.context.workspace?.timeZone ?? "UTC");
+}
+
 /** The day the week begins on, 1 for Monday to 7 for Sunday, as the workspace has it. */
 export function firstDayOf(frame: PluginFrame): number {
   return frame.context.workspace?.firstDay ?? 1;

@@ -30,7 +30,6 @@ import {
   stack,
   statusLine,
   submitButton,
-  textarea,
   toggles,
 } from "../ui.js";
 import type { SetupView } from "./setup-shared.js";
@@ -70,7 +69,6 @@ function generalForm(report: ConfigReport, view: SetupView): HTMLElement[] {
     words.calendarVisibilityLabel,
   );
   const showsType = checkbox(words.calendarShowsTypeLabel, config.calendarShowsType);
-  const announcement = textarea({ value: config.announcement, maxLength: 20_000, rows: 4 });
 
   const send =
     (submit: HTMLButtonElement, status: HTMLElement, args: () => Record<string, unknown>) =>
@@ -131,23 +129,10 @@ function generalForm(report: ConfigReport, view: SetupView): HTMLElement[] {
     })),
   );
 
-  const wordsSubmit = submitButton(words.save);
-  const wordsStatus = statusLine();
-  const wordsForm = form(
-    settingRow(words.announcementLabel, words.announcementHint, announcement),
-    actions(wordsSubmit),
-    wordsStatus,
-  );
-  onSubmit(
-    wordsForm,
-    send(wordsSubmit, wordsStatus, () => ({ announcement: announcement.value })),
-  );
-
   return [
     panel(words.generalWork, workForm),
     panel(words.generalRequests, holdForm),
     panel(words.generalSee, seeForm),
-    panel(words.generalWords, wordsForm),
   ];
 }
 

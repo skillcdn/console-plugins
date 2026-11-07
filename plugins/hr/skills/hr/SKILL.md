@@ -30,7 +30,9 @@ The plugin keeps the leave of the workspace's people as records of the console: 
 | The holidays of a year | `console plugin hr holidays [--year <n>]` |
 | The lines of the person's ledger: every grant, use, adjustment and expiry | `console plugin hr ledger [--type <key>]` |
 | The kinds of leave that may be requested | `console plugin hr types` |
-| The person's whole picture: balance, leave to come, what waits for their decision, who is out today, the next holidays, the announcement | `console plugin hr overview` |
+| The person's whole picture: balance, leave to come, what waits for their decision, who is out today, the next holidays, the latest announcements | `console plugin hr overview` |
+| What HR has announced: those on top, the newest, by category or by words | `console plugin hr announcements [--category <key>] [--search <words>] [--limit <n>]` |
+| One announcement in full, its text in Markdown | `console plugin hr announcement-view <id>` |
 
 `--json` prints the whole answer of any of them.
 

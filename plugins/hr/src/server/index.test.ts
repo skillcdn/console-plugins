@@ -1582,14 +1582,12 @@ describe("the configuration", () => {
     await configure.run(ctx, {
       cancellation: "hr",
       "work-days": ["tue", "mon"],
-      announcement: "Plan ahead.",
     });
     const after = (await configQuery.run(ctx, {})) as ConfigReport;
     expect(after.ready).toBe(true);
     expect(after.config).toMatchObject({
       cancellation: "hr",
       workDays: ["mon", "tue"],
-      announcement: "Plan ahead.",
       holidayCalendar: "kr",
     });
     expect(ctx.all("config")).toHaveLength(1);

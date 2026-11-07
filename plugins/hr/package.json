@@ -2,7 +2,7 @@
   "name": "@skillcdn/console-plugin-hr",
   "version": "0.0.0",
   "private": true,
-  "description": "HR, a plugin of the SkillCDN Console: leave requests, approvals as decisions and balances from a policy written for Korea, the US or your own rules; attendance and the people's records to come.",
+  "description": "HR, a plugin of the SkillCDN Console: leave requests, approvals as decisions and balances from a policy written for Korea, the US or your own rules, and announcements; attendance and the people's records to come.",
   "license": "MIT",
   "type": "module",
   "homepage": "https://github.com/skillcdn/console-plugins/tree/main/plugins/hr#readme",
@@ -39,6 +39,14 @@
     "@skillcdn/console": "catalog:",
     "@types/node": "catalog:",
     "esbuild": "catalog:",
+    "prosemirror-commands": "^1.7.2",
+    "prosemirror-history": "^1.5.1",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.12",
+    "prosemirror-schema-list": "^1.6.0",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.42.9",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
