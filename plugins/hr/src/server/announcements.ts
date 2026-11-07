@@ -1,8 +1,8 @@
 // Announcements: what HR tells everyone. A draft is HR's alone; what is published everyone reads
-// through the queries here, since the record itself stays HR's. An agent may write a draft and give
-// it pictures, and a person decides whether it goes out: publishing, changing what is published and
-// taking it down are done on the page. Nobody's reading is tracked: a command leaves an event for
-// every open frame, and what is new is told by the date.
+// through the queries here, since the record itself stays HR's. Whoever holds the role writes,
+// publishes and takes down, a person on the page or their agent through the same command, and the
+// console's record says which. Nobody's reading is tracked: a command leaves an event for every
+// open frame, and what is new is told by the date.
 import {
   arg,
   defineCommand,
@@ -122,13 +122,9 @@ async function dropPictures(
   }
 }
 
-function byAgent(ctx: PluginContext): boolean {
-  return ctx.caller.kind === "person" && ctx.caller.agent !== null;
-}
-
 export const announcement = defineCommand({
   about:
-    "HR: writes an announcement, a draft until a person publishes it on the page; an id changes one. --publish, --withdraw and --remove act on it.",
+    "HR: writes an announcement, a draft until it is published; an id changes one. --publish, --withdraw and --remove act on it.",
   args: {
     id: arg.record("announcements", {
       about: "the announcement to change; left out, a new draft",
@@ -158,7 +154,7 @@ export const announcement = defineCommand({
       integer: true,
       min: 0,
     }),
-    publish: arg.boolean({ about: "publish it, on the page alone", optional: true }),
+    publish: arg.boolean({ about: "publish it, for everyone to read", optional: true }),
     withdraw: arg.boolean({ about: "take it down, back to a draft", optional: true }),
     remove: arg.boolean({ about: "remove it and its pictures", optional: true }),
   },
@@ -176,12 +172,6 @@ export const announcement = defineCommand({
     const existing = args.id === undefined ? null : await live(ctx, args.id);
     if (args.id !== undefined && existing === null) {
       throw new PluginError("unknown_announcement", no.noAnnouncement);
-    }
-    if (
-      byAgent(ctx) &&
-      (args.publish === true || args.withdraw === true || existing?.data.state === "published")
-    ) {
-      throw new PluginError("a_person_publishes", no.personPublishes);
     }
     const until = args["pinned-until"];
     if (until !== undefined && until !== "none" && !isDay(until)) {
@@ -297,9 +287,6 @@ export const announcementPicture = defineCommand({
     const existing = await live(ctx, args.id);
     if (existing === null) {
       throw new PluginError("unknown_announcement", no.noAnnouncement);
-    }
-    if (byAgent(ctx) && existing.data.state === "published") {
-      throw new PluginError("a_person_publishes", no.personPublishes);
     }
     if (!(PICTURE_TYPES as readonly string[]).includes(args.picture.type)) {
       throw new PluginError("picture_type", no.pictureType);

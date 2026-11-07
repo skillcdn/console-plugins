@@ -70,7 +70,6 @@ export interface Refusals {
   readonly notVisiblePeople: string;
   readonly noAnnouncement: string;
   readonly oneMove: string;
-  readonly personPublishes: string;
   readonly pinnedUntilShape: string;
   readonly pictureGone: string;
   readonly pictureType: string;
@@ -413,8 +412,6 @@ const ENGLISH: ServerWords = {
     notVisiblePeople: "The people are shown to HR and approvers.",
     noAnnouncement: "There is no such announcement.",
     oneMove: "Publish, take down or remove: one at a time.",
-    personPublishes:
-      "A person publishes what reaches everyone, on the page. An agent leaves a draft.",
     pinnedUntilShape: "The last day on top is a day as YYYY-MM-DD, or none.",
     pictureGone: "The text shows a picture the announcement no longer holds. Remove it and save.",
     pictureType: "A picture is a PNG, JPEG, WebP or GIF.",
@@ -423,8 +420,7 @@ const ENGLISH: ServerWords = {
     announcementNeedsBody: "An announcement needs some text before it goes out.",
   },
   untitled: "Untitled",
-  announcementDrafted: (title) =>
-    `Saved the draft "${title}". A person publishes it on the Announcements page.`,
+  announcementDrafted: (title) => `Saved the draft "${title}".`,
   announcementPublished: (title) => `Published "${title}".`,
   announcementChanged: (title) => `Changed "${title}".`,
   announcementWithdrawn: (title) => `Took "${title}" down. It is a draft again.`,
@@ -659,8 +655,6 @@ const KOREAN: ServerWords = {
     notVisiblePeople: "구성원 목록은 인사 담당과 결재자만 봅니다.",
     noAnnouncement: "해당 공지가 없습니다.",
     oneMove: "게시, 게시 내리기, 삭제는 한 번에 하나만 할 수 있습니다.",
-    personPublishes:
-      "모두에게 가는 공지는 사람이 페이지에서 게시합니다. 에이전트는 임시 저장까지 할 수 있습니다.",
     pinnedUntilShape: "고정 종료일은 YYYY-MM-DD 형식의 날짜이거나 none입니다.",
     pictureGone: "본문의 이미지 중 더 이상 없는 것이 있습니다. 해당 이미지를 지우고 저장해 주세요.",
     pictureType: "이미지는 PNG, JPEG, WebP, GIF만 올릴 수 있습니다.",
@@ -669,8 +663,7 @@ const KOREAN: ServerWords = {
     announcementNeedsBody: "게시하려면 본문이 필요합니다.",
   },
   untitled: "제목 없음",
-  announcementDrafted: (title) =>
-    `"${title}"을(를) 임시 저장했습니다. 공지사항 페이지에서 사람이 게시합니다.`,
+  announcementDrafted: (title) => `"${title}"을(를) 임시 저장했습니다.`,
   announcementPublished: (title) => `"${title}"을(를) 게시했습니다.`,
   announcementChanged: (title) => `"${title}"을(를) 수정했습니다.`,
   announcementWithdrawn: (title) => `"${title}"의 게시를 내렸습니다. 임시 저장으로 돌아갔습니다.`,

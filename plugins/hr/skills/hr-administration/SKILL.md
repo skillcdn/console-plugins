@@ -47,14 +47,15 @@ A request travels a line: the steps of the default line, or of the first excepti
 
 ## Announcements
 
-What HR tells everyone, on the page `announcements` and on the front page. You write drafts; a person publishes, on the page, and the commands refuse an agent anything that reaches everyone: publishing, changing what is published, taking it down, removing it. Say where the draft is and leave the decision to them.
+What HR tells everyone, on the page `announcements` and on the front page. An announcement is a draft, seen by HR alone, until it is published. Publish what the person asked you to publish, and say what went out.
 
 | Do | Command |
 |---|---|
 | Read the drafts, or what is published | `console plugin hr announcements --scope drafts`, `console plugin hr announcements` |
 | Write a draft; `--category` is `general`, `policy`, `benefits`, `event` or `appointment` | `console plugin hr announcement --title <words> --body <markdown> [--category <key>] [--pinned on\|off] [--pinned-until <day>\|none]` |
-| Change a draft: the fields given | `console plugin hr announcement <id> --body <markdown>` |
-| Give a draft a picture, then put the line it answers in the body | `console plugin hr announcement-picture <id> --file <path> [--alt <words>]` |
+| Publish it, take it down back to a draft, or remove it and its pictures for good | `console plugin hr announcement <id> --publish`, `--withdraw`, `--remove` |
+| Change one, a draft or what is published: the fields given | `console plugin hr announcement <id> --body <markdown>` |
+| Give it a picture, then put the line it answers in the body | `console plugin hr announcement-picture <id> --file <path> [--alt <words>]` |
 
 The body is Markdown in the part the page's toolbar reaches: `## heading`, `### subheading`, lists, nested up to three levels, `> quote`, `---`, `**bold**`, `*italic*`, `++underline++`, `~~strike~~`, `==highlight==`, and `[words](https://...)`, or a link whose address is a path of the console, such as `/plugins/hr/leave`. A newline is a line break. Tables, code and pictures from elsewhere stay as text. A picture is a line of its own, as `announcement-picture` answers it, and only a picture of that announcement shows.
 

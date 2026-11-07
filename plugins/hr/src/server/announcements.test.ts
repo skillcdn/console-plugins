@@ -169,27 +169,21 @@ describe("publishing", () => {
     });
   });
 
-  it("is a person's, on the page: an agent leaves a draft", async () => {
+  it("is the same for an agent as for the person it acts for", async () => {
     const ctx = context();
     const agent = ctx.as(HR_AGENT);
     const result = await announcement.run(agent, { title: "From an agent", body: "Text" });
     const { id } = result.data as { id: string };
-    await expect(announcement.run(agent, { id, publish: true })).rejects.toMatchObject({
-      code: "a_person_publishes",
-    });
+    await announcement.run(agent, { id, publish: true });
+    expect(ctx.all("announcements")[0]).toMatchObject({ data: { state: "published" } });
+    await announcement.run(agent, { id, title: "Changed" });
+    expect(ctx.all("announcements")[0]).toMatchObject({ data: { title: "Changed" } });
+    await announcementPicture.run(agent, { id, picture: picture() });
+    await announcement.run(agent, { id, withdraw: true });
     expect(ctx.all("announcements")[0]).toMatchObject({ data: { state: "draft" } });
-    await announcement.run(ctx, { id, publish: true });
-    await expect(announcement.run(agent, { id, title: "Changed" })).rejects.toMatchObject({
-      code: "a_person_publishes",
-    });
-    await expect(announcement.run(agent, { id, withdraw: true })).rejects.toMatchObject({
-      code: "a_person_publishes",
-    });
-    await expect(announcement.run(agent, { id, remove: true })).rejects.toMatchObject({
-      code: "a_person_publishes",
-    });
-    await expect(announcementPicture.run(agent, { id, picture: picture() })).rejects.toMatchObject({
-      code: "a_person_publishes",
+    await announcement.run(agent, { id, remove: true });
+    await expect(announcementView.run(ctx, { id })).rejects.toMatchObject({
+      code: "unknown_announcement",
     });
   });
 
@@ -197,7 +191,7 @@ describe("publishing", () => {
     const ctx = context();
     await expect(
       announcement.run(ctx.as(KOREAN_AGENT), { title: "x", publish: true }),
-    ).rejects.toThrow("사람이 페이지에서 게시");
+    ).rejects.toThrow("게시하려면 본문이 필요합니다");
     await expect(announcementView.run(ctx.as(KOREAN_ALICE), { id: "nothing" })).rejects.toThrow(
       "해당 공지가 없습니다",
     );
