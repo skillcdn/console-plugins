@@ -267,6 +267,12 @@ export async function prepareRequest(
     throw new PluginError("not_their_manager", no.notTheirManager);
   }
   const to = asked.to ?? asked.from;
+  // The console holds a day to its shape alone, so February 30 comes this far.
+  for (const day of [asked.from, to]) {
+    if (!isDay(day)) {
+      throw new PluginError("bad_day", no.badDay(day));
+    }
+  }
   if (to < asked.from) {
     throw new PluginError("span", no.spanBackwards);
   }
@@ -1100,7 +1106,8 @@ export const type = defineCommand({
       optional: true,
     }),
     auto: arg.enum(AUTO_MODES as unknown as [string, ...string[]], {
-      about: "approved as written: never, always, or upTo (--auto-days, in time)",
+      about:
+        "approved as written: never, always (past the notice too), or upTo (in time, up to --auto-days)",
       optional: true,
     }),
     "auto-days": arg.number({
@@ -1369,7 +1376,9 @@ export const setup = defineCommand({
     }
     await ctx.events.emit("policy-changed", { key: presetKey });
     return {
-      text: words.setupDone(typesWritten, presetKey, holidaysWritten),
+      text:
+        words.setupDone(typesWritten, presetKey, holidaysWritten) +
+        (clock.timeZone === "UTC" ? ` ${words.zoneIsUtc}` : ""),
       data: { types: typesWritten, policy: policyRecord, holidays: holidaysWritten },
     };
   },

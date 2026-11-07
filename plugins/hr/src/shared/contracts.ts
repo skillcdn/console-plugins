@@ -526,6 +526,8 @@ export interface PolicyView {
 export interface ConfigReport {
   readonly version: number;
   readonly config: Config;
+  /** The workspace's time zone, which today, notice times and the daily job follow; UTC where it keeps none. */
+  readonly timeZone: string;
   /** Whether leave was set up: at least a policy is written. */
   readonly ready: boolean;
   /** The people named in the lines and the rules, by id. */

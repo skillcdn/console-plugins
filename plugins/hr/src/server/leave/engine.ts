@@ -19,6 +19,7 @@ import { ledger, requests } from "../collections.js";
 import { listAll } from "../store.js";
 import {
   availableOn,
+  closedWithin,
   expiringAfter,
   type Line,
   type ProjectedCredit,
@@ -34,7 +35,7 @@ export interface LedgerOf {
   readonly pending: VirtualUse[];
 }
 
-function lineOf(record: PluginRecord<Entry>): Line {
+export function lineOf(record: PluginRecord<Entry>): Line {
   return { ...record.data, id: record.id };
 }
 
@@ -138,18 +139,21 @@ export async function typeBalanceOf(
   const buckets: Bucket[] = settlement.buckets.filter(
     (bucket) => bucket.remaining > 0 || bucket.on >= key,
   );
+  // What the period before left and still holds on the period's first day, which is how a credit
+  // that outlives its period is counted: the first year's days of a calendar-year policy are.
+  const opening = settle(lines.filter((line) => line.on < key || line.kind === "reverse"));
   return {
     type: type.key,
     name: type.name,
     balance: type.key === ANNUAL ? "annual" : type.balance,
     period,
     granted: sumOf(lines, key, ["grant", "accrual"], "credit"),
-    carriedIn: sumOf(lines, key, ["carry"], "credit"),
+    carriedIn: roundDays(availableOn(opening, key) + sumOf(lines, key, ["carry"], "credit")),
     used: sumOf(lines, key, ["use"], "debit"),
     pending: roundDays(
       pending.filter((use) => use.period === key).reduce((sum, use) => sum + use.days, 0),
     ),
-    expired: sumOf(lines, key, ["expire", "payout"], "debit"),
+    expired: closedWithin(lines, key, settlement),
     adjusted: sumOf(lines, key, ["adjust"], "any"),
     available: availableOn(settlement, today),
     buckets,

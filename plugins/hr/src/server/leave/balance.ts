@@ -30,6 +30,11 @@ export interface Settlement {
   readonly buckets: readonly Bucket[];
   /** Uses that found no credit to take from: the balance below zero. */
   readonly overdraft: number;
+  /**
+   * What each line that closes a credit really took, by the line's id: less than it says where
+   * the days went earlier than it, by a use or an adjustment written after it for a day before.
+   */
+  readonly closed: ReadonlyMap<string, number>;
 }
 
 interface Working {
@@ -42,11 +47,17 @@ interface Working {
   readonly projected: boolean;
 }
 
+interface State {
+  readonly buckets: Working[];
+  overdraft: number;
+  readonly closed: Map<string, number>;
+}
+
 interface Event {
   readonly on: string;
   readonly order: number;
   readonly id: string;
-  readonly apply: (state: { buckets: Working[]; overdraft: number }) => void;
+  readonly apply: (state: State) => void;
 }
 
 function validOn(bucket: Working, day: string): boolean {
@@ -71,7 +82,7 @@ function byExpiry(a: Working, b: Working): number {
   return a.expiresOn < b.expiresOn ? -1 : 1;
 }
 
-function take(state: { buckets: Working[]; overdraft: number }, day: string, amount: number): void {
+function take(state: State, day: string, amount: number): void {
   let left = amount;
   for (const bucket of [...state.buckets].filter((b) => validOn(b, day)).sort(byExpiry)) {
     if (left <= 0) {
@@ -86,7 +97,7 @@ function take(state: { buckets: Working[]; overdraft: number }, day: string, amo
   }
 }
 
-function credit(state: { buckets: Working[]; overdraft: number }, bucket: Working): void {
+function credit(state: State, bucket: Working): void {
   if (state.overdraft > 0 && bucket.remaining > 0) {
     const repaid = Math.min(bucket.remaining, state.overdraft);
     bucket.remaining = roundDays(bucket.remaining - repaid);
@@ -140,9 +151,11 @@ export function settle(
         apply: (state) => {
           if (line.bucket !== null) {
             const target = state.buckets.find((b) => b.ref === line.bucket);
+            const taken = Math.min(target?.remaining ?? 0, amount);
             if (target !== undefined) {
-              target.remaining = roundDays(Math.max(0, target.remaining - amount));
+              target.remaining = roundDays(target.remaining - taken);
             }
+            state.closed.set(line.id, taken);
             return;
           }
           take(state, line.on, amount);
@@ -191,7 +204,7 @@ export function settle(
         ? -1
         : 1,
   );
-  const state = { buckets: [] as Working[], overdraft: 0 };
+  const state: State = { buckets: [], overdraft: 0, closed: new Map() };
   for (const event of events) {
     event.apply(state);
   }
@@ -206,6 +219,7 @@ export function settle(
       projected: bucket.projected,
     })),
     overdraft: state.overdraft,
+    closed: state.closed,
   };
 }
 
@@ -236,6 +250,21 @@ export function expiringAfter(
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([on, days]) => ({ on, days }));
+}
+
+/** What expired or was paid out within a period: what those lines took, not what they say. */
+export function closedWithin(
+  lines: readonly Line[],
+  period: string,
+  settlement: Settlement,
+): number {
+  let total = 0;
+  for (const line of lines) {
+    if (line.period === period && (line.kind === "expire" || line.kind === "payout")) {
+      total += settlement.closed.get(line.id) ?? Math.abs(line.days);
+    }
+  }
+  return roundDays(total);
 }
 
 /** The sum of the lines of some kinds within a period, as a positive figure. */

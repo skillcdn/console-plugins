@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntryKind } from "../../shared/contracts.js";
-import { availableOn, expiringAfter, type Line, settle, sumOf } from "./balance.js";
+import { availableOn, closedWithin, expiringAfter, type Line, settle, sumOf } from "./balance.js";
 
 let counter = 0;
 
@@ -146,5 +146,36 @@ describe("settling a ledger", () => {
     expect(sumOf(lines, "2026-01-01", ["adjust"], "any")).toBe(1);
     expect(sumOf(lines, "2026-01-01", ["use"], "debit")).toBe(4);
     expect(sumOf(lines, "2025-01-01", ["grant"], "credit")).toBe(0);
+  });
+});
+
+describe("what an expiry takes", () => {
+  it("is what was left of the credit it closes, not what it says", () => {
+    const lines = [
+      line("accrual", 1, "2025-07-23", { ref: "monthly:1", expiresOn: "2026-06-22" }),
+      line("accrual", 1, "2025-08-23", { ref: "monthly:2", expiresOn: "2026-06-22" }),
+      line("grant", 15, "2026-01-01", { ref: "grant:2026-01-01", expiresOn: "2026-12-31" }),
+      line("expire", -1, "2026-06-23", { bucket: "monthly:1" }),
+      line("expire", -1, "2026-06-23", { bucket: "monthly:2" }),
+      // Entered after the expiries were written, for a day before them.
+      line("use", -1, "2026-02-10", { requestId: "r1" }),
+    ];
+    const settlement = settle(lines);
+    expect(closedWithin(lines, "2026-01-01", settlement)).toBe(1);
+    expect(availableOn(settlement, "2026-11-06")).toBe(15);
+  });
+
+  it("counts a line that names no credit as it says", () => {
+    const lines = [line("grant", 10, "2026-01-01"), line("payout", -2, "2026-03-01")];
+    expect(closedWithin(lines, "2026-01-01", settle(lines))).toBe(2);
+  });
+
+  it("is only the period's", () => {
+    const lines = [
+      line("accrual", 1, "2025-07-23", { ref: "monthly:1", expiresOn: "2025-12-31" }),
+      line("expire", -1, "2026-01-01", { bucket: "monthly:1", period: "2025-01-01" }),
+    ];
+    expect(closedWithin(lines, "2026-01-01", settle(lines))).toBe(0);
+    expect(closedWithin(lines, "2025-01-01", settle(lines))).toBe(1);
   });
 });

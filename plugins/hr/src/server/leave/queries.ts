@@ -78,8 +78,9 @@ import {
 } from "../store.js";
 import { noteIn, serverWords } from "../words.js";
 import { approvedAs, nextOf, waitingIn } from "./approval.js";
+import { settle } from "./balance.js";
 import { prepareRequest } from "./commands.js";
-import { typeBalanceOf } from "./engine.js";
+import { ledgerOf, lineOf, typeBalanceOf } from "./engine.js";
 import { PRESETS, policyAbout, policyName } from "./presets.js";
 import { isCounted } from "./rules.js";
 
@@ -681,15 +682,24 @@ export const ledgerQuery = defineQuery({
       where: { personId: targetId, type: args.type ?? ANNUAL },
       order: { field: "on", descending: true },
     });
-    return items.slice(0, args.limit ?? LINES).map((item) => ({
-      id: item.id,
-      on: item.data.on,
-      kind: item.data.kind,
-      days: item.data.days,
-      expiresOn: item.data.expiresOn,
-      note: noteIn(item.data.note, words),
-      requestId: item.data.requestId,
-    }));
+    // A line that closes a credit counts for what it took, so that the lines come to the balance;
+    // one that took nothing changed nothing, and would push what did happen out of the first lines.
+    const { closed } = settle(items.map(lineOf));
+    return items
+      .filter((item) => closed.get(item.id) !== 0)
+      .slice(0, args.limit ?? LINES)
+      .map((item) => {
+        const took = closed.get(item.id);
+        return {
+          id: item.id,
+          on: item.data.on,
+          kind: item.data.kind,
+          days: took === undefined ? item.data.days : 0 - took,
+          expiresOn: item.data.expiresOn,
+          note: noteIn(item.data.note, words),
+          requestId: item.data.requestId,
+        };
+      });
   },
 });
 
@@ -791,6 +801,27 @@ function csvLine(values: readonly (string | number | null)[]): string {
     .join(",");
 }
 
+/** What the lines closing a credit took, for those among `items`, each settled with the rest of its ledger. */
+async function closedBy(
+  ctx: PluginContext,
+  items: readonly PluginRecord<Entry>[],
+): Promise<ReadonlyMap<string, number>> {
+  const closed = new Map<string, number>();
+  const settled = new Set<string>();
+  for (const { data } of items) {
+    const whose = `${data.personId}:${data.type}`;
+    if (data.bucket === null || settled.has(whose)) {
+      continue;
+    }
+    settled.add(whose);
+    const { lines } = await ledgerOf(ctx, data.personId, data.type);
+    for (const [id, took] of settle(lines).closed) {
+      closed.set(id, took);
+    }
+  }
+  return closed;
+}
+
 export const exportQuery = defineQuery({
   about: "HR: the ledger or the requests of a year as a CSV file.",
   args: {
@@ -829,15 +860,18 @@ export const exportQuery = defineQuery({
         where: { on: { gte: from, lte: to } },
         order: { field: "on" },
       });
+      // Payroll reads this: a payout counts for the days it took, not the days it said.
+      const closed = await closedBy(ctx, items);
       for (const item of items) {
         const entry = item.data;
+        const took = closed.get(item.id);
         lines.push(
           csvLine([
             entry.on,
             login(entry.personId),
             entry.type,
             entry.kind,
-            entry.days,
+            took === undefined ? entry.days : 0 - took,
             entry.period,
             entry.expiresOn,
             entry.ref,
@@ -963,6 +997,7 @@ export const configQuery = defineQuery({
     return {
       version: record?.version ?? 0,
       config,
+      timeZone: (await clockOf(ctx)).timeZone,
       ready: written.items.length > 0,
       people: ids.map((id) => briefOf(id, directoryMap, null)),
     };

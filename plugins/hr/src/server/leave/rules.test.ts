@@ -351,6 +351,6 @@ describe("describing a policy", () => {
     expect(text).toContain("hire anniversary");
     expect(text).toContain("15 days from year 1");
     expect(text).toContain("one day per month in the first year");
-    expect(text).toContain("expire at the period's end");
+    expect(text).toContain("paid out at the period's end");
   });
 });

@@ -10,6 +10,7 @@ export interface Refusals {
   readonly hrOnly: string;
   readonly personOnly: string;
   readonly noBoard: string;
+  readonly badDay: (day: string) => string;
   readonly notEnrolled: string;
   readonly noRecord: string;
   readonly spanBackwards: string;
@@ -132,6 +133,7 @@ export interface ServerWords {
   readonly holidayRemoved: (day: string) => string;
   readonly holidaysWritten: (count: number, year: number, calendar: string) => string;
   readonly setupDone: (types: number, policy: string, holidays: number) => string;
+  readonly zoneIsUtc: string;
   readonly expiryTaskTitle: (on: string) => string;
   readonly expiryTaskBody: (
     on: string,
@@ -273,14 +275,17 @@ const ENGLISH: ServerWords = {
       semimonthly: "accrued twice a month",
       biweekly: "accrued every two weeks",
     }[policy.accrual];
+    const rest = policy.payoutUnused ? ", the rest paid out" : "";
     const carry =
       policy.carryOver === "none"
-        ? "unused days expire at the period's end"
+        ? policy.payoutUnused
+          ? "unused days are paid out at the period's end"
+          : "unused days expire at the period's end"
         : policy.carryOver === "all"
           ? policy.carryOverMonths === null
             ? "unused days carry over"
-            : `unused days carry over for ${policy.carryOverMonths} months`
-          : `up to ${policy.carryOverDays ?? 0} unused days carry over`;
+            : `unused days carry over for ${policy.carryOverMonths} months${rest}`
+          : `up to ${policy.carryOverDays ?? 0} unused days carry over${rest}`;
     return `${basis}, ${accrual}; ${days}${policy.firstYearMonthly ? "; one day per month in the first year" : ""}; ${carry}.`;
   },
   requested: (id) => `Requested; the decision is waiting. Request ${id}.`,
@@ -303,6 +308,8 @@ const ENGLISH: ServerWords = {
     `${count} holidays of ${year} written from the ${calendar} calendar.`,
   setupDone: (types, policy, holidays) =>
     `Set up: ${types} leave types, the policy ${policy} as the default, ${holidays} holidays.`,
+  zoneIsUtc:
+    "The workspace keeps UTC, so today and every notice time are counted in UTC. If you work elsewhere, an administrator sets it: console workspace edit --time-zone <zone>, for example Asia/Seoul.",
   expiryTaskTitle: (on) => `Leave expiring on ${on}: remind the people`,
   expiryTaskBody: (on, rows, daysBefore) =>
     `Days of leave that expire on ${on} (${daysBefore} days from now) and are not used yet. Tell each person, in writing where the law asks for it, and plan the days.\n\n${rows.map((row) => `- ${row.who}: ${row.days}`).join("\n")}`,
@@ -336,6 +343,7 @@ const ENGLISH: ServerWords = {
     hrOnly: "Only HR may do this.",
     personOnly: "This is done as a person, not by the console itself.",
     noBoard: "The plugin has no board project; an administrator binds one.",
+    badDay: (day) => `${day} is not a day of the calendar.`,
     notEnrolled:
       "This person is not enrolled for leave; HR does it on the People page or with enroll --leave on.",
     noRecord: "The person has no record yet; enroll them first.",
@@ -437,7 +445,7 @@ const KOREAN: ServerWords = {
     last,
   }) => {
     const lines = [
-      `**${who}**님이 **${type}** ${span}, ${days}을(를) 신청했습니다.`,
+      `**${who}**님이 **${type}** ${span}, ${days}을 신청했습니다.`,
       `사유: ${reason}`,
     ];
     if (recordedBy !== "") {
@@ -510,14 +518,17 @@ const KOREAN: ServerWords = {
       semimonthly: "월 2회 발생",
       biweekly: "2주마다 발생",
     }[policy.accrual];
+    const rest = policy.payoutUnused ? ", 남은 일수는 수당으로 지급" : "";
     const carry =
       policy.carryOver === "none"
-        ? "미사용분은 기간 끝에 소멸"
+        ? policy.payoutUnused
+          ? "미사용분은 기간 끝에 수당으로 지급"
+          : "미사용분은 기간 끝에 소멸"
         : policy.carryOver === "all"
           ? policy.carryOverMonths === null
             ? "미사용분은 이월"
-            : `미사용분은 ${policy.carryOverMonths}개월 이월`
-          : `미사용분 ${policy.carryOverDays ?? 0}일까지 이월`;
+            : `미사용분은 ${policy.carryOverMonths}개월 이월${rest}`
+          : `미사용분 ${policy.carryOverDays ?? 0}일까지 이월${rest}`;
     return `${basis}, ${accrual}. ${days}${policy.firstYearMonthly ? ", 첫해에는 매월 1일" : ""}. ${carry}.`;
   },
   requested: (id) => `신청했습니다. 결재를 기다립니다. 신청 ${id}.`,
@@ -526,7 +537,7 @@ const KOREAN: ServerWords = {
   recordedWaiting: (who, id) => `${who}의 휴가를 등록했습니다. 다음 결재를 기다립니다. 신청 ${id}.`,
   cancelled: (id) => `취소되었습니다. 신청 ${id}.`,
   cancellationRequested: (id) => `취소가 결재를 기다립니다. 신청 ${id}.`,
-  adjusted: (days, type, who) => `${who}의 ${type} ${days}을(를) 기록했습니다.`,
+  adjusted: (days, type, who) => `${who}의 ${type} ${days}을 기록했습니다.`,
   enrolled: (who, leave) => `${who}: 기록을 저장했습니다. 휴가 ${leave ? "켜짐" : "꺼짐"}.`,
   offboarded: (who, day) => `${who}은(는) ${day}에 퇴직합니다. 그 뒤로는 발생하지 않습니다.`,
   accrued: (count, people) => `${people}명에게 ${count}건을 기록했습니다.`,
@@ -539,6 +550,8 @@ const KOREAN: ServerWords = {
     `${calendar} 캘린더에서 ${year}년 공휴일 ${count}일을 기록했습니다.`,
   setupDone: (types, policy, holidays) =>
     `설정 완료: 휴가 종류 ${types}개, 기본 규정 ${policy}, 공휴일 ${holidays}일.`,
+  zoneIsUtc:
+    "워크스페이스 시간대가 UTC입니다. 오늘 날짜와 신청 마감 시각이 UTC로 계산됩니다. 다른 곳에서 일한다면 관리자가 console workspace edit --time-zone <시간대>로 설정합니다. 예: Asia/Seoul.",
   expiryTaskTitle: (on) => `${on} 소멸 예정 연차: 사용 촉진 안내`,
   expiryTaskBody: (on, rows, daysBefore) =>
     `${on}에 소멸하는(${daysBefore}일 뒤) 미사용 휴가입니다. 법이 요구하는 경우 서면으로 각자에게 알리고 사용 시기를 정하세요.\n\n${rows.map((row) => `- ${row.who}: ${row.days}`).join("\n")}`,
@@ -572,6 +585,7 @@ const KOREAN: ServerWords = {
     hrOnly: "인사 담당만 할 수 있습니다.",
     personOnly: "사람으로서 하는 일이며 콘솔이 직접 할 수 없습니다.",
     noBoard: "플러그인에 보드 프로젝트가 없습니다. 관리자가 연결해야 합니다.",
+    badDay: (day) => `달력에 없는 날입니다: ${day}.`,
     notEnrolled:
       "이 사람은 휴가가 등록되어 있지 않습니다. 인사 담당이 구성원 페이지나 enroll --leave on으로 등록합니다.",
     noRecord: "이 사람의 기록이 아직 없습니다. 먼저 등록하세요.",
@@ -593,7 +607,7 @@ const KOREAN: ServerWords = {
     noDays: "고른 기간에 근무일이 없습니다. 주말과 공휴일은 휴가로 세지 않습니다.",
     overlap: "이 사람의 다른 신청과 기간이 겹칩니다.",
     insufficient: (asked, available, day, advance) =>
-      `${asked}을(를) 신청했지만 ${day} 기준 사용 가능 일수는 ${available}입니다${advance === "" ? "" : ` (미리 쓸 수 있는 일수 ${advance})`}.`,
+      `${asked}을 신청했지만 ${day} 기준 사용 가능 일수는 ${available}입니다${advance === "" ? "" : ` (미리 쓸 수 있는 일수 ${advance})`}.`,
     notTheirManager:
       "내가 매니저인 사람의 휴가만 대신 등록할 수 있습니다. 인사 담당은 누구든 등록합니다.",
     ownLeave: "자기 휴가는 직접 승인할 수 없습니다. 신청하면 결재선으로 갑니다.",

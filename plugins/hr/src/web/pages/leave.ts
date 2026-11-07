@@ -117,6 +117,9 @@ function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
       [words.used, format.number(balance.used)],
       [words.pending, format.number(balance.pending)],
       [words.expired, format.number(balance.expired)],
+      ...(balance.adjusted === 0
+        ? []
+        : [[words.kind.adjust, format.number(balance.adjusted)] as const]),
     ]),
   );
   for (const item of balance.expiring.slice(0, 2)) {

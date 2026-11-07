@@ -30,6 +30,10 @@ Set up before enrolling, and enroll before the first request. `console plugin hr
 | Write a holiday of the organization's own; remove a day's | `console plugin hr holiday <day> --name en=<words> --name ko=<words> [--kind company\|public]`, `console plugin hr holiday <day> --remove` |
 | Read the configuration; change what is given of it: how approved leave is cancelled, how far back a request may start, who sees what, the working days, the calendar the daily job writes from | `console plugin hr config`, `console plugin hr configure [--cancellation free\|approval\|hr] [--backdating-days <n>] [--balance-visibility self\|manager\|everyone] [--calendar-visibility everyone\|team\|hr] [--work-days mon,tue,...]` |
 
+Today and every notice time follow the workspace's time zone, which `console plugin hr config` names, and the daily job runs by it; a workspace that keeps none is UTC, and a rule of "by 09:00" then closes at 09:00 UTC. An administrator sets it first, with `console workspace edit --time-zone <zone>`.
+
+`--auto always` approves a request past the notice too, and nobody is asked. Where a late request must go to the line, take `--auto upTo --auto-days <n>`: approved as written while it is in time and up to that many days.
+
 ## Who approves
 
 Each person's manager in the console is the first to approve. An administrator sets it, on the console's People page or with `console person manager <login> <manager login>`; the plugin changes nothing there. Whoever stands above a person holds what their manager holds: they see the same people, record leave for them, and may answer the decision, which is addressed to the nearest alone. A person with no manager goes to the administrators.
@@ -52,6 +56,8 @@ Every manager must be able to work in the plugin's board project, since a decisi
 | Turn a person's leave off, or empty a field | `console plugin hr enroll <login> --leave off`, `console plugin hr enroll <login> --clear work-days` |
 | Write the day a person leaves: nothing accrues after it | `console plugin hr offboard <login> [--on <day>]` |
 | One person's balance, or their ledger | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
+
+Write the policy before enrolling. `--leave on` writes at once what the policy owes by today and closes what has expired by today, nothing having been used yet. Changing the policy afterwards takes nothing back: a credit written goes with `adjust`, a negative number with `--on` the day of the credit. Enter a person's past leave after enrolling them, with `request --person <login> --approved`: a use for a day before an expiry takes those days first, and the expiry counts for what was left.
 
 ## Balances and requests
 

@@ -104,7 +104,11 @@ function typeForm(
   const noticeDaysField = field(words.noticeDaysLabel, noticeDays);
   const noticeTimeInitial = type?.notice.time ?? "18:00";
   const noticeTime = input("time", { value: noticeTimeInitial });
-  const noticeTimeField = field(words.noticeTimeLabel, noticeTime, words.noticeTimeHint);
+  const noticeTimeField = field(
+    words.noticeTimeLabel,
+    noticeTime,
+    words.noticeTimeHint(frame.context.workspace?.timeZone ?? "UTC"),
+  );
   const late = pills<LateRule>(
     optionsOf(LATE_RULES, words.lateRule),
     type?.late ?? "mark",

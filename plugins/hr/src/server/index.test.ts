@@ -185,7 +185,11 @@ const withAdmin = (people: RestPerson[] = everyone()): RestPerson[] => [
   restPerson(personOf(ADMIN).id, "ada", "ADA", "active", { role: "admin" }),
 ];
 
-function contextWith(theBoard: Board, people: RestPerson[] = everyone()): TestContext {
+function contextWith(
+  theBoard: Board,
+  people: RestPerson[] = everyone(),
+  timeZone = "Asia/Seoul",
+): TestContext {
   let counter = 0;
   return createTestContext({
     collections,
@@ -200,7 +204,7 @@ function contextWith(theBoard: Board, people: RestPerson[] = everyone()): TestCo
       workspace: async () => ({
         name: "Test",
         languages: ["en", "ko"],
-        timeZone: "Asia/Seoul",
+        timeZone,
         weekStart: "auto",
         categories: [],
       }),
@@ -1965,5 +1969,179 @@ describe("what a request would be", () => {
     const ctx = await korea(board(), { line: "[]" });
     const report = (await preview.run(ctx.as(ALICE), { from: "2026-11-10" })) as RequestPreview;
     expect(report).toMatchObject({ automatic: true, line: [] });
+  });
+});
+
+/** A workspace set up for Korea by the calendar year, the first year's days in full, with Alice enrolled since 2025-06-23. */
+async function byCalendarYear(theBoard: Board): Promise<TestContext> {
+  const ctx = contextWith(theBoard);
+  await setup.run(ctx, { country: "kr", basis: "fiscal" });
+  await policy.run(ctx, { key: "kr-fiscal-year", "first-period": "full" });
+  await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-06-23" });
+  return ctx;
+}
+
+/** What the figures of a balance come to, which is what is left when they tell the truth. */
+function addedUp(annual: Awaited<ReturnType<typeof annualOf>>): number {
+  return (
+    annual.carriedIn +
+    annual.granted +
+    annual.adjusted -
+    annual.used -
+    annual.pending -
+    annual.expired
+  );
+}
+
+describe("a history entered after the credits were closed", () => {
+  it("counts as expired what the expiries really took", async () => {
+    const ctx = await byCalendarYear(board());
+    // Enrolling wrote the first year's days and closed them, no use being known yet.
+    await request.run(ctx, {
+      person: personOf(ALICE),
+      from: "2026-02-10",
+      to: "2026-02-11",
+      approved: true,
+    });
+    const annual = await annualOf(ctx, ALICE);
+    expect(annual).toMatchObject({
+      carriedIn: 6,
+      granted: 20,
+      used: 2,
+      expired: 9,
+      adjusted: 0,
+      available: 15,
+    });
+    expect(addedUp(annual)).toBe(annual.available);
+  });
+
+  it("counts nothing as expired where HR adjusted the credits away", async () => {
+    const ctx = await byCalendarYear(board());
+    const accruals = ctx.all("ledger").filter((line) => line.data.kind === "accrual");
+    expect(accruals).toHaveLength(11);
+    for (const line of accruals) {
+      await adjust.run(ctx, {
+        person: personOf(ALICE),
+        days: -1,
+        note: "not given here",
+        on: line.data.on as string,
+      });
+    }
+    await request.run(ctx, { person: personOf(ALICE), from: "2026-02-10", approved: true });
+    const annual = await annualOf(ctx, ALICE);
+    expect(annual).toMatchObject({
+      carriedIn: 0,
+      granted: 20,
+      used: 1,
+      expired: 0,
+      adjusted: -5,
+      available: 14,
+    });
+    expect(addedUp(annual)).toBe(annual.available);
+  });
+
+  it("carries in what the period before left, and the figures add up with nothing entered", async () => {
+    const ctx = await byCalendarYear(board());
+    const annual = await annualOf(ctx, ALICE);
+    expect(annual).toMatchObject({ carriedIn: 6, granted: 20, expired: 11, available: 15 });
+    expect(addedUp(annual)).toBe(annual.available);
+  });
+
+  it("lists in the ledger what each expiry took, so that its lines come to the balance", async () => {
+    const ctx = await byCalendarYear(board());
+    await request.run(ctx, {
+      person: personOf(ALICE),
+      from: "2026-02-10",
+      to: "2026-02-11",
+      approved: true,
+    });
+    const lines = (await ledgerQuery.run(ctx.as(ALICE), { limit: 200 })) as EntryView[];
+    // Two of the eleven had nothing left to close: they changed nothing, and are not listed.
+    expect(lines.filter((line) => line.kind === "payout")).toHaveLength(9);
+    expect(ctx.all("ledger").filter((line) => line.data.kind === "payout")).toHaveLength(11);
+    const total = lines.reduce((sum, line) => sum + line.days, 0);
+    expect(total).toBe((await annualOf(ctx, ALICE)).available);
+  });
+
+  it("gives payroll the days each payout took, not the days it said", async () => {
+    const ctx = await byCalendarYear(board());
+    await request.run(ctx, {
+      person: personOf(ALICE),
+      from: "2026-02-10",
+      to: "2026-02-11",
+      approved: true,
+    });
+    const file = (await exportQuery.run(ctx, { year: 2026 })) as {
+      file: { bytes: Uint8Array };
+    };
+    const paid = new TextDecoder()
+      .decode(file.file.bytes)
+      .split("\n")
+      .map((row) => row.split(","))
+      .filter((cells) => cells[3] === "payout")
+      .reduce((sum, cells) => sum + Number(cells[4]), 0);
+    expect(paid).toBe(-9);
+  });
+});
+
+describe("the words of a policy and of a kind of leave", () => {
+  it("says unused days are paid where the policy pays them, and that they lapse where it does not", async () => {
+    const ctx = await byCalendarYear(board());
+    const paid = (await balance.run(ctx.as(ALICE), {})) as BalanceReport;
+    expect(paid.policy?.summary).toContain("unused days are paid out at the period's end");
+    const korean = (await balance.run(ctx.as(KO_ALICE), {})) as BalanceReport;
+    expect(korean.policy?.summary).toContain("미사용분은 기간 끝에 수당으로 지급");
+    await policy.run(ctx, { key: "kr-fiscal-year", payout: "off" });
+    const lapsing = (await balance.run(ctx.as(ALICE), {})) as BalanceReport;
+    expect(lapsing.policy?.summary).toContain("unused days expire at the period's end");
+  });
+
+  it("writes the days it asked for with the particle they take", async () => {
+    const ctx = await byCalendarYear(board());
+    const refused = (await preview.run(ctx.as(KO_ALICE), {
+      from: "2026-11-09",
+      to: "2026-12-04",
+    })) as RequestPreview;
+    expect(refused.refusal).toContain("20일을 신청했지만");
+  });
+});
+
+describe("a day the calendar does not have", () => {
+  it("is refused by name, before anything is written", async () => {
+    const ctx = await korea(board());
+    await expect(request.run(ctx.as(ALICE), { from: "2027-02-30" })).rejects.toMatchObject({
+      code: "bad_day",
+    });
+    await expect(
+      request.run(ctx.as(ALICE), { from: "2027-02-01", to: "2027-02-30" }),
+    ).rejects.toMatchObject({ code: "bad_day" });
+    expect(ctx.all("requests")).toHaveLength(0);
+  });
+
+  it("is what a preview says too", async () => {
+    const ctx = await korea(board());
+    const said = (await preview.run(ctx.as(ALICE), { from: "2027-02-30" })) as RequestPreview;
+    expect(said).toMatchObject({ refusal: expect.stringContaining("2027-02-30"), days: 0 });
+  });
+});
+
+describe("the workspace's time zone", () => {
+  it("is named by the configuration", async () => {
+    const ctx = await korea(board());
+    const report = (await configQuery.run(ctx, {})) as ConfigReport;
+    expect(report.timeZone).toBe("Asia/Seoul");
+  });
+
+  it("is said when leave is set up on UTC, since today and every notice time follow it", async () => {
+    const ctx = contextWith(board(), everyone(), "UTC");
+    const result = await setup.run(ctx, { country: "kr" });
+    expect(result.text).toContain("UTC");
+    expect(result.text).toContain("console workspace edit --time-zone");
+  });
+
+  it("is not said when the workspace keeps a zone of its own", async () => {
+    const ctx = contextWith(board());
+    const result = await setup.run(ctx, { country: "kr" });
+    expect(result.text).not.toContain("--time-zone");
   });
 });

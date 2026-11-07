@@ -15,6 +15,7 @@ import { WEEKDAYS } from "../../shared/days.js";
 import {
   actions,
   checkbox,
+  el,
   errorBlock,
   form,
   input,
@@ -84,6 +85,7 @@ function generalForm(report: ConfigReport, view: SetupView): HTMLElement[] {
   const workForm = form(
     settingRow(words.workDaysLabel, words.workDaysHint, workDays.node),
     settingRow(words.holidayCalendarLabel, words.holidayCalendarHint, holidayCalendar.node),
+    settingRow(words.timeZoneLabel, words.timeZoneHint, el("p", "", report.timeZone)),
     actions(workSubmit),
     workStatus,
   );
