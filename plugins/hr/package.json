@@ -1,7 +1,6 @@
 {
   "name": "@skillcdn/console-plugin-hr",
   "version": "0.0.0",
-  "private": true,
   "description": "HR, a plugin of the SkillCDN Console: leave requests, approvals as decisions and balances from a policy written for Korea, the US or your own rules, and announcements; attendance and the people's records to come.",
   "license": "MIT",
   "type": "module",
@@ -18,7 +17,8 @@
     "console-plugin",
     "hr",
     "leave",
-    "pto"
+    "pto",
+    "announcements"
   ],
   "files": [
     "dist",
@@ -26,6 +26,9 @@
     "SKILLCDN.md",
     "console-plugin.json"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
