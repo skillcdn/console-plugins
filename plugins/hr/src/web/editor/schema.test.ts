@@ -8,20 +8,20 @@ const through = (text: string) => writeText(blocksOf(docOf(parseText(text))));
 describe("the editor and the text", () => {
   it("keeps every kind of block, each mark and a line break", () => {
     const text = [
-      "## 제목",
-      "### 소제목",
-      "문단 **굵게** *기울여* ++밑줄++ ~~취소~~ ==강조== [링크](https://example.com/)\n둘째 줄",
-      "- 하나\n  - 둘\n    1. 셋\n- 넷",
-      "3. 가\n4. 나",
-      "> 인용\n>\n> 둘째",
+      "## Heading",
+      "### Subheading",
+      "Text **bold** *italic* ++underlined++ ~~struck~~ ==lit== [link](https://example.com/)\nnext line",
+      "- one\n  - two\n    1. three\n- four",
+      "3. third\n4. fourth",
+      "> quoted\n>\n> again",
       "---",
-      "![사진](file:abc-1)",
+      "![photo](file:abc-1)",
     ].join("\n\n");
     expect(through(text)).toBe(text);
   });
 
   it("keeps marks across a line break", () => {
-    expect(through("**한 줄\n두 줄**")).toBe("**한 줄\n두 줄**");
+    expect(through("**one line\nand the next**")).toBe("**one line\nand the next**");
   });
 
   it("opens an empty text with somewhere to type", () => {

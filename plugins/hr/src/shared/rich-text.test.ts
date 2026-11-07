@@ -171,11 +171,9 @@ describe("the blocks of a text", () => {
   });
 
   it("answers what a text says on one line, cut where it was asked", () => {
-    const blocks = parseText(
-      "## 안내\n\n**연차** 규정이\n바뀝니다.\n\n- 하나\n- 둘\n\n![x](file:a)",
-    );
-    expect(plainOf(blocks, 100)).toBe("안내 연차 규정이 바뀝니다. 하나 둘");
-    expect(plainOf(blocks, 5)).toBe("안내 연차…");
+    const blocks = parseText("## Note\n\n**Leave** rules\nchange.\n\n- one\n- two\n\n![x](file:a)");
+    expect(plainOf(blocks, 100)).toBe("Note Leave rules change. one two");
+    expect(plainOf(blocks, 10)).toBe("Note Leave…");
   });
 
   it("holds up against what an agent could send on purpose", () => {
@@ -202,14 +200,14 @@ describe("the blocks of a text", () => {
 describe("the text written back", () => {
   it("writes each kind of block", () => {
     const text = [
-      "## 제목",
-      "### 소제목",
-      "문단 **굵게** *기울여* ++밑줄++ ~~취소~~ ==강조== [링크](https://example.com/)",
-      "- 하나\n  - 둘\n- 셋",
-      "1. 가\n2. 나",
-      "> 인용\n>\n> 둘째",
+      "## Heading",
+      "### Subheading",
+      "Text **bold** *italic* ++underlined++ ~~struck~~ ==lit== [link](https://example.com/)",
+      "- one\n  - two\n- three",
+      "1. first\n2. second",
+      "> quoted\n>\n> again",
       "---",
-      "![사진](file:abc)",
+      "![photo](file:abc)",
     ].join("\n\n");
     expect(writeText(parseText(text))).toBe(text);
   });
