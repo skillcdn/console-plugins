@@ -22,7 +22,7 @@ In this order, so that a reader of one knows where to look in the next: the titl
 What an agent reads of a plugin is paid for in its context on every task, so each layer says its own part and no more.
 
 - A command's `about` is printed for every command each time an agent reads `console plugin <key>`: one clause of what it does, at most 90 characters. What an argument takes, what it is unless said and when it is refused go on the argument's `about`, which `help <command>` prints, and in the skills.
-- A query answers what is read, shaped by hand: never whole records, whose envelope is the console's and is read with `console plugin <key> records`, and never a field twice. A list is bounded unless told otherwise, twenty lines where nothing says otherwise, and a page says how many it wants. What only a page or a rare caller needs comes behind a flag (`balance --buckets`).
+- A query answers what is read, shaped by hand: never whole records, whose envelope is the console's and is read with `console plugin <key> records`, and never a field twice. A list answers ten or twenty lines unless told otherwise, and a page says how many it wants. What only a page or a rare caller needs comes behind a flag (`balance --buckets`).
 - A boolean flag turns something on, and is off unless given: a flag that is on unless said cannot be said from the command line. What must be said both ways is `on|off`.
 - A command that makes something says its id in `text`, and whatever the next step needs (`announcement-picture` says the line to write): `data` is for `--json` and the pages, and an agent should not need it to go on.
 - A positional that names a record is `<id>`, and a flag the caller's role does not allow is refused, never left unread.

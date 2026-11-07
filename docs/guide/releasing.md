@@ -12,7 +12,7 @@ Each plugin is versioned on its own under semver, from 0.1.0 ([ADR-0006](../adr/
 
 ## The version pull request, and the publish
 
-On every push to `main`, the release workflow (`.github/workflows/release.yml`) looks at what is pending. With changesets pending, it opens or updates one pull request, `chore(repo): version packages`, that bumps the version and the changelog of every plugin that moved; a maintainer reviews and merges it. With nothing pending and a version the registry does not have, it builds every plugin, packs the ones the plan names, and publishes each tarball with `pnpm publish` through trusted publishing: no stored token, a short-lived identity the job proves to the registry, and a provenance attestation on every published version; it then makes a GitHub release and a tag per package (`@skillcdn/console-plugin-<key>@<version>`).
+On every push to `main`, the release workflow (`.github/workflows/release.yml`) looks at what is pending. With changesets pending, it opens or updates one pull request, `chore(repo): version packages`, that bumps the version and the changelog of every plugin that moved; a maintainer reviews and merges it. The changesets of a plugin still private bump nothing, so that the pull request stands open and empty until it leaves `private`; it is left alone. With nothing pending and a version the registry does not have, it builds every plugin, packs the ones the plan names, and publishes each tarball with `pnpm publish` through trusted publishing: no stored token, a short-lived identity the job proves to the registry, and a provenance attestation on every published version; it then makes a GitHub release and a tag per package (`@skillcdn/console-plugin-<key>@<version>`).
 
 ## The first version of a plugin
 
