@@ -1,9 +1,9 @@
 // Each plugin is versioned on its own and declares the consoles it runs on (ADR-0006). Part of
 // `pnpm check`: the catalog of pnpm-workspace.yaml and the lockfile agree on one @skillcdn/console;
 // a published plugin's version is a semver and no changeset asks a major while its major is 0;
-// and where a manifest declares `console`, a semver range in the shape `requires` has, the
-// catalog's console satisfies it. Reads the catalog, the lockfile, the plugins' manifests and
-// the pending changesets; no network. A private plugin is never versioned, but its range is read.
+// and every manifest declares `console`, a semver range in the shape `requires` has, which the
+// catalog's console satisfies. Reads the catalog, the lockfile, the plugins' manifests and the
+// pending changesets; no network. A private plugin is never versioned, but its range is read.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -170,7 +170,9 @@ for (const key of plugins) {
   if (existsSync(path.join(root, manifestFile))) {
     const manifest = JSON.parse(read(manifestFile));
     if (manifest.console === undefined) {
-      words.push("no console range declared yet");
+      problems.push(
+        `${manifestFile}: declares no console; every plugin says the consoles it runs on`,
+      );
     } else if (typeof manifest.console !== "string") {
       problems.push(`${manifestFile}: "console" is a semver range as a string`);
     } else if (consoleVersion !== undefined) {

@@ -36,7 +36,7 @@ A plugin is written as the console's skill [building-a-plugin](https://github.co
 - The design first: a change to what a plugin does changes its table in the README, and the tests follow the table.
 - Keep the change to one plugin. A convention that turns out wrong is fixed in [conventions.md](conventions.md) and in the check, in a change of its own.
 - A change to the shape of a record raises `dataVersion` with an `upgrades` entry in the same change; the changeset says so, since the console's `migrate` role runs the upgrade on the next release of the deployment.
-- A changeset with every change to a published plugin, written for the administrator who enables it and the deployment that installs it: `patch` for a fix or an addition that changes nothing that exists, `minor` for a change to what exists and, while the major is 0, for a breaking change, with `Breaking:` first in its words; "built for console 0.4.x or later" where it needs a later console than before, which moves the manifest's `console` range once the console reads it.
+- A changeset with every change to a published plugin, written for the administrator who enables it and the deployment that installs it: `patch` for a fix or an addition that changes nothing that exists, `minor` for a change to what exists and, while the major is 0, for a breaking change, with `Breaking:` first in its words; "built for console 0.4.x or later" where it needs a later console than before, which moves the manifest's `console` range.
 - The skills are read again by hand after a change to a command, since the check catches only a command the plugin no longer has.
 
 ## When the console's template changes
