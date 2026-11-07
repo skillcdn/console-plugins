@@ -1,0 +1,9 @@
+# @skillcdn/console-plugin-hr
+
+## 0.1.0
+
+### Minor Changes
+
+- [`8d4fd89`](https://github.com/skillcdn/console-plugins/commit/8d4fd89eb8706cd759213d548d95aa4f9b044d7d) Thanks [@samo-lucid](https://github.com/samo-lucid)! - Announcements, in the first version of HR: what HR tells everyone, written with a toolbar (headings, bold, italic, underline, strikethrough, highlight, lists, quotes, dividers, links) and with pictures, as a draft of the writer's own until it is published, by category, pinned for as long as HR says, on a page of their own, a widget in four sizes and the overview. An agent does all of it through the commands, as the person it works for may. The plugin asks for the capability `files`, for the pictures.
+
+- [`c5c20a5`](https://github.com/skillcdn/console-plugins/commit/c5c20a551b7b19958dce0ae853fe0b82e0b9db32) Thanks [@samo-lucid](https://github.com/samo-lucid)! - The first version of HR, with leave, built for console 0.4.4 or later: requests from an agent or the page; approval by a person's manager in the console or an administrator, anyone above them holding the same authority, with further steps and exceptions by kind, length and lateness that ask the next manager up, an administrator, HR or people named; leave recorded by a manager for their people; per kind, the notice it asks, what becomes of a late request, approval as written and the part of a day it is taken in; balances from a policy (presets for Korea by hire date and by fiscal year, two US shapes, a flat number of days, or by hand) over a ledger of every change; holidays from built-in calendars for Korea and the US; a daily job that writes what is due and leaves HR tasks; what the console tells of people leaving or coming back; seven pages, four widgets and three skills, and everything said in the language of whoever reads it. Attendance and the people's records come later in the same plugin.
