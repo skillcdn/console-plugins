@@ -23,7 +23,7 @@ This repository holds the plugins KDX Labs writes for its own console and publis
 | Plugin | Package | Tab | What it does | Status |
 |---|---|---|---|---|
 | [`plugins/hello/`](plugins/hello/) | `@skillcdn/console-plugin-hello` | Operations | The plugin `console-plugin init` writes, adapted to this repository's conventions: greetings kept as records, a command, a query, a page, a widget and a skill. The worked example a new plugin starts from, and the smoke test of the toolchain; private, never published. | example |
-| [`plugins/hr/`](plugins/hr/) | `@skillcdn/console-plugin-hr` | People | HR: leave first. Requests from an agent or the page, approved by each person's manager in the console, with whatever steps an organization adds, leave recorded by a manager for their people, balances from a policy written for Korea (by hire date or fiscal year), the US or your own rules, a ledger of every change, holidays, a daily job and tasks for HR. Attendance and the people's records next, in the same plugin. | in progress: leave built, not yet published |
+| [`plugins/hr/`](plugins/hr/) | `@skillcdn/console-plugin-hr` | People | HR: leave and announcements. Requests from an agent or the page, approved by each person's manager in the console, with whatever steps an organization adds, leave recorded by a manager for their people, balances from a policy written for Korea (by hire date or fiscal year), the US or your own rules, a ledger of every change, holidays, a daily job and tasks for HR; what HR tells everyone, with a page and a widget. Attendance and the people's records next, in the same plugin. | first release, 0.1.0, under way |
 | `plugins/crm/` | `@skillcdn/console-plugin-crm` | Customers | CRM: customers, contacts and deals as records with search, the follow-ups as tasks on the board, the pipeline on a page. | planned |
 | `plugins/finance/` | `@skillcdn/console-plugin-finance` | Money | Finance: expenses, invoices and budgets as records, approvals as decisions, the figures read from the records. | planned |
 
@@ -31,7 +31,7 @@ A plugin is a whole area of the organization's work, named as a company names th
 
 ## Install one into a console
 
-A deployment installs a plugin by building it into its image from a list and a lockfile, with no install scripts, and names the directory with `PLUGINS_DIR` ([deploy/README.md of the console, "Plugins in the image"](https://github.com/skillcdn/console/blob/main/deploy/README.md#plugins-in-the-image)). The console must be 0.4.2 or later, the first that runs plugins; `console whoami` says which version a console is.
+A deployment installs a plugin by building it into its image from a list and a lockfile, with no install scripts, and names the directory with `PLUGINS_DIR` ([deploy/README.md of the console, "Plugins in the image"](https://github.com/skillcdn/console/blob/main/deploy/README.md#plugins-in-the-image)). Each plugin's manifest names the consoles it runs on, `console`: `hr` needs 0.4.4 or later, and a console outside the range lists the plugin as failed with the reason. `console whoami` says which version a console is.
 
 ```sh
 cd plugins                      # the deployment's own list: a package.json and its lockfile, nothing that runs
@@ -64,7 +64,7 @@ This repository is a shape as much as a set of plugins. Fork it, or copy one plu
 3. Keep a permissive license. A console refuses a plugin whose license is not permissive, and the checks here hold every package a plugin bundles to one, since that is what ships.
 4. Delete the plugins you do not need, the example included once you have one of your own, and write yours at `plugins/<key>/` as [docs/guide/adding-a-plugin.md](docs/guide/adding-a-plugin.md) says. Replace [docs/roadmap.md](docs/roadmap.md) with your own plan.
 5. Rewrite this README and `SKILLCDN.md` (its `name`, `description`, `translations` and `metadata.author`) for your repository, and the "Project" section of `AGENTS.md`. The symbol at the top is SkillCDN's mark, so put your own there or none ([trademark policy](https://github.com/skillcdn/skillcdn/blob/main/TRADEMARKS.md)); keep the badge and give it your address, in its link and in its picture's URL (`https://skillcdn.ai/badge/gh/<you>/<repo>`).
-6. Register the trusted publisher of each package you publish, once, when you publish its first version by hand ([docs/guide/releasing.md](docs/guide/releasing.md)).
+6. Name the trusted publisher of each package you publish, once, as its first version goes out ([docs/guide/releasing.md](docs/guide/releasing.md)).
 7. Connect it at `skillcdn.ai/gh/<you>/<repo>`, so that agents read your plugins' skills and these documents there. A public repository needs no setup.
 
 ## Repository layout
