@@ -183,7 +183,7 @@ export const STEP_MODES: readonly StepMode[] = ["any", "all"];
  * console's administrators; `hr` the holders of the role.
  */
 export type StepSource = "manager" | "admin" | "hr";
-export const STEP_SOURCES: readonly StepSource[] = ["manager", "admin", "hr"];
+export const STEP_SOURCES: readonly StepSource[] = ["manager", "hr", "admin"];
 
 export interface ApprovalStep {
   readonly sources: StepSource[];

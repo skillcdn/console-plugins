@@ -934,17 +934,80 @@
   list-style: none;
 }
 
-.pl-hr-line-editor {
+/* A line as it is walked: a rail with a stop for each step, from the request to the approval. */
+.pl-hr-flow {
+  --pl-hr-stop: 1.75rem;
   display: grid;
-  justify-items: start;
-  gap: var(--sc-space-3);
-}
-
-.pl-hr-line-editor .pl-hr-steps {
   width: 100%;
+  margin: var(--sc-space-2) 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.pl-hr-step-card {
+.pl-hr-flow > li {
+  position: relative;
+  min-height: var(--pl-hr-stop);
+  padding-bottom: var(--sc-space-3);
+  padding-left: calc(var(--pl-hr-stop) + var(--sc-space-3));
+}
+
+.pl-hr-flow > li:last-child {
+  padding-bottom: 0;
+}
+
+.pl-hr-flow > li:not(:last-child)::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--pl-hr-stop) / 2 - 1px);
+  width: 2px;
+  background: var(--sc-color-border);
+  content: "";
+}
+
+.pl-hr-flow > .pl-hr-flow-nobody[hidden] {
+  display: none;
+}
+
+.pl-hr-flow-stop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--pl-hr-stop);
+  height: var(--pl-hr-stop);
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-accent-solid);
+  color: var(--sc-color-accent-contrast);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-hr-flow-step > .pl-hr-flow-stop {
+  top: var(--sc-space-4);
+}
+
+.pl-hr-flow-end {
+  display: flex;
+  align-items: center;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-flow-end > .pl-hr-flow-stop {
+  border: var(--sc-border);
+  background: var(--sc-color-bg-raised);
+  color: var(--sc-color-success);
+}
+
+.pl-hr-flow-nobody {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-flow-card {
   display: grid;
   gap: var(--sc-space-3);
   padding: var(--sc-space-4);
@@ -953,15 +1016,32 @@
   background: var(--sc-color-sheet);
 }
 
-.pl-hr-step-head {
+.pl-hr-flow-card [hidden] {
+  display: none;
+}
+
+.pl-hr-flow-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--sc-space-2);
 }
 
-.pl-hr-step-number {
-  font-size: var(--sc-text-sm);
+.pl-hr-flow-title {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--sc-text-md);
   font-weight: var(--sc-weight-bold);
+}
+
+.pl-hr-flow-title-empty {
+  color: var(--sc-color-warning);
+}
+
+.pl-hr-flow-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
 }
 
 .pl-hr-rule {

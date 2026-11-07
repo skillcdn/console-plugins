@@ -229,15 +229,16 @@ export function pills<K extends string>(
   };
 }
 
-/** Several choices among a few, as a row of pills, each lit on its own. */
+/** Several choices among a few, as a row of pills, each lit on its own; a pill's words may change. */
 export function toggles<K extends string>(
   options: readonly Option<K>[],
   initial: readonly K[],
   label: string,
-): Control<K[]> {
+): Control<K[]> & { rename(key: K, text: string): void } {
   const node = el("fieldset", "sc-toggle-chips pills");
   node.setAttribute("aria-label", label);
   const boxes = new Map<K, HTMLInputElement>();
+  const names = new Map<K, HTMLElement>();
   const handlers: (() => void)[] = [];
   for (const option of options) {
     const chip = el("label", "sc-toggle-chip pill");
@@ -250,7 +251,9 @@ export function toggles<K extends string>(
       }
     });
     boxes.set(option.value, box);
-    chip.append(box, el("span", "", option.label));
+    const name = el("span", "", option.label);
+    names.set(option.value, name);
+    chip.append(box, name);
     node.append(chip);
   }
   return {
@@ -263,6 +266,12 @@ export function toggles<K extends string>(
     },
     onChange: (handler) => {
       handlers.push(handler);
+    },
+    rename: (key, text) => {
+      const name = names.get(key);
+      if (name !== undefined) {
+        name.textContent = text;
+      }
     },
   };
 }
