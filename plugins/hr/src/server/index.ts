@@ -33,7 +33,6 @@ export {
   people,
   policies,
   requests,
-  teams,
   types,
 } from "./collections.js";
 export {
@@ -49,7 +48,6 @@ export {
   policy,
   request,
   setup,
-  team,
   type,
 } from "./leave/commands.js";
 export {
@@ -73,7 +71,6 @@ export {
   preview,
   queries,
   requestsQuery,
-  teamsQuery,
   typesQuery,
 } from "./leave/queries.js";
 

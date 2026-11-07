@@ -20,7 +20,7 @@ export interface Refusals {
   readonly afterLeaving: (day: string) => string;
   readonly tooFarBack: (days: number) => string;
   readonly tooLate: (notice: string) => string;
-  readonly lateForApprovers: (notice: string) => string;
+  readonly lateForManagers: (notice: string) => string;
   readonly afterTheFact: string;
   readonly unknownType: (key: string) => string;
   readonly reasonRequired: (type: string) => string;
@@ -28,7 +28,7 @@ export interface Refusals {
   readonly noDays: string;
   readonly overlap: string;
   readonly insufficient: (asked: string, available: string, day: string, advance: string) => string;
-  readonly notTheirApprover: string;
+  readonly notTheirManager: string;
   readonly noDecision: (why: string) => string;
   readonly noSuchRequest: string;
   readonly notYours: string;
@@ -58,16 +58,11 @@ export interface Refusals {
   readonly noYear: (calendar: string, year: number, years: string) => string;
   readonly noCalendar: string;
   readonly noPreset: (key: string) => string;
-  readonly unknownTeam: (key: string) => string;
-  readonly teamHasPeople: (count: number) => string;
-  readonly teamNeedsName: string;
   readonly configShape: (what: string) => string;
   readonly timeShape: string;
   readonly notVisibleBalance: string;
   readonly notVisibleRequests: string;
   readonly notVisibleLedger: string;
-  readonly notVisibleTeam: string;
-  readonly notVisiblePeople: string;
   readonly noAnnouncement: string;
   readonly oneMove: string;
   readonly pinnedUntilShape: string;
@@ -131,8 +126,6 @@ export interface ServerWords {
   readonly accrued: (count: number, people: number) => string;
   readonly policySaved: (key: string) => string;
   readonly typeSaved: (key: string) => string;
-  readonly teamSaved: (name: string) => string;
-  readonly teamRemoved: (name: string) => string;
   readonly configSaved: string;
   readonly holidaySaved: (day: string) => string;
   readonly holidayRemoved: (day: string) => string;
@@ -225,7 +218,7 @@ const ENGLISH: ServerWords = {
       lines.push(`Approved so far by ${before}.`);
     }
     lines.push(
-      `${last ? "Approving records the leave and takes the days" : "Approving passes it to the next approver"}; rejecting leaves the balance as it is. An answer in your own words sends the request back to the person.`,
+      `${last ? "Approving records the leave and takes the days" : "Approving passes it to the next step"}; rejecting leaves the balance as it is. An answer in your own words sends the request back to the person.`,
     );
     return lines.join("\n\n");
   },
@@ -288,14 +281,12 @@ const ENGLISH: ServerWords = {
           : `up to ${policy.carryOverDays ?? 0} unused days carry over`;
     return `${basis}, ${accrual}; ${days}${policy.firstYearMonthly ? "; one day per month in the first year" : ""}; ${carry}.`;
   },
-  requested: (id) => `Requested; the decision waits for the approver. Request ${id}.`,
+  requested: (id) => `Requested; the decision is waiting. Request ${id}.`,
   approved: (id) => `Approved and recorded. Request ${id}.`,
   recorded: (who, id) => `Recorded for ${who} and approved. Request ${id}.`,
-  recordedWaiting: (who, id) =>
-    `Recorded for ${who}; the next approver's decision is waiting. Request ${id}.`,
+  recordedWaiting: (who, id) => `Recorded for ${who}; the next decision is waiting. Request ${id}.`,
   cancelled: (id) => `Cancelled. Request ${id}.`,
-  cancellationRequested: (id) =>
-    `The cancellation waits for the approver's decision. Request ${id}.`,
+  cancellationRequested: (id) => `The cancellation waits for a decision. Request ${id}.`,
   adjusted: (days, type, who) => `${days} of ${type} written for ${who}.`,
   enrolled: (who, leave) => `${who}: record saved; leave ${leave ? "on" : "off"}.`,
   offboarded: (who, day) => `${who} leaves on ${day}; nothing accrues after that day.`,
@@ -303,8 +294,6 @@ const ENGLISH: ServerWords = {
     `${count} ${count === 1 ? "line" : "lines"} written for ${people} ${people === 1 ? "person" : "people"}.`,
   policySaved: (key) => `Policy ${key} saved.`,
   typeSaved: (key) => `Leave type ${key} saved.`,
-  teamSaved: (name) => `Team ${name} saved.`,
-  teamRemoved: (name) => `Team ${name} removed.`,
   configSaved: "The configuration is saved.",
   holidaySaved: (day) => `Holiday ${day} saved.`,
   holidayRemoved: (day) => `Holiday ${day} removed.`,
@@ -324,9 +313,9 @@ const ENGLISH: ServerWords = {
   backTaskTitle: (who) => `${who} is back in the console: decide about their leave`,
   backTaskBody: (who, login, day) =>
     `${who} was reactivated in the console on ${day}. Their leave has stayed off since they left. If they are back on the payroll, turn it on with \`console plugin hr enroll ${login} --leave on --hired-on <day>\`, saying from which day their service counts.`,
-  boardTaskTitle: (who) => `A decision could not reach the approvers of ${who}`,
+  boardTaskTitle: (who) => `A decision could not reach those asked for ${who}`,
   boardTaskBody: (who, names) =>
-    `The console refused the approvers named for ${who} (${names}): a decision goes to people who may work in the board project. The request went on to HR. Add them to the project's members, or change the line.`,
+    `The console refused those asked for ${who} (${names}): a decision goes to people who may work in the board project. The request went on to whoever stands above them. Add them to the project's members.`,
   noReason: "(none given)",
   notes: {
     month: (month) => `Month ${month} of the first year`,
@@ -357,10 +346,10 @@ const ENGLISH: ServerWords = {
     tooFarBack: (days) =>
       `A request starts at most ${days} days before today; HR records older leave.`,
     tooLate: (notice) => `This kind of leave is requested ${notice}.`,
-    lateForApprovers: (notice) =>
-      `This kind of leave is requested ${notice}; past that, an approver or HR writes it.`,
+    lateForManagers: (notice) =>
+      `This kind of leave is requested ${notice}; past that, a manager or HR writes it.`,
     afterTheFact:
-      "This kind of leave is not requested for days gone by; an approver or HR writes it.",
+      "This kind of leave is not requested for days gone by; a manager or HR writes it.",
     unknownType: (key) => `No kind of leave is ${key}; types lists them.`,
     reasonRequired: (type) => `${type} asks for a reason.`,
     noPolicy: "No leave policy applies yet; HR sets one with setup or policy.",
@@ -368,7 +357,7 @@ const ENGLISH: ServerWords = {
     overlap: "The span overlaps a request of this person.",
     insufficient: (asked, available, day, advance) =>
       `${asked} asked, ${available} available on ${day}${advance === "" ? "" : ` (${advance} may be taken in advance)`}.`,
-    notTheirApprover: "You record leave for the people you approve; HR records it for anyone.",
+    notTheirManager: "You record leave for the people you manage; HR records it for anyone.",
     noDecision: (why) => `The decision could not be raised: ${why}.`,
     noSuchRequest: "No such request.",
     notYours: "The request is another person's.",
@@ -399,17 +388,11 @@ const ENGLISH: ServerWords = {
       `The ${calendar} calendar has no table for ${year} (it holds ${years}); write the year's holidays by hand.`,
     noCalendar: "Name a calendar, or set one in the configuration.",
     noPreset: (key) => `No preset is ${key}.`,
-    unknownTeam: (key) => `No team is ${key}; teams lists them.`,
-    teamHasPeople: (count) =>
-      `${count} ${count === 1 ? "person is" : "people are"} on this team; move them first.`,
-    teamNeedsName: "A new team needs its name.",
     configShape: (what) => `The configuration does not fit: ${what}.`,
     timeShape: "A time is HH:MM.",
     notVisibleBalance: "This person's balance is not shown to you.",
     notVisibleRequests: "This person's requests are not shown to you.",
     notVisibleLedger: "This person's ledger is not shown to you.",
-    notVisibleTeam: "The team's requests are the approver's to see.",
-    notVisiblePeople: "The people are shown to HR and approvers.",
     noAnnouncement: "There is no such announcement.",
     oneMove: "Publish, take down or remove: one at a time.",
     pinnedUntilShape: "The last day on top is a day as YYYY-MM-DD, or none.",
@@ -468,7 +451,7 @@ const KOREAN: ServerWords = {
       lines.push(`앞선 결재: ${before}.`);
     }
     lines.push(
-      `${last ? "승인하면 휴가가 기록되고 일수가 차감됩니다" : "승인하면 다음 결재자에게 넘어갑니다"}. 반려하면 잔여는 그대로입니다. 직접 입력한 답은 신청을 본인에게 되돌립니다.`,
+      `${last ? "승인하면 휴가가 기록되고 일수가 차감됩니다" : "승인하면 다음 단계로 넘어갑니다"}. 반려하면 잔여는 그대로입니다. 직접 입력한 답은 신청을 본인에게 되돌립니다.`,
     );
     return lines.join("\n\n");
   },
@@ -533,21 +516,18 @@ const KOREAN: ServerWords = {
           : `미사용분 ${policy.carryOverDays ?? 0}일까지 이월`;
     return `${basis}, ${accrual}. ${days}${policy.firstYearMonthly ? ", 첫해에는 매월 1일" : ""}. ${carry}.`;
   },
-  requested: (id) => `신청했습니다. 결재자의 결정을 기다립니다. 신청 ${id}.`,
+  requested: (id) => `신청했습니다. 결재를 기다립니다. 신청 ${id}.`,
   approved: (id) => `승인되어 기록되었습니다. 신청 ${id}.`,
   recorded: (who, id) => `${who}의 휴가를 등록하고 승인했습니다. 신청 ${id}.`,
-  recordedWaiting: (who, id) =>
-    `${who}의 휴가를 등록했습니다. 다음 결재자의 결정을 기다립니다. 신청 ${id}.`,
+  recordedWaiting: (who, id) => `${who}의 휴가를 등록했습니다. 다음 결재를 기다립니다. 신청 ${id}.`,
   cancelled: (id) => `취소되었습니다. 신청 ${id}.`,
-  cancellationRequested: (id) => `취소가 결재자의 결정을 기다립니다. 신청 ${id}.`,
+  cancellationRequested: (id) => `취소가 결재를 기다립니다. 신청 ${id}.`,
   adjusted: (days, type, who) => `${who}의 ${type} ${days}을(를) 기록했습니다.`,
   enrolled: (who, leave) => `${who}: 기록을 저장했습니다. 휴가 ${leave ? "켜짐" : "꺼짐"}.`,
   offboarded: (who, day) => `${who}은(는) ${day}에 퇴직합니다. 그 뒤로는 발생하지 않습니다.`,
   accrued: (count, people) => `${people}명에게 ${count}건을 기록했습니다.`,
   policySaved: (key) => `규정 ${key}을(를) 저장했습니다.`,
   typeSaved: (key) => `휴가 종류 ${key}을(를) 저장했습니다.`,
-  teamSaved: (name) => `팀 ${name}을(를) 저장했습니다.`,
-  teamRemoved: (name) => `팀 ${name}을(를) 삭제했습니다.`,
   configSaved: "설정을 저장했습니다.",
   holidaySaved: (day) => `공휴일 ${day}을(를) 저장했습니다.`,
   holidayRemoved: (day) => `공휴일 ${day}을(를) 삭제했습니다.`,
@@ -567,9 +547,9 @@ const KOREAN: ServerWords = {
   backTaskTitle: (who) => `${who} 복귀: 휴가 처리 결정`,
   backTaskBody: (who, login, day) =>
     `${who}은(는) ${day}에 콘솔에서 다시 활성화되었습니다. 휴가는 퇴직 이후 꺼진 채입니다. 다시 재직 중이라면 \`console plugin hr enroll ${login} --leave on --hired-on <날짜>\`로 켜고, 근속을 어느 날부터 세는지 정하세요.`,
-  boardTaskTitle: (who) => `${who}의 결재자에게 결정이 닿지 못했습니다`,
+  boardTaskTitle: (who) => `${who}의 결재 요청이 지정된 사람에게 닿지 못했습니다`,
   boardTaskBody: (who, names) =>
-    `콘솔이 ${who}의 결재자(${names})를 받지 않았습니다. 결정은 보드 프로젝트에서 일할 수 있는 사람에게만 갑니다. 이번 신청은 인사 담당에게 넘어갔습니다. 그 사람들을 프로젝트 멤버로 넣거나 결재선을 바꾸세요.`,
+    `콘솔이 ${who}의 결재 요청을 ${names}에게 보내지 못했습니다. 결정은 보드 프로젝트에서 일할 수 있는 사람에게만 갑니다. 이번 요청은 그 위 사람에게 넘어갔습니다. 이 사람들을 프로젝트 멤버로 넣으세요.`,
   noReason: "(사유 없음)",
   notes: {
     month: (month) => `첫해 ${month}개월차`,
@@ -600,9 +580,9 @@ const KOREAN: ServerWords = {
     tooFarBack: (days) =>
       `오늘보다 ${days}일 전까지만 신청할 수 있습니다. 더 오래된 휴가는 인사 담당이 기록합니다.`,
     tooLate: (notice) => `이 휴가는 ${notice} 신청해야 합니다.`,
-    lateForApprovers: (notice) =>
-      `이 휴가는 ${notice} 신청해야 합니다. 기한이 지나면 결재자나 인사 담당이 등록합니다.`,
-    afterTheFact: "지난 날짜는 이 종류로 신청할 수 없습니다. 결재자나 인사 담당이 등록합니다.",
+    lateForManagers: (notice) =>
+      `이 휴가는 ${notice} 신청해야 합니다. 기한이 지나면 매니저나 인사 담당이 등록합니다.`,
+    afterTheFact: "지난 날짜는 이 종류로 신청할 수 없습니다. 매니저나 인사 담당이 등록합니다.",
     unknownType: (key) => `휴가 종류 ${key}이(가) 없습니다.`,
     reasonRequired: (type) => `${type}은(는) 사유를 적어야 합니다.`,
     noPolicy: "적용할 휴가 규정이 아직 없습니다. 인사 담당이 설정해야 합니다.",
@@ -610,8 +590,8 @@ const KOREAN: ServerWords = {
     overlap: "이 사람의 다른 신청과 기간이 겹칩니다.",
     insufficient: (asked, available, day, advance) =>
       `${asked}을(를) 신청했지만 ${day} 기준 사용 가능 일수는 ${available}입니다${advance === "" ? "" : ` (미리 쓸 수 있는 일수 ${advance})`}.`,
-    notTheirApprover:
-      "자신이 결재하는 사람의 휴가만 대신 등록할 수 있습니다. 인사 담당은 누구든 등록합니다.",
+    notTheirManager:
+      "내가 매니저인 사람의 휴가만 대신 등록할 수 있습니다. 인사 담당은 누구든 등록합니다.",
     noDecision: (why) => `결정을 올리지 못했습니다: ${why}.`,
     noSuchRequest: "그런 신청이 없습니다.",
     notYours: "다른 사람의 신청입니다.",
@@ -643,16 +623,11 @@ const KOREAN: ServerWords = {
       `${calendar} 캘린더에는 ${year}년 표가 없습니다(있는 해: ${years}). 그해 공휴일은 직접 적으세요.`,
     noCalendar: "캘린더를 고르거나 설정에서 정하세요.",
     noPreset: (key) => `프리셋 ${key}이(가) 없습니다.`,
-    unknownTeam: (key) => `팀 ${key}이(가) 없습니다.`,
-    teamHasPeople: (count) => `이 팀에 ${count}명이 있습니다. 먼저 옮기세요.`,
-    teamNeedsName: "새 팀에는 이름이 필요합니다.",
     configShape: (what) => `설정이 맞지 않습니다: ${what}.`,
     timeShape: "시각은 HH:MM입니다.",
     notVisibleBalance: "이 사람의 잔여는 볼 수 없습니다.",
     notVisibleRequests: "이 사람의 신청은 볼 수 없습니다.",
     notVisibleLedger: "이 사람의 내역은 볼 수 없습니다.",
-    notVisibleTeam: "팀의 신청은 결재자만 봅니다.",
-    notVisiblePeople: "구성원 목록은 인사 담당과 결재자만 봅니다.",
     noAnnouncement: "해당 공지가 없습니다.",
     oneMove: "게시, 게시 내리기, 삭제는 한 번에 하나만 할 수 있습니다.",
     pinnedUntilShape: "고정 종료일은 YYYY-MM-DD 형식의 날짜이거나 none입니다.",

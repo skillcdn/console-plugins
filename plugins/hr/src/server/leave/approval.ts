@@ -1,5 +1,5 @@
-// The line of approvers, as pure functions of the configuration and what is known of a person:
-// which rule holds for a request, who stands in each step, who it waits for now and what comes
+// The line a request travels, as pure functions of the configuration and what is known of a
+// person: which rule holds for a request, who each step asks, who it waits for now and what comes
 // after an answer. Nothing here reads records or the console; the commands and the hook hand in
 // what they read and raise the decisions these functions name. A fork that wants another rule of
 // approval changes it here and proves it in approval.test.ts.
@@ -11,37 +11,22 @@ export const DECIDERS_AT_MOST = 10;
 /** What is known of the person a request is for, read when it is made. */
 export interface Standing {
   readonly personId: string;
-  /** The approvers named on their record. */
-  readonly own: readonly string[];
-  /** Their team's key. */
-  readonly team: string | null;
-  readonly teamApprovers: readonly string[];
-  /** Their manager in the directory, and that manager's. */
-  readonly manager: string | null;
-  readonly manager2: string | null;
+  /** Who stands above them in the console, the nearest first: every one of them holds the same authority over them. */
+  readonly managers: readonly string[];
+}
+
+/** Who holds a place in the workspace, whoever the request is for. */
+export interface Staff {
+  /** The holders of the role `hr`. */
+  readonly hr: readonly string[];
+  /** The console's administrators. */
+  readonly admins: readonly string[];
 }
 
 export interface Facts {
   readonly kind: string;
-  readonly team: string | null;
   readonly days: number;
   readonly late: boolean;
-}
-
-/** The person's approvers: their own, else their team's, else their manager. */
-export function approversOf(standing: Standing): {
-  readonly ids: readonly string[];
-  readonly source: "own" | "team" | "manager" | "none";
-} {
-  if (standing.own.length > 0) {
-    return { ids: standing.own, source: "own" };
-  }
-  if (standing.teamApprovers.length > 0) {
-    return { ids: standing.teamApprovers, source: "team" };
-  }
-  return standing.manager === null
-    ? { ids: [], source: "none" }
-    : { ids: [standing.manager], source: "manager" };
 }
 
 /** The first rule that holds for a request, else the default line. */
@@ -52,7 +37,6 @@ export function ruleFor(
   for (const rule of config.rules) {
     const holds =
       (rule.kinds.length === 0 || rule.kinds.includes(facts.kind)) &&
-      (rule.teams.length === 0 || (facts.team !== null && rule.teams.includes(facts.team))) &&
       (rule.daysAtLeast === null || facts.days >= rule.daysAtLeast) &&
       (!rule.lateOnly || facts.late);
     if (holds) {
@@ -62,29 +46,34 @@ export function ruleFor(
   return { rule: null, steps: config.line };
 }
 
-/** Everyone a step names for a person, each once, the sources first and in their order. */
-function namedBy(step: ApprovalStep, standing: Standing, hrIds: readonly string[]): string[] {
+/**
+ * Everyone a step names for a person, each once, the sources first and in their order. A step of
+ * `manager` asks the nearest manager nobody has asked yet, so that a second such step goes one
+ * higher; a person with no manager at all goes to the administrators, who stand above everyone.
+ */
+function namedBy(
+  step: ApprovalStep,
+  standing: Standing,
+  staff: Staff,
+  asked: ReadonlySet<string>,
+): string[] {
   const ids: string[] = [];
   for (const source of step.sources) {
     switch (source) {
-      case "line":
-        ids.push(...approversOf(standing).ids);
-        break;
-      case "team":
-        ids.push(...standing.teamApprovers);
-        break;
-      case "manager":
-        if (standing.manager !== null) {
-          ids.push(standing.manager);
+      case "manager": {
+        const next = standing.managers.find((id) => !asked.has(id));
+        if (next !== undefined) {
+          ids.push(next);
+        } else if (standing.managers.length === 0) {
+          ids.push(...staff.admins);
         }
         break;
-      case "manager2":
-        if (standing.manager2 !== null) {
-          ids.push(standing.manager2);
-        }
+      }
+      case "admin":
+        ids.push(...staff.admins);
         break;
       default:
-        ids.push(...hrIds);
+        ids.push(...staff.hr);
         break;
     }
   }
@@ -93,32 +82,32 @@ function namedBy(step: ApprovalStep, standing: Standing, hrIds: readonly string[
 }
 
 /**
- * The line a request travels: each step's people, without the person whose leave it is, for
- * nobody approves their own, and without anyone an earlier step named, for a person approves
- * once. A step left with nobody is passed over. A line asked for and left with nobody at all goes
- * to HR, and with no HR to where the console sends a decision, which a step of nobody stands for;
- * a line of no steps asks nobody.
+ * The line a request travels: who each step asks, without the person whose leave it is, for nobody
+ * approves their own, and without anyone an earlier step asked, for a person approves once. A step
+ * left with nobody is passed over. A line asked for and left with nobody at all goes to the
+ * administrators, then to HR, and with neither to where the console sends a decision, which a step
+ * of nobody stands for; a line of no steps asks nobody.
  */
 export function lineFor(
   steps: readonly ApprovalStep[],
   standing: Standing,
-  hrIds: readonly string[],
+  staff: Staff,
 ): RequestStep[] {
   if (steps.length === 0) {
     return [];
   }
-  const seen = new Set<string>([standing.personId]);
+  const asked = new Set<string>([standing.personId]);
   const line: RequestStep[] = [];
   for (const step of steps) {
-    const approverIds = namedBy(step, standing, hrIds).filter((id) => !seen.has(id));
-    if (approverIds.length === 0) {
+    const deciderIds = namedBy(step, standing, staff, asked).filter((id) => !asked.has(id));
+    if (deciderIds.length === 0) {
       continue;
     }
-    for (const id of approverIds) {
-      seen.add(id);
+    for (const id of deciderIds) {
+      asked.add(id);
     }
     line.push({
-      approverIds: step.mode === "any" ? approverIds.slice(0, DECIDERS_AT_MOST) : approverIds,
+      deciderIds: step.mode === "any" ? deciderIds.slice(0, DECIDERS_AT_MOST) : deciderIds,
       mode: step.mode,
       approvedBy: [],
     });
@@ -126,25 +115,27 @@ export function lineFor(
   if (line.length > 0) {
     return line;
   }
-  const others = hrIds.filter((id) => id !== standing.personId).slice(0, DECIDERS_AT_MOST);
-  return [{ approverIds: others, mode: "any", approvedBy: [] }];
+  const others = (list: readonly string[]) => list.filter((id) => id !== standing.personId);
+  const admins = others(staff.admins);
+  const fallback = admins.length > 0 ? admins : others(staff.hr);
+  return [{ deciderIds: fallback.slice(0, DECIDERS_AT_MOST), mode: "any", approvedBy: [] }];
 }
 
 function closed(step: RequestStep): boolean {
-  if (step.mode === "any" || step.approverIds.length === 0) {
+  if (step.mode === "any" || step.deciderIds.length === 0) {
     return step.approvedBy.length > 0;
   }
   const approved = new Set(step.approvedBy.map((entry) => entry.id));
-  return step.approverIds.every((id) => approved.has(id));
+  return step.deciderIds.every((id) => approved.has(id));
 }
 
 /** Who a step waits for now: all of it for `any`, the next who has not answered for `all`. */
 export function waitingIn(step: RequestStep): readonly string[] {
   if (step.mode === "any") {
-    return step.approverIds;
+    return step.deciderIds;
   }
   const approved = new Set(step.approvedBy.map((entry) => entry.id));
-  const next = step.approverIds.find((id) => !approved.has(id));
+  const next = step.deciderIds.find((id) => !approved.has(id));
   return next === undefined ? [] : [next];
 }
 
@@ -171,18 +162,43 @@ export function approvedAt(
     if (index !== step) {
       return candidate;
     }
-    const place = candidate.approverIds.includes(by) ? by : (waitingIn(candidate)[0] ?? by);
+    const place = candidate.deciderIds.includes(by) ? by : (waitingIn(candidate)[0] ?? by);
     return { ...candidate, approvedBy: [...candidate.approvedBy, { id: place, by, at }] };
   });
 }
 
-/** The line with a person's approval written in every step that names them. */
-export function approvedAs(steps: readonly RequestStep[], by: string, at: string): RequestStep[] {
-  return steps.map((candidate) =>
-    candidate.approverIds.includes(by)
-      ? { ...candidate, approvedBy: [...candidate.approvedBy, { id: by, by, at }] }
-      : candidate,
+/** Whether a step asks only people below `by`, among the managers of the person it is for. */
+function asksBelow(step: RequestStep, by: string, managers: readonly string[]): boolean {
+  const rank = managers.indexOf(by);
+  return (
+    rank > 0 &&
+    step.deciderIds.length > 0 &&
+    step.deciderIds.every((id) => {
+      const other = managers.indexOf(id);
+      return other >= 0 && other < rank;
+    })
   );
+}
+
+/**
+ * The line with a person's approval written in every step that asks them, and in every step that
+ * asks a manager below them, whose authority they hold too.
+ */
+export function approvedAs(
+  steps: readonly RequestStep[],
+  by: string,
+  at: string,
+  managers: readonly string[],
+): RequestStep[] {
+  return steps.map((candidate) => {
+    if (candidate.deciderIds.includes(by)) {
+      return { ...candidate, approvedBy: [...candidate.approvedBy, { id: by, by, at }] };
+    }
+    const place = waitingIn(candidate)[0];
+    return place !== undefined && asksBelow(candidate, by, managers)
+      ? { ...candidate, approvedBy: [...candidate.approvedBy, { id: place, by, at }] }
+      : candidate;
+  });
 }
 
 /** Whether a kind approves a request as it is written, by its rule, the days and the notice. */

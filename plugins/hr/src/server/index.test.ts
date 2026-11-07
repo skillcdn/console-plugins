@@ -16,7 +16,6 @@ import type {
   PresetView,
   RequestPreview,
   RequestView,
-  TeamView,
 } from "../shared/contracts.js";
 import {
   accrue,
@@ -46,8 +45,6 @@ import {
   requestsQuery,
   runDaily,
   setup,
-  team,
-  teamsQuery,
   type,
   typesQuery,
 } from "./index.js";
@@ -62,7 +59,7 @@ function restPerson(
   login: string,
   name: string | null,
   status: "active" | "deactivated" = "active",
-  more: { managerId?: string; language?: string } = {},
+  more: { managerId?: string; language?: string; role?: "admin" | "member" } = {},
 ): RestPerson {
   return {
     id,
@@ -71,7 +68,7 @@ function restPerson(
     managerId: more.managerId ?? null,
     language: more.language ?? "en",
     avatar: null,
-    role: "member",
+    role: more.role ?? "member",
     status,
     source: "listed",
     deactivatedAt: status === "deactivated" ? "2026-11-01T00:00:00.000Z" : null,
@@ -96,12 +93,13 @@ function caller(
 }
 
 const HR = caller("00000000-0000-7000-8000-000000000001", "hana", ["hr", "member"]);
-const MANAGER = caller("00000000-0000-7000-8000-000000000002", "minho", ["manager", "member"]);
+const MANAGER = caller("00000000-0000-7000-8000-000000000002", "minho", ["member"]);
 const ALICE = caller("00000000-0000-7000-8000-000000000003", "alice", ["member"]);
 const BOB = caller("00000000-0000-7000-8000-000000000004", "bob", ["member"]);
+const ADMIN = caller("00000000-0000-7000-8000-000000000005", "ada", ["hr", "member"], true);
 const CONSOLE: PluginCaller = {
   kind: "console",
-  roles: ["member", "manager", "hr"],
+  roles: ["member", "hr"],
   project: null,
 };
 
@@ -156,10 +154,29 @@ function board(): Board {
   };
 }
 
+/** The directory: Alice reports to Minho, and nobody else reports to anyone. */
 const everyone = (): RestPerson[] =>
   [HR, MANAGER, ALICE, BOB].map((who) =>
-    restPerson(personOf(who).id, personOf(who).login, personOf(who).name),
+    restPerson(
+      personOf(who).id,
+      personOf(who).login,
+      personOf(who).name,
+      "active",
+      who === ALICE ? { managerId: personOf(MANAGER).id } : {},
+    ),
   );
+
+/** The directory with Minho reporting to Bob, who stands above Alice too. */
+const chain = (): RestPerson[] =>
+  everyone().map((person) =>
+    person.login === "minho" ? { ...person, managerId: personOf(BOB).id } : person,
+  );
+
+/** The directory with an administrator in it. */
+const withAdmin = (people: RestPerson[] = everyone()): RestPerson[] => [
+  ...people,
+  restPerson(personOf(ADMIN).id, "ada", "ADA", "active", { role: "admin" }),
+];
 
 function contextWith(theBoard: Board, people: RestPerson[] = everyone()): TestContext {
   let counter = 0;
@@ -251,7 +268,6 @@ async function korea(
     person: personOf(ALICE),
     leave: "on",
     "hired-on": "2025-03-15",
-    approvers: [personOf(MANAGER)],
   });
   return ctx;
 }
@@ -314,7 +330,6 @@ describe("enroll", () => {
       personId: personOf(ALICE).id,
       leave: true,
       hiredOn: "2025-03-15",
-      approverIds: [personOf(MANAGER).id],
     });
     const lines = ctx.all("ledger");
     expect(lines.filter((line) => line.data.kind === "accrual")).toHaveLength(11);
@@ -358,7 +373,7 @@ describe("request", () => {
     ctx = await korea(theBoard);
   });
 
-  it("raises a decision for the approver and waits", async () => {
+  it("raises a decision for the manager and waits", async () => {
     const result = await request.run(ctx.as(ALICE), {
       from: "2026-12-24",
       to: "2026-12-28",
@@ -551,7 +566,7 @@ describe("the decision answered", () => {
     expect((await annualOf(ctx, ALICE)).available).toBe(15);
   });
 
-  it("returns the request when the approver answered in their own words", async () => {
+  it("returns the request when the decider answered in their own words", async () => {
     theBoard.answer(decisionId, "own", MANAGER);
     await onDecisionAnswered(ctx.as(CONSOLE), event(decisionId));
     expect(ctx.all("requests")[0]?.data).toMatchObject({
@@ -688,7 +703,7 @@ describe("cancel", () => {
     expect(ctx.all("requests")[0]?.data).toMatchObject({ state: "cancelled" });
   });
 
-  it("raises a decision where the setting asks the approver, and keeps the leave when refused", async () => {
+  it("raises a decision where the setting asks for one, and keeps the leave when refused", async () => {
     const ctx = await korea(theBoard, { cancellation: "approval" });
     const id = await approved(ctx, "2026-11-10", "2026-11-11");
     const result = await cancel.run(ctx.as(ALICE), { request: id });
@@ -833,12 +848,12 @@ describe("the daily job", () => {
 });
 
 describe("balances and visibility", () => {
-  it("shows a person their own balance, their approver too, and nobody else unless the setting opens it", async () => {
+  it("shows a person their own balance, their manager too, and nobody else unless the setting opens it", async () => {
     const ctx = await korea(board());
     const own = (await balance.run(ctx.as(ALICE), {})) as BalanceReport;
     expect(own.person.login).toBe("alice");
     expect(own.policy?.key).toBe("kr-statutory");
-    expect(own.approvers).toMatchObject({ source: "own", people: [{ id: personOf(MANAGER).id }] });
+    expect(own.manager?.id).toBe(personOf(MANAGER).id);
     const asManager = (await balance.run(ctx.as(MANAGER), {
       person: personOf(ALICE),
     })) as BalanceReport;
@@ -881,7 +896,7 @@ describe("balances and visibility", () => {
 });
 
 describe("requests, calendar and the overview", () => {
-  it("lists one's own requests, the approver's team, and everyone's for HR", async () => {
+  it("lists one's own requests, the manager's people, and everyone's for HR", async () => {
     const ctx = await korea(board());
     await request.run(ctx.as(ALICE), { from: "2026-11-10", to: "2026-11-11" });
     expect((await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[]).toHaveLength(1);
@@ -890,9 +905,7 @@ describe("requests, calendar and the overview", () => {
     expect(team).toHaveLength(1);
     expect(team[0]?.decisionPath).toMatch(/^\/projects\/hr\/decisions\//);
     expect(team[0]?.cancellable).toBe(false);
-    await expect(requestsQuery.run(ctx.as(BOB), { scope: "team" })).rejects.toMatchObject({
-      code: "not_visible",
-    });
+    expect(await requestsQuery.run(ctx.as(BOB), { scope: "team" })).toEqual([]);
     await expect(requestsQuery.run(ctx.as(MANAGER), { scope: "all" })).rejects.toMatchObject({
       code: "hr_only",
     });
@@ -947,7 +960,30 @@ describe("requests, calendar and the overview", () => {
     ).rejects.toMatchObject({ code: "span" });
   });
 
-  it("gives everyone an overview of their own, and the approver what waits", async () => {
+  it("keeps a team's calendar to those who share a manager, and that manager", async () => {
+    const peers = everyone().map((person) =>
+      person.login === "bob" ? { ...person, managerId: personOf(MANAGER).id } : person,
+    );
+    const span = { from: "2026-11-01", to: "2026-11-30" };
+    const team = await korea(board(), { "calendar-visibility": "team" }, peers);
+    await request.run(team.as(ALICE), { from: "2026-11-10" });
+    await enroll.run(team, { person: personOf(MANAGER), leave: "on", "hired-on": "2025-03-15" });
+    await request.run(team.as(MANAGER), { from: "2026-11-12" });
+    const asPeer = (await calendar.run(team.as(BOB), span)) as CalendarReport;
+    expect(asPeer.scope).toBe("team");
+    expect(asPeer.entries.map((entry) => entry.person.login)).toEqual(["alice", "minho"]);
+    const asOutsider = (await calendar.run(team.as(HR), span)) as CalendarReport;
+    expect(asOutsider.scope).toBe("hr");
+    const closed = await korea(board(), { "calendar-visibility": "hr" }, peers);
+    await request.run(closed.as(ALICE), { from: "2026-11-10" });
+    const asMember = (await calendar.run(closed.as(BOB), span)) as CalendarReport;
+    expect(asMember).toMatchObject({ scope: "self", entries: [] });
+    const asManager = (await calendar.run(closed.as(MANAGER), span)) as CalendarReport;
+    expect(asManager.scope).toBe("team");
+    expect(asManager.entries).toHaveLength(1);
+  });
+
+  it("gives everyone an overview of their own, and the manager what waits", async () => {
     const ctx = await korea(board());
     await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const alice = (await overview.run(ctx.as(ALICE), {})) as OverviewReport;
@@ -964,7 +1000,7 @@ describe("requests, calendar and the overview", () => {
 });
 
 describe("people, policies, types and holidays", () => {
-  it("lists every member for HR with their records, the approver's people for a manager", async () => {
+  it("lists every member for HR with their records, a manager's people, and nobody for others", async () => {
     const ctx = await korea(board());
     const all = (await peopleQuery.run(ctx, {})) as PeopleReport;
     expect(all.scope).toBe("all");
@@ -975,7 +1011,19 @@ describe("people, policies, types and holidays", () => {
     const team = (await peopleQuery.run(ctx.as(MANAGER), {})) as PeopleReport;
     expect(team.scope).toBe("team");
     expect(team.people.map((row) => row.person.login)).toEqual(["alice"]);
-    await expect(peopleQuery.run(ctx.as(BOB), {})).rejects.toMatchObject({ code: "not_visible" });
+    expect(((await peopleQuery.run(ctx.as(BOB), {})) as PeopleReport).people).toEqual([]);
+  });
+
+  it("keeps HR's note from a manager", async () => {
+    const ctx = await korea(board());
+    await enroll.run(ctx, { person: personOf(ALICE), note: "for HR alone" });
+    const asHr = (await peopleQuery.run(ctx, {})) as PeopleReport;
+    expect(asHr.people.find((row) => row.person.login === "alice")?.record?.note).toBe(
+      "for HR alone",
+    );
+    const asManager = (await peopleQuery.run(ctx.as(MANAGER), {})) as PeopleReport;
+    expect(asManager.people[0]?.record?.note).toBe("");
+    expect(JSON.stringify(asManager)).not.toContain("for HR alone");
   });
 
   it("writes a policy from a preset with overrides, and refuses malformed tiers", async () => {
@@ -1115,42 +1163,137 @@ const eventFor = (decisionId: string) => ({
 const answered = (ctx: TestContext, decisionId: string) =>
   onDecisionAnswered(ctx.as(CONSOLE), eventFor(decisionId) as never);
 
-describe("the line of approvers", () => {
-  it("takes the team's approvers, and the person's own over them", async () => {
-    const theBoard = board();
-    const ctx = await korea(theBoard);
-    await team.run(ctx, { key: "design", name: "Design", approvers: [personOf(BOB)] });
-    await enroll.run(ctx, {
-      person: personOf(ALICE),
-      team: "design",
-      clear: ["approvers"],
-    });
-    const byTeam = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
-    expect(theBoard.decisions.get(byTeam.waiting ?? "")?.decider.id).toBe(personOf(BOB).id);
-    await enroll.run(ctx, { person: personOf(ALICE), approvers: [personOf(MANAGER)] });
-    const byOwn = await request.run(ctx.as(ALICE), { from: "2026-11-11" });
-    expect(theBoard.decisions.get(byOwn.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
+describe("who stands above a person", () => {
+  it("reaches every level below, with the same sight as the nearest manager", async () => {
+    const ctx = await korea(board(), {}, chain());
+    await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    const seen = (await balance.run(ctx.as(BOB), { person: personOf(ALICE) })) as BalanceReport;
+    expect(seen.types[0]?.available).toBe(14);
+    const theirs = (await requestsQuery.run(ctx.as(BOB), { scope: "team" })) as RequestView[];
+    expect(theirs.map((view) => view.person.login)).toEqual(["alice"]);
+    const people = (await peopleQuery.run(ctx.as(BOB), {})) as PeopleReport;
+    expect(people.people.map((row) => row.person.login)).toEqual(["alice"]);
   });
 
-  it("takes the person's manager in the directory where nobody is named", async () => {
+  it("asks the nearest alone, so that those above it are not asked for every request", async () => {
     const theBoard = board();
-    const people = everyone();
-    people[2] = restPerson(personOf(ALICE).id, "alice", "ALICE", "active", {
-      managerId: personOf(BOB).id,
+    const ctx = await korea(theBoard, {}, chain());
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
+    const [view] = (await requestsQuery.run(ctx.as(BOB), { scope: "team" })) as RequestView[];
+    expect(view?.mine).toBe(false);
+    expect(await requestsQuery.run(ctx.as(BOB), { scope: "waiting" })).toEqual([]);
+    expect(((await overview.run(ctx.as(BOB), {})) as OverviewReport).waiting).toEqual([]);
+  });
+
+  it("settles a request on the answer of anyone above the one asked", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {}, chain());
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    theBoard.answer(result.waiting ?? "", "approve", BOB);
+    await answered(ctx, result.waiting ?? "");
+    expect(stored(ctx)).toMatchObject({ state: "approved", decidedBy: personOf(BOB).id });
+    expect(stored(ctx).steps[0]?.approvedBy[0]).toMatchObject({
+      id: personOf(MANAGER).id,
+      by: personOf(BOB).id,
     });
-    const ctx = contextWith(theBoard, people);
-    await setup.run(ctx, { country: "kr" });
-    await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" });
+  });
+
+  it("passes through someone who left, to whoever stands above them", async () => {
+    const theBoard = board();
+    const people = chain().map((person) =>
+      person.login === "minho" ? { ...person, status: "deactivated" as const } : person,
+    );
+    const ctx = await korea(theBoard, {}, people);
     const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(BOB).id);
   });
 
-  it("addresses a step any may answer to all of them, and closes on the first answer", async () => {
+  it("ends where a directory goes round, or names someone unknown", async () => {
+    const theBoard = board();
+    const looped = chain().map((person) =>
+      person.login === "bob" ? { ...person, managerId: personOf(ALICE).id } : person,
+    );
+    const ctx = await korea(theBoard, {}, looped);
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
+    const reached = (await requestsQuery.run(ctx.as(BOB), { scope: "team" })) as RequestView[];
+    expect(reached.map((view) => view.person.login)).toEqual(["alice"]);
+    const stray = everyone().map((person) =>
+      person.login === "alice"
+        ? { ...person, managerId: "00000000-0000-7000-8000-00000000dead" }
+        : person,
+    );
+    const other = await korea(board(), {}, stray);
+    expect(((await balance.run(other.as(ALICE), {})) as BalanceReport).manager?.id).toBe(
+      "00000000-0000-7000-8000-00000000dead",
+    );
+    await request.run(other.as(ALICE), { from: "2026-11-10" });
+    expect(stored(other).steps[0]?.deciderIds).toEqual([personOf(HR).id]);
+  });
+});
+
+describe("the line of a request", () => {
+  it("asks the person's manager in the console, unless the line says otherwise", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard);
-    await enroll.run(ctx, {
-      person: personOf(ALICE),
-      approvers: [personOf(MANAGER), personOf(BOB)],
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
+    await configure.run(ctx, {
+      line: lineWith([{ sources: ["hr"], people: [], mode: "any" }]),
+    });
+    const toHr = await request.run(ctx.as(ALICE), { from: "2026-11-11" });
+    expect(theBoard.decisions.get(toHr.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
+  });
+
+  it("goes one higher with a second step of the manager", async () => {
+    const theBoard = board();
+    const ctx = await korea(
+      theBoard,
+      {
+        line: lineWith([
+          { sources: ["manager"], people: [], mode: "any" },
+          { sources: ["manager"], people: [], mode: "any" },
+        ]),
+      },
+      chain(),
+    );
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    theBoard.answer(result.waiting ?? "", "approve", MANAGER);
+    await answered(ctx, result.waiting ?? "");
+    const second = stored(ctx).decisionId ?? "";
+    expect(theBoard.decisions.get(second)?.decider.id).toBe(personOf(BOB).id);
+  });
+
+  it("asks the administrators where a person has no manager, never the person themselves", async () => {
+    const theBoard = board();
+    const ctx = contextWith(theBoard, withAdmin());
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2025-03-15" });
+    await enroll.run(ctx, { person: personOf(ADMIN), leave: "on", "hired-on": "2025-03-15" });
+    const result = await request.run(ctx.as(BOB), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(ADMIN).id);
+    await request.run(ctx.as(ADMIN), { from: "2026-11-10" });
+    expect(stored(ctx, 1).steps[0]?.deciderIds).toEqual([personOf(HR).id]);
+  });
+
+  it("goes where the console sends it where nobody else is left", async () => {
+    const theBoard = board();
+    const hana = restPerson(personOf(HR).id, "hana", "HANA");
+    const ctx = contextWith(theBoard, [hana]);
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(HR), leave: "on", "hired-on": "2025-03-15" });
+    const own = await request.run(ctx, { from: "2026-11-10" });
+    expect(stored(ctx).steps[0]?.deciderIds).toEqual([]);
+    expect(own.waiting).toBeDefined();
+  });
+
+  it("addresses a step any may answer to all of them, and closes on the first answer", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {
+      line: lineWith([
+        { sources: [], people: [personOf(MANAGER).id, personOf(BOB).id], mode: "any" },
+      ]),
     });
     const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const decision = theBoard.decisions.get(result.waiting ?? "") as unknown as {
@@ -1168,11 +1311,9 @@ describe("the line of approvers", () => {
   it("asks all of a step one after another, the days taken at the end alone", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {
-      line: lineWith([{ sources: ["line"], people: [], mode: "all" }]),
-    });
-    await enroll.run(ctx, {
-      person: personOf(ALICE),
-      approvers: [personOf(MANAGER), personOf(BOB)],
+      line: lineWith([
+        { sources: [], people: [personOf(MANAGER).id, personOf(BOB).id], mode: "all" },
+      ]),
     });
     const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const first = result.waiting ?? "";
@@ -1195,7 +1336,7 @@ describe("the line of approvers", () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {
       line: lineWith([
-        { sources: ["line"], people: [], mode: "any" },
+        { sources: ["manager"], people: [], mode: "any" },
         { sources: ["hr"], people: [], mode: "any" },
       ]),
     });
@@ -1217,7 +1358,7 @@ describe("the line of approvers", () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {
       line: lineWith([
-        { sources: ["line"], people: [], mode: "any" },
+        { sources: ["manager"], people: [], mode: "any" },
         { sources: ["hr"], people: [], mode: "any" },
       ]),
     });
@@ -1238,11 +1379,10 @@ describe("the line of approvers", () => {
         {
           name: "Long leave",
           kinds: [],
-          teams: [],
           daysAtLeast: 3,
           lateOnly: false,
           steps: [
-            { sources: ["line"], people: [], mode: "any" },
+            { sources: ["manager"], people: [], mode: "any" },
             { sources: ["hr"], people: [], mode: "any" },
           ],
         },
@@ -1256,24 +1396,6 @@ describe("the line of approvers", () => {
     expect(stored(ctx, 1).steps).toHaveLength(2);
   });
 
-  it("goes to HR where the line names nobody, never to the person themselves", async () => {
-    const theBoard = board();
-    const ctx = contextWith(theBoard);
-    await setup.run(ctx, { country: "kr" });
-    await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" });
-    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
-    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
-    await enroll.run(ctx, {
-      person: personOf(HR),
-      leave: "on",
-      "hired-on": "2025-03-15",
-      approvers: [personOf(HR)],
-    });
-    const own = await request.run(ctx, { from: "2026-11-10" });
-    expect(stored(ctx, 1).steps[0]?.approverIds).toEqual([]);
-    expect(own.waiting).toBeDefined();
-  });
-
   it("sends the request back where the person answers their own decision", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard);
@@ -1285,15 +1407,26 @@ describe("the line of approvers", () => {
     expect(ctx.all("ledger").filter((line) => line.data.kind === "use")).toHaveLength(0);
   });
 
-  it("goes on to HR where the console refuses the approvers, and asks HR to mend the line", async () => {
+  it("goes on up where the console refuses the one asked, and asks HR to mend it", async () => {
     const theBoard = board();
-    const ctx = await korea(theBoard);
+    const ctx = await korea(theBoard, {}, chain());
     theBoard.refuse.add(personOf(MANAGER).id);
     const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
-    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
+    expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(BOB).id);
     expect(theBoard.tasks[0]?.body).toContain("MINHO");
     await request.run(ctx.as(ALICE), { from: "2026-11-11" });
     expect(theBoard.tasks).toHaveLength(1);
+  });
+
+  it("goes on to the administrators, then to HR, past those refused", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {}, withAdmin());
+    theBoard.refuse.add(personOf(MANAGER).id);
+    const toAdmin = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(toAdmin.waiting ?? "")?.decider.id).toBe(personOf(ADMIN).id);
+    theBoard.refuse.add(personOf(ADMIN).id);
+    const toHr = await request.run(ctx.as(ALICE), { from: "2026-11-11" });
+    expect(theBoard.decisions.get(toHr.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
   });
 
   it("refuses the request where nobody at all can be asked", async () => {
@@ -1301,14 +1434,14 @@ describe("the line of approvers", () => {
     const ctx = await korea(theBoard);
     theBoard.refuse.add("everyone");
     await expect(request.run(ctx.as(ALICE), { from: "2026-11-10" })).rejects.toMatchObject({
-      code: "approver_unavailable",
+      code: "decider_unavailable",
     });
     expect(await requestsQuery.run(ctx.as(ALICE), {})).toEqual([]);
   });
 });
 
 describe("how a kind of leave is taken", () => {
-  it("asks a number of days ahead, and refuses, marks or leaves to an approver what comes after", async () => {
+  it("asks a number of days ahead, and refuses, marks or leaves to a manager what comes after", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard);
     await type.run(ctx, { key: "annual", notice: "days", "notice-days": 7, late: "refuse" });
@@ -1317,7 +1450,7 @@ describe("how a kind of leave is taken", () => {
     });
     await request.run(ctx.as(ALICE), { from: "2026-11-13" });
     expect(stored(ctx)).toMatchObject({ late: false });
-    await type.run(ctx, { key: "annual", late: "approver" });
+    await type.run(ctx, { key: "annual", late: "manager" });
     await expect(request.run(ctx.as(ALICE), { from: "2026-11-10" })).rejects.toMatchObject({
       code: "too_late",
     });
@@ -1398,7 +1531,7 @@ describe("how a kind of leave is taken", () => {
 });
 
 describe("recording leave for someone else", () => {
-  it("lets an approver record for their people, approved as it is written", async () => {
+  it("lets a manager record for their people, approved as it is written", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard);
     const result = await request.run(ctx.as(MANAGER), {
@@ -1418,11 +1551,24 @@ describe("recording leave for someone else", () => {
     expect(views[0]?.recordedBy?.id).toBe(personOf(MANAGER).id);
   });
 
-  it("still asks the steps the approver does not stand in", async () => {
+  it("lets a manager's manager do the same, for the step of the one below", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {}, chain());
+    const result = await request.run(ctx.as(BOB), { from: "2026-11-10", person: personOf(ALICE) });
+    expect(result.waiting).toBeUndefined();
+    expect(stored(ctx)).toMatchObject({ state: "approved", requestedBy: personOf(BOB).id });
+    expect(stored(ctx).steps[0]?.approvedBy[0]).toMatchObject({
+      id: personOf(MANAGER).id,
+      by: personOf(BOB).id,
+    });
+    expect(theBoard.decisions.size).toBe(0);
+  });
+
+  it("still asks the steps the manager does not stand in", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {
       line: lineWith([
-        { sources: ["line"], people: [], mode: "any" },
+        { sources: ["manager"], people: [], mode: "any" },
         { sources: ["hr"], people: [], mode: "any" },
       ]),
     });
@@ -1436,24 +1582,24 @@ describe("recording leave for someone else", () => {
     expect(decision?.body).toContain("Recorded by MINHO");
   });
 
-  it("refuses an approver for anyone else, and a member for anyone", async () => {
+  it("refuses a manager for anyone else, and a member for anyone", async () => {
     const ctx = await korea(board());
     await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2025-03-15" });
     await expect(
       request.run(ctx.as(MANAGER), { from: "2026-11-10", person: personOf(BOB) }),
-    ).rejects.toMatchObject({ code: "not_approver" });
+    ).rejects.toMatchObject({ code: "not_their_manager" });
     await expect(
       request.run(ctx.as(BOB), { from: "2026-11-10", person: personOf(ALICE) }),
-    ).rejects.toMatchObject({ code: "not_approver" });
+    ).rejects.toMatchObject({ code: "not_their_manager" });
     expect(ctx.all("requests")).toHaveLength(0);
   });
 
-  it("takes the role as well: being named shows nothing to a person without it", async () => {
-    const ctx = await korea(board());
-    await enroll.run(ctx, { person: personOf(ALICE), approvers: [personOf(BOB)] });
-    await expect(
-      request.run(ctx.as(BOB), { from: "2026-11-10", person: personOf(ALICE) }),
-    ).rejects.toMatchObject({ code: "not_approver" });
+  it("lets whoever a line names record too, and shows them no balance for it", async () => {
+    const ctx = await korea(board(), {
+      line: lineWith([{ sources: [], people: [personOf(BOB).id], mode: "any" }]),
+    });
+    await request.run(ctx.as(BOB), { from: "2026-11-10", person: personOf(ALICE) });
+    expect(stored(ctx)).toMatchObject({ state: "approved", requestedBy: personOf(BOB).id });
     await expect(balance.run(ctx.as(BOB), { person: personOf(ALICE) })).rejects.toMatchObject({
       code: "not_visible",
     });
@@ -1496,7 +1642,10 @@ describe("the language of what the plugin writes", () => {
       ...restPerson(personOf(MANAGER).id, "minho", "민호"),
       language: null,
     } as RestPerson;
-    people[2] = restPerson(personOf(ALICE).id, "alice", "ALICE", "active", { language: "ko" });
+    people[2] = restPerson(personOf(ALICE).id, "alice", "ALICE", "active", {
+      language: "ko",
+      managerId: personOf(MANAGER).id,
+    });
     const ctx = await korea(theBoard, {}, people);
     const result = await request.run(ctx.as(KO_ALICE), { from: "2026-11-10" });
     expect(theBoard.decisions.get(result.waiting ?? "")?.question).toContain("휴가 결재");
@@ -1540,44 +1689,12 @@ describe("the language of what the plugin writes", () => {
   });
 });
 
-describe("teams", () => {
-  it("are written, listed with their people, and removed once nobody is on them", async () => {
-    const ctx = await korea(board());
-    await team.run(ctx, { key: "design", name: "Design", approvers: [personOf(MANAGER)] });
-    await enroll.run(ctx, { person: personOf(ALICE), team: "design" });
-    const views = (await teamsQuery.run(ctx, {})) as TeamView[];
-    expect(views[0]?.team.name).toBe("Design");
-    expect(views[0]?.approvers[0]?.login).toBe("minho");
-    expect(views[0]?.members.map((person) => person.login)).toEqual(["alice"]);
-    await expect(team.run(ctx, { key: "design", remove: true })).rejects.toMatchObject({
-      code: "team_in_use",
-    });
-    await enroll.run(ctx, { person: personOf(ALICE), clear: ["team"] });
-    await team.run(ctx, { key: "design", remove: true });
-    expect(await teamsQuery.run(ctx, {})).toEqual([]);
-  });
-
-  it("refuses a person on a team that does not exist, a team without a name, and a member", async () => {
-    const ctx = await korea(board());
-    await expect(
-      enroll.run(ctx, { person: personOf(ALICE), team: "nowhere" }),
-    ).rejects.toMatchObject({ code: "unknown_team" });
-    await expect(team.run(ctx, { key: "design" })).rejects.toMatchObject({ code: "name" });
-    await expect(team.run(ctx, { key: "Bad Key", name: "x" })).rejects.toMatchObject({
-      code: "key",
-    });
-    await expect(team.run(ctx.as(ALICE), { key: "x", name: "x" })).rejects.toMatchObject({
-      code: "hr_only",
-    });
-  });
-});
-
 describe("the configuration", () => {
   it("answers the defaults until it is written, and keeps what is given", async () => {
     const ctx = contextWith(board());
     const before = (await configQuery.run(ctx, {})) as ConfigReport;
     expect(before).toMatchObject({ version: 0, ready: false });
-    expect(before.config.line).toEqual([{ sources: ["line"], people: [], mode: "any" }]);
+    expect(before.config.line).toEqual([{ sources: ["manager"], people: [], mode: "any" }]);
     await setup.run(ctx, { country: "kr" });
     await configure.run(ctx, {
       cancellation: "hr",
@@ -1601,6 +1718,7 @@ describe("the configuration", () => {
       '{"a":1}',
       lineWith([{ sources: [], people: [], mode: "any" }]),
       lineWith([{ sources: ["nobody"], people: [], mode: "any" }]),
+      lineWith([{ sources: ["line"], people: [], mode: "any" }]),
       lineWith([{ sources: ["hr"], people: [], mode: "some" }]),
       lineWith(Array.from({ length: 6 }, () => ({ sources: ["hr"], people: [], mode: "any" }))),
       lineWith([
@@ -1616,7 +1734,6 @@ describe("the configuration", () => {
           {
             name: "x",
             kinds: ["nope"],
-            teams: [],
             daysAtLeast: null,
             lateOnly: false,
             steps: [],
@@ -1655,13 +1772,13 @@ describe("a cancellation that takes a decision", () => {
 });
 
 describe("a cancellation of leave nobody had to approve", () => {
-  it("goes to HR", async () => {
+  it("goes to the person's manager", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard, { cancellation: "approval", line: "[]" });
     await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const id = ctx.all("requests")[0]?.id ?? "";
     const cancelling = await cancel.run(ctx.as(ALICE), { request: id });
-    expect(theBoard.decisions.get(cancelling.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
+    expect(theBoard.decisions.get(cancelling.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
   });
 });
 
@@ -1673,7 +1790,7 @@ describe("what a request would be", () => {
       to: "2026-11-11",
     })) as RequestPreview;
     expect(report).toMatchObject({ refusal: null, days: 2, late: false, available: 15 });
-    expect(report.line[0]?.approvers[0]?.login).toBe("minho");
+    expect(report.line[0]?.deciders[0]?.login).toBe("minho");
     expect(report.line[0]?.state).toBe("waiting");
     expect(ctx.all("requests")).toHaveLength(0);
   });
@@ -1694,7 +1811,7 @@ describe("what a request would be", () => {
     expect(report).toMatchObject({ late: true, notice: "7 days before" });
   });
 
-  it("says that an approver writing for their people approves it as they write it", async () => {
+  it("says that a manager writing for their people approves it as they write it", async () => {
     const ctx = await korea(board());
     const report = (await preview.run(ctx.as(MANAGER), {
       from: "2026-11-10",
@@ -1703,13 +1820,13 @@ describe("what a request would be", () => {
     expect(report).toMatchObject({ refusal: null, automatic: true });
   });
 
-  it("refuses, as the command does, a person the caller does not approve", async () => {
+  it("refuses, as the command does, a person the caller does not manage", async () => {
     const ctx = await korea(board());
     const report = (await preview.run(ctx.as(BOB), {
       from: "2026-11-10",
       person: personOf(ALICE),
     })) as RequestPreview;
-    expect(report.refusal).toContain("people you approve");
+    expect(report.refusal).toContain("people you manage");
     expect(report.days).toBe(0);
   });
 

@@ -138,20 +138,16 @@ export function typeCards(report: BalanceReport, view: LeaveView): HTMLElement {
   return cards;
 }
 
-/** The terms a person is under: their policy, approvers, team and the day they were hired. */
+/** The terms a person is under: their policy, their manager and the day they were hired. */
 export function termsFacts(report: BalanceReport, view: LeaveView): HTMLElement {
   const { words, format, frame } = view;
-  const approvers = el("span", "terms-people");
-  if (report.approvers.people.length === 0) {
-    approvers.textContent = words.noApprover;
+  const manager = el("span", "terms-people");
+  if (report.manager === null) {
+    manager.textContent = words.noManager;
   } else {
-    approvers.append(
-      faces(frame, report.approvers.people, 4),
-      el(
-        "span",
-        "",
-        report.approvers.people.map((person) => person.name ?? person.login).join(", "),
-      ),
+    manager.append(
+      faces(frame, [report.manager], 1),
+      el("span", "", report.manager.name ?? report.manager.login),
     );
   }
   const node = el("dl", "sc-facts-plain terms");
@@ -166,8 +162,7 @@ export function termsFacts(report: BalanceReport, view: LeaveView): HTMLElement 
     node.append(item);
   };
   pair(words.policyLabel, report.policy?.name ?? words.noPolicy, report.policy?.summary);
-  pair(words.approverLabel, approvers, words.approverSource[report.approvers.source]);
-  pair(words.teamLabel, report.team?.name ?? DASH);
+  pair(words.managerLabel, manager, report.manager === null ? words.noManagerHint : undefined);
   pair(words.hiredOnLabel, report.hiredOn === null ? DASH : format.day(report.hiredOn));
   return node;
 }

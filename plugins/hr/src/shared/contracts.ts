@@ -84,7 +84,7 @@ export type Unit = "day" | "half" | "quarter";
 /** How long before its first day a request is in time. */
 export type NoticeMode = "none" | "days" | "dayBefore" | "sameDay";
 /** What becomes of a request that is not in time. */
-export type LateRule = "refuse" | "mark" | "approver";
+export type LateRule = "refuse" | "mark" | "manager";
 /** When a request is approved as it is written. */
 export type AutoMode = "never" | "always" | "upTo";
 
@@ -92,7 +92,7 @@ export const BALANCES: readonly Balance[] = ["annual", "own", "none"];
 export const REASON_RULES: readonly ReasonRule[] = ["optional", "required", "hidden"];
 export const UNITS: readonly Unit[] = ["day", "half", "quarter"];
 export const NOTICE_MODES: readonly NoticeMode[] = ["none", "days", "dayBefore", "sameDay"];
-export const LATE_RULES: readonly LateRule[] = ["refuse", "mark", "approver"];
+export const LATE_RULES: readonly LateRule[] = ["refuse", "mark", "manager"];
 export const AUTO_MODES: readonly AutoMode[] = ["never", "always", "upTo"];
 
 /** The notice a kind asks: `days` for `days`, `time` (HH:MM, the workspace's) for the two others. */
@@ -146,12 +146,8 @@ export interface Person {
   readonly hiredOn: string | null;
   readonly leftOn: string | null;
   readonly policy: string | null;
-  /** The approvers named for them alone; empty for their team's, else their manager. */
-  readonly approverIds: string[];
   /** Their own working days, or null for the workspace's. */
   readonly workDays: Weekday[] | null;
-  /** The key of their team. */
-  readonly team: string | null;
   readonly title: string | null;
   readonly employment: Employment;
   readonly note: string;
@@ -182,21 +178,15 @@ export type StepMode = "any" | "all";
 export const STEP_MODES: readonly StepMode[] = ["any", "all"];
 
 /**
- * Where the approvers of a step come from, read when a request is made. `line` is the person's
- * own approvers, else their team's, else their manager; `team` their team's alone; `manager` the
- * directory's, and `manager2` that manager's; `hr` the holders of the role.
+ * Who a step asks, read when a request is made. `manager` is the nearest of the person's managers
+ * in the console nobody has asked yet, the administrators for someone with no manager; `admin` the
+ * console's administrators; `hr` the holders of the role.
  */
-export type ApproverSource = "line" | "team" | "manager" | "manager2" | "hr";
-export const APPROVER_SOURCES: readonly ApproverSource[] = [
-  "line",
-  "team",
-  "manager",
-  "manager2",
-  "hr",
-];
+export type StepSource = "manager" | "admin" | "hr";
+export const STEP_SOURCES: readonly StepSource[] = ["manager", "admin", "hr"];
 
 export interface ApprovalStep {
-  readonly sources: ApproverSource[];
+  readonly sources: StepSource[];
   /** People named outright, beside the sources. */
   readonly people: string[];
   readonly mode: StepMode;
@@ -208,8 +198,6 @@ export interface ApprovalRule {
   readonly name: string;
   /** The kinds it holds for; every kind when empty. */
   readonly kinds: string[];
-  /** The teams it holds for; every team when empty. */
-  readonly teams: string[];
   /** The days from which it holds; null for any number. */
   readonly daysAtLeast: number | null;
   /** Whether it holds for a late request alone. */
@@ -219,18 +207,18 @@ export interface ApprovalRule {
 }
 
 export type Cancellation = "free" | "approval" | "hr";
-export type BalanceVisibility = "self" | "approver" | "everyone";
+export type BalanceVisibility = "self" | "manager" | "everyone";
 export type CalendarVisibility = "everyone" | "team" | "hr";
 export type HolidayCalendar = "none" | "kr" | "us";
 
 export const CANCELLATIONS: readonly Cancellation[] = ["free", "approval", "hr"];
-export const BALANCE_VISIBILITIES: readonly BalanceVisibility[] = ["self", "approver", "everyone"];
+export const BALANCE_VISIBILITIES: readonly BalanceVisibility[] = ["self", "manager", "everyone"];
 export const CALENDAR_VISIBILITIES: readonly CalendarVisibility[] = ["everyone", "team", "hr"];
 export const HOLIDAY_CALENDARS: readonly HolidayCalendar[] = ["none", "kr", "us"];
 
 /** What HR decides beyond the policies and the kinds: one record, kept with its versions. */
 export interface Config {
-  /** The default line of approvers; none, and a request is approved as it is written. */
+  /** The default line; none, and a request is approved as it is written. */
   readonly line: ApprovalStep[];
   /** The exceptions, the first that holds taking the place of the default line. */
   readonly rules: ApprovalRule[];
@@ -244,17 +232,10 @@ export interface Config {
   readonly holidayCalendar: HolidayCalendar;
 }
 
-/** A team: its people name it, and its approvers approve them unless they have their own. */
-export interface Team {
-  readonly key: string;
-  readonly name: string;
-  readonly approverIds: string[];
-}
-
 /** One step of the line a request travels, as it was when the request was made. */
 export interface RequestStep {
-  /** Who decides it; nobody named, and the decision goes where the console sends it. */
-  readonly approverIds: string[];
+  /** Who it asks; nobody named, and the decision goes where the console sends it. */
+  readonly deciderIds: string[];
   readonly mode: StepMode;
   /** The approvals so far: whose place each fills, and who gave it, anyone of the project may. */
   readonly approvedBy: { id: string; by: string; at: string }[];
@@ -299,7 +280,7 @@ export interface LeaveRequest {
   readonly cancelDecisionId: string | null;
   readonly decidedBy: string | null;
   readonly decidedAt: string | null;
-  /** The approver's note, or the words of an answer given in their own words. */
+  /** The decider's note, or the words of an answer given in their own words. */
   readonly note: string | null;
   readonly requestedBy: string;
   readonly requestedAt: string;
@@ -414,12 +395,6 @@ export function waitingDecision(view: {
     : (view.decisionPath ?? view.cancelDecisionPath);
 }
 
-/** A person's approvers as the plugin reads them, and where it read them. */
-export interface Approvers {
-  readonly people: readonly PersonBrief[];
-  readonly source: "own" | "team" | "manager" | "none";
-}
-
 /** The answer of the query `balance`. */
 export interface BalanceReport {
   readonly person: PersonBrief;
@@ -428,14 +403,14 @@ export interface BalanceReport {
   readonly hiredOn: string | null;
   readonly leftOn: string | null;
   readonly policy: { readonly key: string; readonly name: string; readonly summary: string } | null;
-  readonly approvers: Approvers;
-  readonly team: { readonly key: string; readonly name: string } | null;
+  /** Their manager in the console, or null where nobody is set and the administrators stand in. */
+  readonly manager: PersonBrief | null;
   readonly types: readonly TypeBalance[];
 }
 
 /** One step of a request's line, for a page. */
 export interface StepView {
-  readonly approvers: readonly PersonBrief[];
+  readonly deciders: readonly PersonBrief[];
   readonly mode: StepMode;
   readonly approvedBy: readonly PersonBrief[];
   readonly state: "done" | "waiting" | "ahead";
@@ -490,7 +465,7 @@ export interface CalendarReport {
   readonly workDays: readonly Weekday[];
   /** Whether the caller sees everyone or only their team or themselves. */
   readonly scope: "everyone" | "team" | "self" | "hr";
-  /** The people the caller approves, for a view of them alone. */
+  /** The people the caller manages, for a view of them alone. */
   readonly mine: readonly string[];
 }
 
@@ -499,8 +474,6 @@ export interface PersonRow {
   readonly status: "active" | "deactivated";
   readonly record: Person | null;
   readonly manager: PersonBrief | null;
-  readonly team: { readonly key: string; readonly name: string } | null;
-  readonly approvers: Approvers;
   readonly annual: {
     readonly available: number;
     readonly used: number;
@@ -510,18 +483,9 @@ export interface PersonRow {
 
 export interface PeopleReport {
   readonly people: readonly PersonRow[];
-  /** The policies and the teams by key and name, for the forms. */
+  /** The policies by key and name, for the forms. */
   readonly policies: readonly { readonly key: string; readonly name: string }[];
-  readonly teams: readonly { readonly key: string; readonly name: string }[];
   readonly scope: "all" | "team";
-}
-
-export interface TeamView {
-  readonly id: string;
-  readonly version: number;
-  readonly team: Team;
-  readonly approvers: readonly PersonBrief[];
-  readonly members: readonly PersonBrief[];
 }
 
 /** A policy with its name and its sentence in the caller's language. */

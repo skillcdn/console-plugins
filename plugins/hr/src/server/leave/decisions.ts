@@ -1,9 +1,9 @@
 // Raising a decision on a request, in the words of whoever is to answer it: the first of the people
 // it is addressed to, since a decision several may answer is one text (the console's ADR-0065). The
-// console refuses a person who cannot work in the board project, and a line drawn from the directory
-// names people nobody added there, so a refused decision goes on to HR, and to where the console
-// sends a decision when nobody is named, with a task for HR to mend the line: the request is not lost
-// to a board nobody set up.
+// console refuses a person who cannot work in the board project, and a manager is someone nobody
+// need have added there, so a refused decision goes on up the person's managers, to the
+// administrators, to HR, and to where the console sends a decision when nobody is named, with a
+// task for HR to mend it: the request is not lost to a board nobody set up.
 import { type PluginContext, PluginError, type PluginRecord } from "@skillcdn/console/plugin";
 import {
   ANNUAL,
@@ -13,19 +13,21 @@ import {
   type RequestStep,
 } from "../../shared/contracts.js";
 import { roundDays } from "../../shared/days.js";
+import { managersOf, standingOf } from "../access.js";
 import { requests } from "../collections.js";
 import {
   type Clock,
-  hrIdsOf,
+  directoryOf,
   languageFor,
   languageOfHr,
   listAll,
   personRecord,
   policyFor,
+  staffOf,
   typeByKey,
 } from "../store.js";
 import { daysText, nameIn, OPTION_KEYS, type ServerWords, serverWords, spanOf } from "../words.js";
-import { DECIDERS_AT_MOST } from "./approval.js";
+import { DECIDERS_AT_MOST, lineFor } from "./approval.js";
 import { balanceOf } from "./engine.js";
 import { taskOnce } from "./leavers.js";
 
@@ -68,7 +70,7 @@ function countOf(steps: readonly RequestStep[]): { total: number; done: number }
   let total = 0;
   let done = 0;
   for (const step of steps) {
-    const needed = step.mode === "any" ? 1 : Math.max(1, step.approverIds.length);
+    const needed = step.mode === "any" ? 1 : Math.max(1, step.deciderIds.length);
     total += needed;
     done += Math.min(needed, step.approvedBy.length);
   }
@@ -116,11 +118,26 @@ async function raise(
     language: string,
   ) => Promise<Parameters<PluginContext["console"]["decisions"]["ask"]>[1]>,
 ): Promise<string> {
-  const hr = (await hrIdsOf(ctx))
-    .filter((id) => id !== personId && !deciders.includes(id))
-    .slice(0, DECIDERS_AT_MOST);
-  // Nobody named, the decision goes where the console sends it; else to those named, then to HR.
-  const tries = deciders.length === 0 ? [[]] : [deciders, ...(hr.length > 0 ? [hr] : []), []];
+  const directory = await directoryOf(ctx);
+  const staff = await staffOf(ctx, directory);
+  const managers = managersOf(personId, directory);
+  const nearest = managers.indexOf(deciders[0] ?? "");
+  const above = nearest < 0 ? [] : managers.slice(nearest + 1);
+  const others = (ids: readonly string[]) =>
+    ids.filter((id) => id !== personId && !deciders.includes(id)).slice(0, DECIDERS_AT_MOST);
+  const admins = others(staff.admins);
+  const hr = others(staff.hr);
+  // Nobody named, the decision goes where the console sends it; else to those named, then on up.
+  const tries =
+    deciders.length === 0
+      ? [[]]
+      : [
+          deciders,
+          ...above.map((id) => [id]),
+          ...(admins.length > 0 ? [admins] : []),
+          ...(hr.length > 0 ? [hr] : []),
+          [],
+        ];
   let failure = "";
   for (const ids of tries) {
     const language = await languageFor(ctx, clock, [...ids, personId]);
@@ -142,12 +159,12 @@ async function raise(
     }
   }
   throw new PluginError(
-    "approver_unavailable",
+    "decider_unavailable",
     serverWords(ctx.language).refused.noDecision(failure),
   );
 }
 
-/** A task for HR, once a day per person: the approvers named cannot be asked. */
+/** A task for HR, once a day per person: those a step named cannot be asked. */
 async function askToMendTheLine(
   ctx: PluginContext,
   clock: Clock,
@@ -220,6 +237,17 @@ export async function askApproval(
   });
 }
 
+/** Who a line of the manager alone asks for a person: their manager, else who stands in. */
+async function nearestDeciders(ctx: PluginContext, personId: string): Promise<readonly string[]> {
+  const directory = await directoryOf(ctx);
+  const line = lineFor(
+    [{ sources: ["manager"], people: [], mode: "any" }],
+    standingOf(personId, directory),
+    await staffOf(ctx, directory),
+  );
+  return line[0]?.deciderIds ?? [];
+}
+
 /** Raises the decision on cancelling approved leave, for whoever approved it. */
 export async function askCancellation(
   ctx: PluginContext,
@@ -230,12 +258,9 @@ export async function askCancellation(
 ): Promise<string> {
   const data = request.data;
   const typeRecord = await typeByKey(ctx, data.type);
-  // Whoever approved it first; leave nobody had to approve goes to HR.
-  const first = data.steps[0]?.approverIds ?? [];
-  const deciders =
-    first.length > 0
-      ? first
-      : (await hrIdsOf(ctx)).filter((id) => id !== data.personId).slice(0, DECIDERS_AT_MOST);
+  // Whoever approved it first; leave nobody had to approve goes to the person's manager.
+  const first = data.steps[0]?.deciderIds ?? [];
+  const deciders = first.length > 0 ? first : await nearestDeciders(ctx, data.personId);
   return raise(ctx, clock, data.personId, deciders, async (words, language) => {
     const typeName = typeRecord === null ? data.type : nameIn(typeRecord.data.name, language);
     const span = spanOf(data.from, data.to, data.part, words);

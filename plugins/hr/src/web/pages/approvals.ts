@@ -1,6 +1,7 @@
-// Approvals: the requests an approver or HR sees, with where each stands on its line, and the form
+// Approvals: the requests a manager or HR sees, with where each stands on its line, and the form
 // that records leave for someone else. A decision is answered on the console's own decision page,
-// which the button opens; this page decides nothing.
+// which the button opens; this page decides nothing. Whoever stands above a person sees their
+// requests here, and only the one a step asks finds them among their own.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   type LeaveType,
@@ -121,6 +122,7 @@ export async function renderApprovals(
   let filter: Filter = "mine";
   let chosen = false;
   let views: readonly RequestView[] = [];
+  let manages = hr;
 
   const labels: Readonly<Record<Filter, string>> = {
     mine: words.filterMine,
@@ -139,11 +141,13 @@ export async function renderApprovals(
       tab.className = key === filter ? "sc-tab sc-tab-current" : "sc-tab";
       tab.textContent = key === "mine" || key === "open" ? `${labels[key]} ${count}` : labels[key];
     }
+    tabs.hidden = !manages;
+    record.hidden = !manages;
     const kept = views.filter((view) => keeps(filter, view));
     if (kept.length === 0) {
-      body.replaceChildren(
-        empty(filter === "mine" ? words.approvalsMineEmpty : words.approvalsEmpty),
-      );
+      const nobody = manages ? null : words.approvalsNobody;
+      const none = filter === "mine" ? words.approvalsMineEmpty : words.approvalsEmpty;
+      body.replaceChildren(empty(nobody ?? none));
       return;
     }
     const list = el("ul", "requests");
@@ -164,15 +168,17 @@ export async function renderApprovals(
 
   const refresh = sequenced(async (fresh) => {
     try {
-      const [line, waiting] = await Promise.all([
+      const [line, waiting, report] = await Promise.all([
         frame.query("requests", { scope: hr ? "all" : "team", limit: 200 }) as Promise<
           readonly RequestView[]
         >,
         frame.query("requests", { scope: "waiting", limit: 200 }) as Promise<
           readonly RequestView[]
         >,
+        frame.query("people", { balances: false }) as Promise<PeopleReport>,
       ]);
       if (fresh()) {
+        manages = hr || report.people.length > 0 || waiting.length > 0;
         const known = new Set(line.map((view) => view.id));
         views = [...waiting.filter((view) => !known.has(view.id)), ...line];
         if (!chosen && !views.some((view) => view.mine)) {
@@ -216,13 +222,10 @@ export async function renderApprovals(
     }
   };
 
+  const record = button(words.recordForSomeone, () => void openRecord(), "secondary");
   const node = page();
   node.append(
-    pageHead(
-      words.approvalsTitle,
-      words.approvalsLead,
-      button(words.recordForSomeone, () => void openRecord(), "secondary"),
-    ),
+    pageHead(words.approvalsTitle, words.approvalsLead, record),
     recordBox,
     tabs,
     panel(null, body),

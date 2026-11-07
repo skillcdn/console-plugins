@@ -1,9 +1,8 @@
-// Setup, the line of approvers: the default line, step by step, and the exceptions to it, the first
-// that holds winning. A step says who stands in it, drawn from what the plugin knows of a person or
-// named outright, and how they decide. Each change is saved with `configure`.
+// Setup, the line: the default one, step by step, and the exceptions to it, the first that holds
+// winning. A step says who it asks, by their place or named outright, and how they decide. Each
+// change is saved with `configure`.
 import type { PluginRecord } from "@skillcdn/console/plugin/web";
 import {
-  APPROVER_SOURCES,
   type ApprovalRule,
   type ApprovalStep,
   type ConfigReport,
@@ -11,8 +10,8 @@ import {
   type PeopleReport,
   type PersonBrief,
   STEP_MODES,
+  STEP_SOURCES,
   type StepMode,
-  type TeamView,
 } from "../../shared/contracts.js";
 import {
   actions,
@@ -63,7 +62,7 @@ function stepEditor(
   onRemove: (editor: StepEditor) => void,
 ): StepEditor {
   const { words } = view;
-  const sources = toggles(optionsOf(APPROVER_SOURCES, words.source), step.sources, words.stepWho);
+  const sources = toggles(optionsOf(STEP_SOURCES, words.source), step.sources, words.stepWho);
   const named = peoplePicker(people, step.people, words);
   const mode = pills<StepMode>(optionsOf(STEP_MODES, words.stepMode), step.mode, words.stepHow);
   const node = el("li", "step-card");
@@ -78,7 +77,7 @@ function stepEditor(
   );
   node.append(
     head,
-    group(words.stepWho, sources.node),
+    group(words.stepWho, sources.node, el("span", "sc-field-hint", words.stepHint)),
     group(words.stepNamed, named.node),
     group(words.stepHow, mode.node),
   );
@@ -120,7 +119,7 @@ function lineEditor(
   };
   const add = button(
     words.addStep,
-    () => push({ sources: ["line"], people: [], mode: "any" }),
+    () => push({ sources: [editors.length === 0 ? "manager" : "hr"], people: [], mode: "any" }),
     "secondary",
     true,
   );
@@ -161,12 +160,7 @@ function lineText(
     : steps.map((step) => stepText(step, people, view)).join(" → ");
 }
 
-function ruleWhen(
-  rule: ApprovalRule,
-  kinds: readonly LeaveType[],
-  teams: readonly TeamView[],
-  view: SetupView,
-): string {
+function ruleWhen(rule: ApprovalRule, kinds: readonly LeaveType[], view: SetupView): string {
   const { words, language, format } = view;
   const parts: string[] = [];
   if (rule.kinds.length > 0) {
@@ -176,13 +170,6 @@ function ruleWhen(
           const kind = kinds.find((candidate) => candidate.key === key);
           return kind === undefined ? key : nameIn(kind.name, language);
         })
-        .join(", "),
-    );
-  }
-  if (rule.teams.length > 0) {
-    parts.push(
-      rule.teams
-        .map((key) => teams.find((candidate) => candidate.team.key === key)?.team.name ?? key)
         .join(", "),
     );
   }
@@ -199,7 +186,6 @@ function ruleForm(
   rule: ApprovalRule | null,
   people: readonly PersonBrief[],
   kinds: readonly LeaveType[],
-  teams: readonly TeamView[],
   view: SetupView,
   onSave: (rule: ApprovalRule) => Promise<void>,
   onClose: () => void,
@@ -218,13 +204,8 @@ function ruleForm(
     rule?.kinds ?? [],
     words.ruleKinds,
   );
-  const teamsControl = toggles(
-    teams.map((item) => ({ value: item.team.key, label: item.team.name })),
-    rule?.teams ?? [],
-    words.ruleTeams,
-  );
   const line = lineEditor(
-    rule?.steps ?? [{ sources: ["line"], people: [], mode: "any" }],
+    rule?.steps ?? [{ sources: ["manager"], people: [], mode: "any" }],
     people,
     view,
   );
@@ -232,11 +213,6 @@ function ruleForm(
   const node = form(
     field(words.ruleName, name),
     group(words.ruleKinds, kindsControl.node, el("span", "sc-field-hint", words.ruleAllHint)),
-    ...(teams.length === 0
-      ? []
-      : [
-          group(words.ruleTeams, teamsControl.node, el("span", "sc-field-hint", words.ruleAllHint)),
-        ]),
     formRow(field(words.ruleDays, days), group(words.ruleLate, late.wrapper)),
     group(words.ruleLine, line.node),
     actions(submit, button(words.close, onClose, "ghost")),
@@ -245,7 +221,6 @@ function ruleForm(
     onSave({
       name: name.value.trim(),
       kinds: kindsControl.value(),
-      teams: teamsControl.value(),
       daysAtLeast: days.value === "" ? null : Number(days.value),
       lateOnly: late.box.checked,
       steps: line.value(),
@@ -254,7 +229,7 @@ function ruleForm(
   return node;
 }
 
-/** Who has nobody to approve them: their requests go to HR, which HR should know. */
+/** Who has no manager: an administrator stands in for them, which HR should know. */
 function gapCallout(people: readonly PersonBrief[], view: SetupView): HTMLElement {
   const { frame, words } = view;
   const node = callout(words.gapTitle(String(people.length)), words.gapBody, true);
@@ -271,7 +246,6 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
   let rules: ApprovalRule[] = [];
   let people: PersonBrief[] = [];
   let kinds: LeaveType[] = [];
-  let teams: readonly TeamView[] = [];
 
   const saveRules = async (next: ApprovalRule[]): Promise<boolean> => {
     const result = await runCommand(frame, saveButton, status, words, "configure", {
@@ -294,7 +268,6 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       rule,
       people,
       kinds,
-      teams,
       view,
       async (next) => {
         const list = [...rules];
@@ -322,7 +295,7 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       const text = el("div", "rule-text");
       text.append(
         el("p", "rule-name", rule.name),
-        el("p", "rule-when sc-muted", ruleWhen(rule, kinds, teams, view)),
+        el("p", "rule-when sc-muted", ruleWhen(rule, kinds, view)),
         el("p", "rule-line", lineText(rule.steps, people, view)),
       );
       const side = el("div", "rule-actions");
@@ -357,10 +330,9 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
 
   const refresh = sequenced(async (fresh) => {
     try {
-      const [config, report, teamViews, typeRecords] = await Promise.all([
+      const [config, report, typeRecords] = await Promise.all([
         frame.query("config") as Promise<ConfigReport>,
         frame.query("people", { balances: false }) as Promise<PeopleReport>,
-        frame.query("teams") as Promise<readonly TeamView[]>,
         frame.query("types") as Promise<readonly PluginRecord<LeaveType>[]>,
       ]);
       if (!fresh()) {
@@ -368,7 +340,6 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       }
       people = report.people.filter((row) => row.status === "active").map((row) => row.person);
       kinds = typeRecords.map((record) => record.data);
-      teams = teamViews;
       rules = [...config.config.rules];
       const line = lineEditor(config.config.line, people, view);
       const submit = submitButton(words.saveLine);
@@ -385,7 +356,7 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       defaultBox.replaceChildren(node);
       drawRules();
       const lost = report.people.filter(
-        (row) => row.record?.leave === true && row.approvers.source === "none",
+        (row) => row.record?.leave === true && row.manager === null,
       );
       gapBox.replaceChildren(
         ...(lost.length === 0

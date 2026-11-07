@@ -11,7 +11,6 @@ import {
 } from "@skillcdn/console/plugin";
 import {
   ANNUAL,
-  type Approvers,
   type BalanceReport,
   type CalendarEntry,
   type CalendarReport,
@@ -37,8 +36,6 @@ import {
   type RequestStep,
   type RequestView,
   type StepView,
-  type Team,
-  type TeamView,
 } from "../../shared/contracts.js";
 import {
   addDays,
@@ -58,19 +55,16 @@ import {
   maySeeBalance,
   maySeeRequests,
   ROLE_HR,
-  ROLE_MANAGER,
   ROLE_MEMBER,
   reachOf,
   requireHr,
   requirePerson,
-  standingOf,
-  teamsByKey,
+  teamOf,
 } from "../access.js";
 import { latestAnnouncements } from "../announcements.js";
 import { holidays, ledger, people, policies, requests } from "../collections.js";
 import { configOf, configRecord, DEFAULT_CONFIG } from "../config.js";
 import {
-  allTeams,
   allTypes,
   balancedTypes,
   clockOf,
@@ -82,7 +76,7 @@ import {
   policyFor,
 } from "../store.js";
 import { noteIn, serverWords } from "../words.js";
-import { approvedAs, approversOf, nextOf, waitingIn } from "./approval.js";
+import { approvedAs, nextOf, waitingIn } from "./approval.js";
 import { prepareRequest } from "./commands.js";
 import { typeBalanceOf } from "./engine.js";
 import { PRESETS, policyAbout, policyName } from "./presets.js";
@@ -138,7 +132,7 @@ function cancellable(actor: Actor, request: LeaveRequest, config: Config, today:
   }
 }
 
-/** A line of approvers for a page: who stands in each step, and where the request is. */
+/** A line for a page: who each step asks, and where the request is. */
 function stepViews(
   steps: readonly RequestStep[],
   directoryMap: Directory,
@@ -151,7 +145,7 @@ function stepViews(
       state = index < at ? "done" : index === at ? "waiting" : "ahead";
     }
     return {
-      approvers: step.approverIds.map((id) => briefOf(id, directoryMap, null)),
+      deciders: step.deciderIds.map((id) => briefOf(id, directoryMap, null)),
       mode: step.mode,
       approvedBy: step.approvedBy.map((entry) => briefOf(entry.by, directoryMap, null)),
       state,
@@ -173,7 +167,7 @@ function viewOf(
   const current = data.steps[data.step];
   const asked =
     data.state === "cancelling"
-      ? (data.steps[0]?.approverIds ?? [])
+      ? (data.steps[0]?.deciderIds ?? [])
       : current
         ? waitingIn(current)
         : [];
@@ -192,22 +186,15 @@ function viewOf(
   };
 }
 
-/** A person's approvers for a page, and where they were read. */
-function approversView(
-  record: Person,
-  teams: ReadonlyMap<string, Team>,
-  directoryMap: Directory,
-): Approvers {
-  const { ids, source } = approversOf(standingOf(record, teams, directoryMap));
-  return { people: ids.map((id) => briefOf(id, directoryMap, null)), source };
+/** A person's record as the caller reads it: the note is HR's. */
+function shownTo(actor: Actor, record: Person): Person {
+  return actor.hr ? record : { ...record, note: "" };
 }
 
-function teamOf(
-  record: Person | null,
-  teams: ReadonlyMap<string, Team>,
-): { readonly key: string; readonly name: string } | null {
-  const team = record?.team === null || record === null ? undefined : teams.get(record.team);
-  return team === undefined ? null : { key: team.key, name: team.name };
+/** A person's manager in the console, for a page. */
+function managerOf(personId: string, directoryMap: Directory): PersonBrief | null {
+  const id = directoryMap.get(personId)?.managerId ?? null;
+  return id === null ? null : briefOf(id, directoryMap, null);
 }
 
 async function balanceReport(
@@ -219,7 +206,6 @@ async function balanceReport(
 ): Promise<BalanceReport> {
   const data = record?.data ?? null;
   const policy = await policyFor(ctx, data);
-  const teams = await teamsByKey(ctx);
   const types = data === null || !data.leave ? [] : balancedTypes(await allTypes(ctx));
   const balances = [];
   for (const type of types) {
@@ -241,9 +227,7 @@ async function balanceReport(
             name: policyName(policy.data, ctx.language),
             summary: serverWords(ctx.language).policySummary(policy.data),
           },
-    approvers:
-      data === null ? { people: [], source: "none" } : approversView(data, teams, directoryMap),
-    team: teamOf(data, teams),
+    manager: managerOf(target.id, directoryMap),
     types: balances,
   };
 }
@@ -255,7 +239,7 @@ export const balance = defineQuery({
     person: arg.person({ about: "whose; the caller's unless said", optional: true }),
     on: arg.day({ about: "as of a day; today unless said", optional: true }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<BalanceReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
@@ -264,7 +248,7 @@ export const balance = defineQuery({
     const targetId = args.person?.id ?? actor.id;
     const record = await personRecord(ctx, targetId);
     const directoryMap = await directoryOf(ctx);
-    const reach = await reachOf(ctx, actor, directoryMap);
+    const reach = reachOf(actor, directoryMap);
     if (!maySeeBalance(actor, targetId, reach, config)) {
       throw new PluginError("not_visible", serverWords(ctx.language).refused.notVisibleBalance);
     }
@@ -300,7 +284,7 @@ export const requestsQuery = defineQuery({
       max: 200,
     }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<RequestView[]> {
     const actor = actorOf(ctx);
     requirePerson(actor);
@@ -308,7 +292,7 @@ export const requestsQuery = defineQuery({
     const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const directoryMap = await directoryOf(ctx);
-    const reach = await reachOf(ctx, actor, directoryMap);
+    const reach = reachOf(actor, directoryMap);
     const where: Record<string, WhereValue> = {};
     if (args.state !== undefined) {
       where.state = args.state;
@@ -331,9 +315,6 @@ export const requestsQuery = defineQuery({
     } else if (scope === "mine") {
       where.personId = actor.id;
     } else if (scope === "team") {
-      if (!actor.manager) {
-        throw new PluginError("not_visible", no.notVisibleTeam);
-      }
       if (reach.size === 0 && !actor.hr) {
         return [];
       }
@@ -375,8 +356,8 @@ async function calendarEntries(
   reach: ReadonlySet<string>,
   holidayDays: ReadonlySet<string>,
 ): Promise<{ entries: CalendarEntry[]; scope: CalendarReport["scope"] }> {
-  const scope = calendarScope(actor, config);
-  const own = await personRecord(ctx, actor.id);
+  const scope = calendarScope(actor, config, reach);
+  const team = teamOf(actor, directoryMap, reach, config);
   const spanning = await listAll<LeaveRequest>(ctx.records(requests), {
     where: { from: { lte: to }, to: { gte: from } },
   });
@@ -394,7 +375,7 @@ async function calendarEntries(
   const entries: CalendarEntry[] = [];
   for (const item of active) {
     const record = recordsById.get(item.data.personId) ?? null;
-    if (!calendarShows(scope, actor, item.data.personId, record, own?.data ?? null, reach)) {
+    if (!calendarShows(scope, actor, item.data.personId, team)) {
       continue;
     }
     const showsType =
@@ -435,7 +416,7 @@ export const calendar = defineQuery({
       optional: true,
     }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<CalendarReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
@@ -453,7 +434,7 @@ export const calendar = defineQuery({
     }
     const span = await holidaysBetween(ctx, from, to);
     const directoryMap = await directoryOf(ctx);
-    const reach = await reachOf(ctx, actor, directoryMap);
+    const reach = reachOf(actor, directoryMap);
     const { entries, scope } = await calendarEntries(
       ctx,
       actor,
@@ -478,25 +459,20 @@ export const calendar = defineQuery({
 
 export const peopleQuery = defineQuery({
   about:
-    "The people and their records of leave: for HR every member of the workspace, enrolled or not, with their annual balance; for an approver the people they approve.",
+    "The people and their records of leave: for HR every member of the workspace, enrolled or not, with their annual balance; for a manager the people below them; for anyone else nobody.",
   args: {
     balances: arg.boolean({
       about: "with each person's annual balance; on unless said",
       optional: true,
     }),
-    team: arg.text({ about: "one team alone, by its key", optional: true, max: 32 }),
   },
-  roles: [ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<PeopleReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    if (!actor.manager) {
-      throw new PluginError("not_visible", serverWords(ctx.language).refused.notVisiblePeople);
-    }
     const clock = await clockOf(ctx);
     const directoryMap = await directoryOf(ctx);
-    const reach = await reachOf(ctx, actor, directoryMap);
-    const teams = await teamsByKey(ctx);
+    const reach = reachOf(actor, directoryMap);
     const all = await listAll<Person>(ctx.records(people));
     const records = actor.hr ? all : all.filter((item) => reach.has(item.data.personId));
     const byPerson = new Map(records.map((record) => [record.data.personId, record]));
@@ -511,9 +487,6 @@ export const peopleQuery = defineQuery({
     const rows: PersonRow[] = [];
     for (const id of ids) {
       const record = byPerson.get(id) ?? null;
-      if (args.team !== undefined && record?.data.team !== args.team) {
-        continue;
-      }
       const known = directoryMap.get(id);
       let annualFigures: PersonRow["annual"] = null;
       if (args.balances !== false && record !== null && record.data.leave && annual !== undefined) {
@@ -534,16 +507,8 @@ export const peopleQuery = defineQuery({
       rows.push({
         person: briefOf(id, directoryMap, record?.data ?? null, actor),
         status: known?.status === "deactivated" ? "deactivated" : "active",
-        record: record?.data ?? null,
-        manager:
-          (known?.managerId ?? null) === null
-            ? null
-            : briefOf(known?.managerId ?? "", directoryMap, null),
-        team: teamOf(record?.data ?? null, teams),
-        approvers:
-          record === null
-            ? { people: [], source: "none" }
-            : approversView(record.data, teams, directoryMap),
+        record: record === null ? null : shownTo(actor, record.data),
+        manager: managerOf(id, directoryMap),
         annual: annualFigures,
       });
     }
@@ -558,11 +523,9 @@ export const peopleQuery = defineQuery({
           }),
         )
       : [];
-    const teamList = [...teams.values()].map((team) => ({ key: team.key, name: team.name }));
     return {
       people: rows,
       policies: policyList,
-      teams: teamList,
       scope: actor.hr ? "all" : "team",
     };
   },
@@ -602,7 +565,7 @@ export const policiesQuery = defineQuery({
 
 export const presetsQuery = defineQuery({
   about: "The presets a policy starts from, each with what it says and every field it sets.",
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(): Promise<readonly PresetView[]> {
     return PRESETS;
   },
@@ -610,7 +573,7 @@ export const presetsQuery = defineQuery({
 
 export const typesQuery = defineQuery({
   about: "The kinds of leave that may be requested, in order; for HR the disabled ones too.",
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx): Promise<PluginRecord<LeaveType>[]> {
     const actor = actorOf(ctx);
     const all = await allTypes(ctx);
@@ -629,7 +592,7 @@ export const holidaysQuery = defineQuery({
       max: 2200,
     }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<PluginRecord<Holiday>[]> {
     const clock = await clockOf(ctx);
     const year = args.year ?? yearOf(clock.today);
@@ -655,14 +618,14 @@ export const ledgerQuery = defineQuery({
       max: 200,
     }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<EntryView[]> {
     const actor = actorOf(ctx);
     requirePerson(actor);
     const words = serverWords(ctx.language);
     const config = await configOf(ctx);
     const targetId = args.person?.id ?? actor.id;
-    const reach = await reachOf(ctx, actor, await directoryOf(ctx));
+    const reach = reachOf(actor, await directoryOf(ctx));
     if (!maySeeBalance(actor, targetId, reach, config)) {
       throw new PluginError("not_visible", words.refused.notVisibleLedger);
     }
@@ -679,14 +642,14 @@ export const ledgerQuery = defineQuery({
 export const overview = defineQuery({
   about:
     "The caller's leave at a glance: their balance, their leave to come, what waits for their decision, who is out today, the next holidays and the latest announcements.",
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx): Promise<OverviewReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
     const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const directoryMap = await directoryOf(ctx);
-    const reach = await reachOf(ctx, actor, directoryMap);
+    const reach = reachOf(actor, directoryMap);
     const record = await personRecord(ctx, actor.id);
     const me = briefOf(actor.id, directoryMap, record?.data ?? null, actor);
     const enrolled = record?.data.leave === true;
@@ -890,9 +853,9 @@ export const preview = defineQuery({
       optional: true,
     }),
     reason: arg.text({ about: "why", optional: true, max: 2000 }),
-    person: arg.person({ about: "whose leave, for their approver or HR", optional: true }),
+    person: arg.person({ about: "whose leave, for their manager or HR", optional: true }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<RequestPreview> {
     const actor = actorOf(ctx);
     const words = serverWords(ctx.language);
@@ -905,7 +868,7 @@ export const preview = defineQuery({
       const steps =
         prepared.target.id === actor.id
           ? prepared.line
-          : approvedAs(prepared.line, actor.id, clock.now.toISOString());
+          : approvedAs(prepared.line, actor.id, clock.now.toISOString(), prepared.managers);
       return {
         refusal: null,
         days: prepared.days,
@@ -932,27 +895,9 @@ export const preview = defineQuery({
   },
 });
 
-export const teamsQuery = defineQuery({
-  about: "The teams, each with its approvers and its people.",
-  roles: [ROLE_MANAGER, ROLE_HR],
-  async run(ctx): Promise<TeamView[]> {
-    const directoryMap = await directoryOf(ctx);
-    const everyone = await listAll<Person>(ctx.records(people));
-    return (await allTeams(ctx)).map((record) => ({
-      id: record.id,
-      version: record.version,
-      team: record.data,
-      approvers: record.data.approverIds.map((id) => briefOf(id, directoryMap, null)),
-      members: everyone
-        .filter((person) => person.data.team === record.data.key)
-        .map((person) => briefOf(person.data.personId, directoryMap, person.data)),
-    }));
-  },
-});
-
 export const configQuery = defineQuery({
   about:
-    "HR's configuration: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
+    "HR's configuration: the line and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
   roles: [ROLE_HR],
   async run(ctx): Promise<ConfigReport> {
     const actor = actorOf(ctx);
@@ -981,7 +926,6 @@ export const queries = {
   policies: policiesQuery,
   presets: presetsQuery,
   types: typesQuery,
-  teams: teamsQuery,
   config: configQuery,
   holidays: holidaysQuery,
   ledger: ledgerQuery,

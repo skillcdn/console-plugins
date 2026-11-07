@@ -1,7 +1,6 @@
 // What the console tells the plugin, and what the plugin does about it, once. A decision it
-// raised was answered: the request goes to the next approver of its line, or is settled. Someone
-// was deactivated in the console: their leave
-// is off, and HR settles. Someone came back: HR says whether their leave is on again. Delivery is
+// raised was answered: the request goes to the next step of its line, or is settled. Someone was
+// deactivated in the console: their leave is off, and HR settles. Someone came back: HR says whether their leave is on again. Delivery is
 // at least once, so each hook reads the record's state before acting and leaves one that has
 // moved as it is. The plugin never answers a decision itself.
 import type { PluginContext, PluginHookEvent, PluginRecord } from "@skillcdn/console/plugin";
@@ -105,7 +104,7 @@ async function requestOfDecision(
 }
 
 /**
- * The next approver's decision, once: a delivery repeated after the decision was raised but before
+ * The next step's decision, once: a delivery repeated after the decision was raised but before
  * the request was written finds it by the mark, and raises no second one.
  */
 async function goOn(
@@ -167,7 +166,7 @@ export async function onDecisionAnswered(
     if (
       answer.verdict === "approve" &&
       answer.by === found.data.personId &&
-      (current?.approverIds.length ?? 0) > 0
+      (current?.deciderIds.length ?? 0) > 0
     ) {
       const language = await languageFor(ctx, clock, [found.data.personId]);
       await ctx.records(requests).update(

@@ -7,11 +7,11 @@ import type { Config } from "../shared/contracts.js";
 import { config } from "./collections.js";
 
 export const DEFAULT_CONFIG: Config = {
-  line: [{ sources: ["line"], people: [], mode: "any" }],
+  line: [{ sources: ["manager"], people: [], mode: "any" }],
   rules: [],
   cancellation: "free",
   backdatingDays: 30,
-  balanceVisibility: "approver",
+  balanceVisibility: "manager",
   calendarVisibility: "everyone",
   calendarShowsType: false,
   workDays: ["mon", "tue", "wed", "thu", "fri"],

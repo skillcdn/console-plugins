@@ -1,15 +1,14 @@
-// Who may do and see what, in one place: the roles of the manifest, the person a call acts as, the
-// lines of approvers and the configuration. Every command and query asks here before it reads or
-// writes another person's leave, so that the pages and the command line refuse the same things.
+// Who may do and see what, in one place: the roles of the manifest, the person a call acts as, who
+// stands above whom in the console and the configuration. Every command and query asks here before
+// it reads or writes another person's leave, so that the pages and the command line refuse the
+// same things.
 import { type PluginContext, PluginError } from "@skillcdn/console/plugin";
-import type { Config, Person, Team } from "../shared/contracts.js";
-import { people } from "./collections.js";
-import { approversOf, lineFor, type Standing } from "./leave/approval.js";
-import { allTeams, type Directory, listAll } from "./store.js";
+import type { Config } from "../shared/contracts.js";
+import { lineFor, type Staff, type Standing } from "./leave/approval.js";
+import type { Directory } from "./store.js";
 import { serverWords } from "./words.js";
 
 export const ROLE_MEMBER = "member";
-export const ROLE_MANAGER = "manager";
 export const ROLE_HR = "hr";
 
 export interface Actor {
@@ -21,7 +20,6 @@ export interface Actor {
   readonly language: string;
   readonly isConsole: boolean;
   readonly hr: boolean;
-  readonly manager: boolean;
   readonly admin: boolean;
 }
 
@@ -35,7 +33,6 @@ export function actorOf(ctx: PluginContext): Actor {
       language: ctx.language,
       isConsole: true,
       hr: true,
-      manager: true,
       admin: true,
     };
   }
@@ -47,7 +44,6 @@ export function actorOf(ctx: PluginContext): Actor {
     language: ctx.language,
     isConsole: false,
     hr: person.admin || roles.includes(ROLE_HR),
-    manager: person.admin || roles.includes(ROLE_MANAGER) || roles.includes(ROLE_HR),
     admin: person.admin,
   };
 }
@@ -66,72 +62,77 @@ export function requirePerson(actor: Actor): void {
   }
 }
 
-/** What is known of a person for their line, from their record, the teams and the directory. */
-export function standingOf(
-  record: Person,
-  teams: ReadonlyMap<string, Team>,
-  directory: Directory,
-): Standing {
-  const manager = directory.get(record.personId)?.managerId ?? null;
-  return {
-    personId: record.personId,
-    own: record.approverIds,
-    team: record.team,
-    teamApprovers: record.team === null ? [] : (teams.get(record.team)?.approverIds ?? []),
-    manager,
-    manager2: manager === null ? null : (directory.get(manager)?.managerId ?? null),
-  };
+/**
+ * Who stands above a person, the nearest first: their manager in the console, that manager's, and
+ * on up. Whoever has left is passed through, since the line above them stands.
+ */
+export function managersOf(personId: string, directory: Directory): string[] {
+  const managers: string[] = [];
+  const seen = new Set([personId]);
+  let at = directory.get(personId)?.managerId ?? null;
+  while (at !== null && !seen.has(at)) {
+    seen.add(at);
+    const known = directory.get(at);
+    if (known === undefined) {
+      break;
+    }
+    if (known.status === "active") {
+      managers.push(at);
+    }
+    at = known.managerId ?? null;
+  }
+  return managers;
 }
 
-export async function teamsByKey(ctx: PluginContext): Promise<Map<string, Team>> {
-  return new Map((await allTeams(ctx)).map((record) => [record.data.key, record.data]));
+/** What is known of a person for their line. */
+export function standingOf(personId: string, directory: Directory): Standing {
+  return { personId, managers: managersOf(personId, directory) };
 }
 
 /**
- * The people the actor approves: those whose approvers, by their record, their team or the
- * directory, hold the actor. It takes the role as well, so that being named on a record shows
- * nobody's balance to a person an administrator gave no reach.
+ * The people the actor manages, at any depth: those who stand below them in the console. A
+ * manager's manager holds what the manager holds, so that the reach is the whole of what is below.
  */
-export async function reachOf(
-  ctx: PluginContext,
-  actor: Actor,
-  directory: Directory,
-): Promise<ReadonlySet<string>> {
-  if (!actor.manager || actor.isConsole) {
-    return new Set();
-  }
-  const [records, teams] = await Promise.all([
-    listAll<Person>(ctx.records(people)),
-    teamsByKey(ctx),
-  ]);
+export function reachOf(actor: Actor, directory: Directory): ReadonlySet<string> {
   const reach = new Set<string>();
-  for (const record of records) {
-    if (approversOf(standingOf(record.data, teams, directory)).ids.includes(actor.id)) {
-      reach.add(record.data.personId);
+  if (actor.isConsole) {
+    return reach;
+  }
+  const reports = new Map<string, string[]>();
+  for (const person of directory.values()) {
+    const manager = person.managerId ?? null;
+    if (manager !== null) {
+      reports.set(manager, [...(reports.get(manager) ?? []), person.id]);
+    }
+  }
+  const open = [actor.id];
+  for (let at = open.pop(); at !== undefined; at = open.pop()) {
+    for (const id of reports.get(at) ?? []) {
+      if (id !== actor.id && !reach.has(id)) {
+        reach.add(id);
+        open.push(id);
+      }
     }
   }
   return reach;
 }
 
 /**
- * Whether the actor stands in a person's line, by any rule: their approvers, or a step of the
- * default line or of an exception. Such a person may record leave for them.
+ * Whether the actor stands in a person's line, by any rule: above them in the console, or asked by
+ * a step of the default line or of an exception. Such a person may record leave for them.
  */
 export function standsInLine(
   actor: Actor,
   standing: Standing,
   config: Pick<Config, "line" | "rules">,
-  hrIds: readonly string[],
+  staff: Staff,
 ): boolean {
-  if (!actor.manager) {
-    return false;
-  }
-  if (approversOf(standing).ids.includes(actor.id)) {
+  if (standing.managers.includes(actor.id)) {
     return true;
   }
   const lines = [config.line, ...config.rules.map((rule) => rule.steps)];
   return lines.some((steps) =>
-    lineFor(steps, standing, hrIds).some((step) => step.approverIds.includes(actor.id)),
+    lineFor(steps, standing, staff).some((step) => step.deciderIds.includes(actor.id)),
   );
 }
 
@@ -148,7 +149,7 @@ export function maySeeBalance(
   if (config.balanceVisibility === "everyone") {
     return true;
   }
-  return config.balanceVisibility === "approver" && reach.has(personId);
+  return config.balanceVisibility === "manager" && reach.has(personId);
 }
 
 /** Whether the actor may see a person's requests: the same rule, since a request is history too. */
@@ -164,7 +165,11 @@ export function maySeeRequests(
 export type CalendarScope = "everyone" | "team" | "hr" | "self";
 
 /** The reach of the calendar for the actor: everyone, their team, HR's view, or themselves alone. */
-export function calendarScope(actor: Actor, config: Config): CalendarScope {
+export function calendarScope(
+  actor: Actor,
+  config: Config,
+  reach: ReadonlySet<string>,
+): CalendarScope {
   if (actor.hr) {
     return "hr";
   }
@@ -174,7 +179,31 @@ export function calendarScope(actor: Actor, config: Config): CalendarScope {
   if (config.calendarVisibility === "team") {
     return "team";
   }
-  return actor.manager ? "team" : "self";
+  return reach.size > 0 ? "team" : "self";
+}
+
+/**
+ * Whom a calendar of the scope `team` shows: the people the actor manages and, where HR opened the
+ * calendar to the team, their own manager and those who report to that manager too.
+ */
+export function teamOf(
+  actor: Actor,
+  directory: Directory,
+  reach: ReadonlySet<string>,
+  config: Config,
+): ReadonlySet<string> {
+  const team = new Set(reach);
+  const manager = directory.get(actor.id)?.managerId ?? null;
+  if (config.calendarVisibility !== "team" || manager === null) {
+    return team;
+  }
+  team.add(manager);
+  for (const person of directory.values()) {
+    if (person.managerId === manager) {
+      team.add(person.id);
+    }
+  }
+  return team;
 }
 
 /** Whether a calendar entry of `personId` is shown to the actor under a scope. */
@@ -182,9 +211,7 @@ export function calendarShows(
   scope: CalendarScope,
   actor: Actor,
   personId: string,
-  record: Person | null,
-  own: Person | null,
-  reach: ReadonlySet<string>,
+  team: ReadonlySet<string>,
 ): boolean {
   if (actor.id === personId) {
     return true;
@@ -194,13 +221,7 @@ export function calendarShows(
     case "hr":
       return true;
     case "team":
-      return (
-        reach.has(personId) ||
-        (own?.team !== null &&
-          own?.team !== undefined &&
-          record !== null &&
-          own.team === record.team)
-      );
+      return team.has(personId);
     default:
       return false;
   }

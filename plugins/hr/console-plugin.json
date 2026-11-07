@@ -5,12 +5,12 @@
     "ko": "인사"
   },
   "description": {
-    "en": "Leave and announcements for the workspace: requests, lines of approvers, balances from a policy for Korea, the US or your own rules, and what HR tells everyone. Attendance to come.",
-    "ko": "워크스페이스 구성원의 휴가와 공지사항: 신청, 결재선, 한국·미국 법규나 자체 규정에 따른 잔여 일수, 인사 담당이 전하는 공지. 근태와 구성원 기록은 다음에 더합니다."
+    "en": "Leave and announcements for the workspace: requests that go to each person's manager, balances from a policy for Korea, the US or your own rules, and what HR tells everyone. Attendance to come.",
+    "ko": "워크스페이스 구성원의 휴가와 공지사항: 각자의 매니저에게 가는 신청, 한국·미국 법규나 자체 규정에 따른 잔여 일수, 인사 담당이 전하는 공지. 근태와 구성원 기록은 다음에 더합니다."
   },
   "agentNote": {
-    "en": "Leave: request, cancel, balance, requests and calendar for the person you act as; approvers record leave for their people. Announcements: read with announcements; HR writes with announcement.",
-    "ko": "휴가: 대신 일하는 사람의 request·cancel과 balance·requests·calendar 읽기. 결재자는 자기 사람의 휴가를 대신 등록합니다. 공지는 announcements로 읽고, 인사 담당은 announcement로 쓰고 게시합니다."
+    "en": "Leave: request, cancel, balance, requests and calendar for the person you act as; a manager records leave for their people. Announcements: read with announcements; HR writes with announcement.",
+    "ko": "휴가: 대신 일하는 사람의 request·cancel과 balance·requests·calendar 읽기. 매니저는 팀원의 휴가를 대신 등록합니다. 공지는 announcements로 읽고, 인사 담당은 announcement로 쓰고 게시합니다."
   },
   "pluginApi": 1,
   "console": ">=0.4.4 <0.5.0",
@@ -34,18 +34,8 @@
         "ko": "구성원"
       },
       "description": {
-        "en": "Requests and cancels their own leave, sees their own balance and history, and the calendar as HR allows.",
-        "ko": "자기 휴가를 신청·취소하고, 자기 잔여와 내역을 보며, 인사 담당이 허용한 범위의 캘린더를 봅니다."
-      }
-    },
-    "manager": {
-      "name": {
-        "en": "Approver",
-        "ko": "결재자"
-      },
-      "description": {
-        "en": "Sees the people they approve, their balances and requests, and records leave for them. The decisions themselves reach them on the board.",
-        "ko": "자신이 결재하는 구성원과 그 잔여·신청을 보고, 그들의 휴가를 대신 등록합니다. 결재 자체는 보드의 결정으로 받습니다."
+        "en": "Requests and cancels their own leave, sees their own balance and history, and the calendar as HR allows. A person's manager in the console sees and records leave for them, with no role of its own.",
+        "ko": "자기 휴가를 신청·취소하고, 자기 잔여와 내역을 보며, 인사 담당이 허용한 범위의 캘린더를 봅니다. 콘솔의 매니저는 별도 역할 없이 팀원의 휴가를 보고 대신 등록합니다."
       }
     },
     "hr": {
@@ -54,8 +44,8 @@
         "ko": "인사 담당"
       },
       "description": {
-        "en": "Keeps leave: people, teams, lines of approvers, kinds of leave, policies, holidays and balances; records leave for anyone and sees everything. Writes and publishes the announcements.",
-        "ko": "휴가 전체를 관리합니다: 구성원, 팀, 결재선, 휴가 종류, 규정, 공휴일, 잔여. 누구의 휴가든 등록하고 모든 것을 봅니다. 공지사항을 쓰고 게시합니다."
+        "en": "Keeps leave: people, the approval line, kinds of leave, policies, holidays and balances; records leave for anyone and sees everything. Writes and publishes the announcements.",
+        "ko": "휴가 전체를 관리합니다: 구성원, 결재선, 휴가 종류, 규정, 공휴일, 잔여. 누구의 휴가든 등록하고 모든 것을 봅니다. 공지사항을 쓰고 게시합니다."
       }
     }
   },
@@ -69,8 +59,8 @@
         "ko": "인사"
       },
       "description": {
-        "en": "Leave approvals and the people's matters. Decisions reach those who may work here, so approvers are members of this project.",
-        "ko": "휴가 결재와 인사 업무. 결정은 이 프로젝트에서 일할 수 있는 사람에게만 가므로 결재자를 멤버로 넣습니다."
+        "en": "Leave approvals and the people's matters. Decisions reach those who may work here, so managers are members of this project.",
+        "ko": "휴가 결재와 인사 업무. 결정은 이 프로젝트에서 일할 수 있는 사람에게만 가므로 매니저를 멤버로 넣습니다."
       }
     }
   },
@@ -125,7 +115,7 @@
         "ko": "결재"
       },
       "level": "workspace",
-      "roles": ["manager", "hr"],
+      "roles": ["member"],
       "wide": true
     },
     {
@@ -135,7 +125,7 @@
         "ko": "구성원"
       },
       "level": "workspace",
-      "roles": ["manager", "hr"],
+      "roles": ["member"],
       "wide": true
     },
     {
@@ -192,7 +182,7 @@
       "place": "home:top",
       "sizes": ["small", "medium", "large"],
       "defaultSize": "small",
-      "roles": ["manager", "hr"]
+      "roles": ["member"]
     }
   ],
   "store": {

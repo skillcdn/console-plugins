@@ -8,10 +8,10 @@ import {
   type LeaveType,
   type Person,
   type Policy,
-  type Team,
 } from "../shared/contracts.js";
 import { dayIn, timeIn } from "../shared/days.js";
-import { holidays, people, policies, teams, types } from "./collections.js";
+import { holidays, people, policies, types } from "./collections.js";
+import type { Staff } from "./leave/approval.js";
 
 const PAGE = 200;
 /** How many pages one read walks at most: 100,000 records, the plugin's whole quota. */
@@ -122,19 +122,6 @@ export async function allTypes(ctx: PluginContext): Promise<PluginRecord<LeaveTy
   return all.sort((a, b) => a.data.order - b.data.order || (a.data.key < b.data.key ? -1 : 1));
 }
 
-export async function teamByKey(
-  ctx: PluginContext,
-  key: string,
-): Promise<PluginRecord<Team> | null> {
-  const page = await ctx.records(teams).list({ where: { key }, limit: 1 });
-  return page.items[0] ?? null;
-}
-
-export async function allTeams(ctx: PluginContext): Promise<PluginRecord<Team>[]> {
-  const all = await listAll<Team>(ctx.records(teams));
-  return all.sort((a, b) => a.data.name.localeCompare(b.data.name));
-}
-
 /**
  * The language to write to these people in: the first of them whose language the console knows,
  * else the caller's where a person calls, else the first the console speaks. A plugin writes one
@@ -165,6 +152,14 @@ export async function hrIdsOf(ctx: PluginContext): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/** Who holds a place in the workspace: the holders of the role, and the administrators who are in. */
+export async function staffOf(ctx: PluginContext, directory: Directory): Promise<Staff> {
+  const admins = [...directory.values()]
+    .filter((person) => person.role === "admin" && person.status === "active")
+    .map((person) => person.id);
+  return { hr: await hrIdsOf(ctx), admins };
 }
 
 /** The language to write to HR in: the first of those who hold the role. */

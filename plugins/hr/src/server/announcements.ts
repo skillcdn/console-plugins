@@ -24,7 +24,7 @@ import {
 } from "../shared/contracts.js";
 import { isDay } from "../shared/days.js";
 import { imageLine, imagesOf, parseText, plainOf } from "../shared/rich-text.js";
-import { actorOf, ROLE_HR, ROLE_MANAGER, ROLE_MEMBER, requireHr, requirePerson } from "./access.js";
+import { actorOf, ROLE_HR, ROLE_MEMBER, requireHr, requirePerson } from "./access.js";
 import { announcementPictures, announcements } from "./collections.js";
 import { type Clock, clockOf, type Directory, directoryOf } from "./store.js";
 import { serverWords } from "./words.js";
@@ -328,7 +328,7 @@ export const announcementsQuery = defineQuery({
     }),
     after: arg.text({ about: "where the page begins", optional: true, max: 200 }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<AnnouncementList> {
     const actor = actorOf(ctx);
     requirePerson(actor);
@@ -377,7 +377,7 @@ export const announcementView = defineQuery({
   args: {
     id: arg.record("announcements", { about: "the announcement", positional: true }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<AnnouncementView> {
     const actor = actorOf(ctx);
     requirePerson(actor);

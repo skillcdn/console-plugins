@@ -735,8 +735,8 @@ export function lineSteps(
   const node = el("ol", "line-steps");
   for (const step of steps) {
     const item = el("li", `line-step line-step-${step.state}`);
-    item.append(faces(frame, step.approvers, 3));
-    const names = step.approvers.map(personLabel);
+    item.append(faces(frame, step.deciders, 3));
+    const names = step.deciders.map(personLabel);
     const label =
       names.length <= 2
         ? names.join(step.mode === "all" ? " → " : ", ")

@@ -1,4 +1,4 @@
-// People: the members as cards, for HR everyone and for an approver the people they approve, each
+// People: the members as cards, for HR everyone and for a manager the people below them, each
 // opening a page of their own under the address (/plugins/hr/people/<login>): their balance, their
 // requests and ledger, and for HR their record, an adjustment of the balance and the day they leave.
 // Every change is a command of the server module.
@@ -42,7 +42,6 @@ import {
   page,
   pageHead,
   panel,
-  peoplePicker,
   personLabel,
   pills,
   runCommand,
@@ -114,10 +113,9 @@ function personCard(item: PersonRow, view: View): HTMLElement {
     row.append(el("dt", "", label), detail);
     facts.append(row);
   };
-  fact(words.teamLabel, item.team?.name ?? DASH);
   fact(
-    words.approverLabel,
-    item.approvers.people.length === 0 ? words.noApprover : faces(frame, item.approvers.people, 4),
+    words.managerLabel,
+    item.manager === null ? words.noManager : faces(frame, [item.manager], 1),
   );
   fact(
     words.hiredOnLabel,
@@ -174,20 +172,6 @@ function recordForm(
     ],
     policyInitial,
   );
-  const teamInitial = record?.team ?? "";
-  const team = select(
-    [
-      { value: "", label: words.noTeam },
-      ...report.teams.map((option) => ({ value: option.key, label: option.name })),
-    ],
-    teamInitial,
-  );
-  const approversInitial = record?.approverIds ?? [];
-  const approvers = peoplePicker(
-    report.people.map((row) => row.person).filter((person) => person.id !== item.person.id),
-    approversInitial,
-    words,
-  );
   const useWorkspace = checkbox(words.workDaysOwn, record?.workDays !== null && record !== null);
   const workDaysInitial: readonly Weekday[] = record?.workDays ?? [];
   const workDays = toggles(
@@ -207,8 +191,14 @@ function recordForm(
   const status = statusLine();
   const node = form(
     formRow(group(words.leaveOnOff, leave.node), field(words.hiredOnLabel, hiredOn)),
-    formRow(field(words.policyLabel, policy), field(words.teamLabel, team)),
-    group(words.ownApprovers, approvers.node, el("span", "sc-field-hint", words.ownApproversHint)),
+    formRow(
+      field(words.policyLabel, policy),
+      group(
+        words.managerLabel,
+        el("p", "", item.manager === null ? words.noManager : personLabel(item.manager)),
+        el("span", "sc-field-hint", words.managerHint),
+      ),
+    ),
     fold(
       words.moreOfRecord,
       formRow(field(words.titleHeader, title), field(words.employmentLabel, employment)),
@@ -229,24 +219,6 @@ function recordForm(
     }
     if (policy.value !== "" && policy.value !== policyInitial) {
       args.policy = policy.value;
-    }
-    if (team.value !== teamInitial) {
-      if (team.value === "") {
-        clear.push("team");
-      } else {
-        args.team = team.value;
-      }
-    }
-    const chosen = approvers.value();
-    if (chosen.join(",") !== approversInitial.join(",")) {
-      if (chosen.length === 0) {
-        clear.push("approvers");
-      } else {
-        const logins = chosen.map(
-          (id) => report.people.find((row) => row.person.id === id)?.person.login ?? id,
-        );
-        args.approvers = logins;
-      }
     }
     if (useWorkspace.box.checked) {
       const days = workDays.value();
@@ -410,7 +382,7 @@ async function personPage(
     el(
       "p",
       "sc-page-lead",
-      [item.record?.title, item.team?.name, item.person.login]
+      [item.record?.title, item.person.login]
         .filter((part): part is string => typeof part === "string" && part.length > 0)
         .join(" · "),
     ),
@@ -495,7 +467,6 @@ export async function renderPeople(
   let report: PeopleReport | null = null;
   let filterText = "";
   let show: Show = "all";
-  let team = "";
   let openLogin = loginFromPath(frame.context.path);
   let refreshPerson: () => Promise<void> = async () => {};
 
@@ -512,7 +483,6 @@ export async function renderPeople(
     "all",
     words.leaveOnOff,
   );
-  const teamHolder = el("span", "");
 
   const matches = (item: PersonRow): boolean => {
     if (show === "on" && item.record?.leave !== true) {
@@ -521,18 +491,10 @@ export async function renderPeople(
     if (show === "off" && item.record?.leave === true) {
       return false;
     }
-    if (team !== "" && item.record?.team !== team) {
-      return false;
-    }
     if (filterText === "") {
       return true;
     }
-    return [
-      item.person.login,
-      item.person.name ?? "",
-      item.team?.name ?? "",
-      item.record?.title ?? "",
-    ]
+    return [item.person.login, item.person.name ?? "", item.record?.title ?? ""]
       .join(" ")
       .toLowerCase()
       .includes(filterText);
@@ -544,7 +506,9 @@ export async function renderPeople(
     }
     const kept = report.people.filter(matches);
     if (kept.length === 0) {
-      listBox.replaceChildren(empty(words.peopleEmpty));
+      listBox.replaceChildren(
+        empty(report.people.length === 0 && !hr ? words.peopleNobody : words.peopleEmpty),
+      );
       return;
     }
     const list = el("ul", "sc-people");
@@ -565,25 +529,17 @@ export async function renderPeople(
   const showList = () => {
     const current = report;
     const enrolledCount = current?.people.filter((item) => item.record?.leave === true).length ?? 0;
-    const tools = toolbar(search, showControl.node, teamHolder);
-    if (current !== null && current.teams.length > 0) {
-      const choice = select(
-        [
-          { value: "", label: words.allTeams },
-          ...current.teams.map((option) => ({ value: option.key, label: option.name })),
-        ],
-        team,
-      );
-      choice.addEventListener("change", () => {
-        team = choice.value;
-        drawList();
-      });
-      teamHolder.replaceChildren(choice);
-    }
+    const tools = toolbar(search, showControl.node);
+    tools.hidden = (current?.people.length ?? 0) === 0;
     body.replaceChildren(
       pageHead(
         words.peopleTitle,
-        words.peopleLead(format.number(enrolledCount), format.number(current?.people.length ?? 0)),
+        (current?.people.length ?? 0) === 0
+          ? ""
+          : words.peopleLead(
+              format.number(enrolledCount),
+              format.number(current?.people.length ?? 0),
+            ),
         ...(hr ? [accrueAll] : []),
       ),
       topStatus,

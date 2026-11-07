@@ -40,7 +40,6 @@ import {
   type RequestStep,
   ROUNDINGS,
   TENURE_ATS,
-  type Team,
   type Tier,
   UNITS,
   YEAR_BASES,
@@ -59,13 +58,11 @@ import {
   type Actor,
   actorOf,
   ROLE_HR,
-  ROLE_MANAGER,
   ROLE_MEMBER,
   requireHr,
   requirePerson,
   standingOf,
   standsInLine,
-  teamsByKey,
 } from "../access.js";
 import {
   rules as approvalRules,
@@ -75,7 +72,6 @@ import {
   people,
   policies,
   requests,
-  teams,
   types,
 } from "../collections.js";
 import { configOf, writeConfig } from "../config.js";
@@ -86,13 +82,12 @@ import {
   clockOf,
   directoryOf,
   holidaysBetween,
-  hrIdsOf,
   listAll,
   personRecord,
   policyByKey,
   policyFor,
+  staffOf,
   stamp,
-  teamByKey,
   typeByKey,
 } from "../store.js";
 import { daysText, nameIn, type ServerWords, serverWords } from "../words.js";
@@ -235,6 +230,8 @@ export interface Prepared {
   readonly rule: string | null;
   /** The line it travels; empty where it is approved as it is written. */
   readonly line: RequestStep[];
+  /** Who stands above the person, the nearest first. */
+  readonly managers: readonly string[];
 }
 
 /**
@@ -256,20 +253,12 @@ export async function prepareRequest(
       ? { id: actor.id, login: actor.login, name: actor.name }
       : { id: asked.person.id, login: asked.person.login, name: asked.person.name };
   const forOther = target.id !== actor.id;
-  const [directory, teamMap, hrIds, found] = await Promise.all([
-    directoryOf(ctx),
-    teamsByKey(ctx),
-    hrIdsOf(ctx),
-    personRecord(ctx, target.id),
-  ]);
+  const [directory, found] = await Promise.all([directoryOf(ctx), personRecord(ctx, target.id)]);
+  const staff = await staffOf(ctx, directory);
+  const standing = standingOf(target.id, directory);
   // The first question, so that a person who may not act for someone learns nothing of them.
-  if (
-    forOther &&
-    !actor.hr &&
-    (found === null ||
-      !standsInLine(actor, standingOf(found.data, teamMap, directory), config, hrIds))
-  ) {
-    throw new PluginError("not_approver", no.notTheirApprover);
+  if (forOther && !actor.hr && (found === null || !standsInLine(actor, standing, config, staff))) {
+    throw new PluginError("not_their_manager", no.notTheirManager);
   }
   const to = asked.to ?? asked.from;
   if (to < asked.from) {
@@ -286,7 +275,7 @@ export async function prepareRequest(
   if (record.data.leftOn !== null && to > record.data.leftOn) {
     throw new PluginError("after_leaving", no.afterLeaving(record.data.leftOn));
   }
-  // HR, and an approver writing for their people, write what the person may not.
+  // HR, and a manager writing for their people, write what the person may not.
   const privileged = actor.hr || forOther;
   if (!actor.hr && asked.from < addDays(clock.today, -config.backdatingDays)) {
     throw new PluginError("too_far_back", no.tooFarBack(config.backdatingDays));
@@ -306,10 +295,7 @@ export async function prepareRequest(
     if (type.late === "refuse") {
       throw new PluginError("too_late", notice === "" ? no.afterTheFact : no.tooLate(notice));
     }
-    throw new PluginError(
-      "too_late",
-      notice === "" ? no.afterTheFact : no.lateForApprovers(notice),
-    );
+    throw new PluginError("too_late", notice === "" ? no.afterTheFact : no.lateForManagers(notice));
   }
   const reason = type.reason === "hidden" ? "" : (asked.reason ?? "").trim();
   if (type.reason === "required" && reason.length === 0) {
@@ -354,7 +340,7 @@ export async function prepareRequest(
   }
   const asksNobody =
     (asked.approved === true && actor.hr) || approvedAsWritten(type.autoApprove, days, late);
-  const ruled = ruleFor(config, { kind: type.key, team: record.data.team, days, late });
+  const ruled = ruleFor(config, { kind: type.key, days, late });
   return {
     target,
     type,
@@ -366,15 +352,14 @@ export async function prepareRequest(
     period: periodStartFor(policy?.data ?? null, record.data, asked.from),
     available,
     rule: asksNobody ? null : ruled.rule,
-    line: asksNobody
-      ? []
-      : lineFor(ruled.steps, standingOf(record.data, teamMap, directory), hrIds),
+    line: asksNobody ? [] : lineFor(ruled.steps, standing, staff),
+    managers: standing.managers,
   };
 }
 
 export const request = defineCommand({
   about:
-    "Requests leave for the person you act as; with --person an approver records it for their people, HR for anyone. The approval is a decision for the line of approvers, unless the kind needs none.",
+    "Requests leave for the person you act as; with --person a manager records it for their people, HR for anyone. The approval is a decision for the line, unless the kind needs none.",
   args: {
     from: arg.day({ about: "the first day", positional: true }),
     to: arg.day({
@@ -393,7 +378,7 @@ export const request = defineCommand({
     }),
     reason: arg.text({ about: "why; some kinds of leave ask for it", optional: true, max: 2000 }),
     person: arg.person({
-      about: "whose leave, for their approver or HR; the caller's otherwise",
+      about: "whose leave, for their manager or HR; the caller's otherwise",
       optional: true,
     }),
     approved: arg.boolean({
@@ -401,7 +386,7 @@ export const request = defineCommand({
       optional: true,
     }),
   },
-  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args) {
     const actor = actorOf(ctx);
     const words = serverWords(ctx.language);
@@ -411,8 +396,10 @@ export const request = defineCommand({
     const { target } = prepared;
     const forOther = target.id !== actor.id;
     const at = stamp(clock);
-    // Who writes leave for someone approves it as they write it, in the steps that name them.
-    const steps = forOther ? approvedAs(prepared.line, actor.id, at) : prepared.line;
+    // Who writes leave for someone approves it as they write it, in the steps they stand for.
+    const steps = forOther
+      ? approvedAs(prepared.line, actor.id, at, prepared.managers)
+      : prepared.line;
     const next = nextOf(steps);
     const who = target.name ?? target.login;
     const created = await ctx.records(requests).create(
@@ -476,7 +463,7 @@ export const request = defineCommand({
 
 export const cancel = defineCommand({
   about:
-    "Cancels a request of the person you act as: one still waiting at once; one approved as HR's configuration says, at once, after the approver's decision, or by HR alone.",
+    "Cancels a request of the person you act as: one still waiting at once; one approved as HR's configuration says, at once, after a decision, or by HR alone.",
   args: {
     request: arg.record("requests", { about: "the request, by its id", positional: true }),
     reason: arg.text({ about: "why", optional: true, max: 2000 }),
@@ -694,7 +681,7 @@ export async function accrueAll(
 
 export const enroll = defineCommand({
   about:
-    "HR: writes or changes a person's record and turns their leave on or off: the day they were hired, their policy, their team and, where it differs, their own approvers.",
+    "HR: writes or changes a person's record and turns their leave on or off: the day they were hired, their policy, their working days, their title.",
   args: {
     person: arg.person({ about: "whom", positional: true }),
     leave: arg.enum(ON_OFF, { about: "whether leave is managed for them", optional: true }),
@@ -704,24 +691,18 @@ export const enroll = defineCommand({
       optional: true,
       max: 32,
     }),
-    approvers: arg.list(arg.person(), {
-      about: "their own approvers, who come before their team's and their manager",
-      optional: true,
-      max: 10,
-    }),
     "work-days": arg.list(arg.enum(WEEKDAYS as unknown as [Weekday, ...Weekday[]]), {
       about: "their working days, when not the workspace's (mon,tue,...)",
       optional: true,
       max: 7,
     }),
-    team: arg.text({ about: "their team, by its key", optional: true, max: 32 }),
     title: arg.text({ about: "their title", optional: true, max: 80 }),
     employment: arg.enum(EMPLOYMENTS as unknown as [string, ...string[]], {
       about: "the kind of employment",
       optional: true,
     }),
     note: arg.text({ about: "a note for HR", optional: true, max: 2000 }),
-    clear: arg.list(arg.enum(["approvers", "work-days", "team", "title", "note", "left-on"]), {
+    clear: arg.list(arg.enum(["work-days", "title", "note", "left-on"]), {
       about: "fields to empty",
       optional: true,
     }),
@@ -737,9 +718,6 @@ export const enroll = defineCommand({
     if (args.policy !== undefined && (await policyByKey(ctx, args.policy)) === null) {
       throw new PluginError("unknown_policy", no.unknownPolicy(args.policy));
     }
-    if (args.team !== undefined && (await teamByKey(ctx, args.team)) === null) {
-      throw new PluginError("unknown_team", no.unknownTeam(args.team));
-    }
     const clear = new Set(args.clear ?? []);
     const current: Person = existing?.data ?? {
       personId: args.person.id,
@@ -749,9 +727,7 @@ export const enroll = defineCommand({
       hiredOn: null,
       leftOn: null,
       policy: null,
-      approverIds: [],
       workDays: null,
-      team: null,
       title: null,
       employment: "full-time",
       note: "",
@@ -769,11 +745,7 @@ export const enroll = defineCommand({
       hiredOn,
       leftOn: clear.has("left-on") ? null : current.leftOn,
       policy: args.policy ?? current.policy,
-      approverIds: clear.has("approvers")
-        ? []
-        : (args.approvers?.map((person) => person.id) ?? current.approverIds),
       workDays: clear.has("work-days") ? null : (args["work-days"] ?? current.workDays),
-      team: clear.has("team") ? null : (args.team ?? current.team),
       title: clear.has("title") ? null : (args.title ?? current.title),
       employment: (args.employment as Person["employment"] | undefined) ?? current.employment,
       note: clear.has("note") ? "" : (args.note ?? current.note),
@@ -1123,7 +1095,7 @@ export const type = defineCommand({
     }),
     late: arg.enum(LATE_RULES as unknown as [string, ...string[]], {
       about:
-        "a request past the notice: refuse, mark it for the approver, or approver (only an approver or HR writes it)",
+        "a request past the notice: refuse, mark it for whoever decides, or manager (only a manager or HR writes it)",
       optional: true,
     }),
     auto: arg.enum(AUTO_MODES as unknown as [string, ...string[]], {
@@ -1405,63 +1377,6 @@ export const setup = defineCommand({
   },
 });
 
-export const team = defineCommand({
-  about:
-    "HR: writes a team by its key, or changes one: its name and the approvers of its people, unless a person has their own; --remove removes a team nobody is on.",
-  args: {
-    key: arg.text({ about: "the team's key, a lowercase word", positional: true, max: 32 }),
-    name: arg.text({ about: "its name for people", optional: true, max: 80 }),
-    approvers: arg.list(arg.person(), {
-      about: "who approves its people",
-      optional: true,
-      max: 10,
-    }),
-    clear: arg.boolean({ about: "take its approvers away", optional: true }),
-    remove: arg.boolean({ about: "remove the team", optional: true }),
-  },
-  roles: [ROLE_HR],
-  async run(ctx, args) {
-    const actor = actorOf(ctx);
-    requireHr(actor);
-    const words = serverWords(ctx.language);
-    const no = words.refused;
-    if (!/^[a-z][a-z0-9-]{0,31}$/.test(args.key)) {
-      throw new PluginError("key", no.keyShape);
-    }
-    const existing = await teamByKey(ctx, args.key);
-    if (args.remove === true) {
-      if (existing === null) {
-        throw new PluginError("unknown_team", no.unknownTeam(args.key));
-      }
-      const onTeam = await listAll<Person>(ctx.records(people), { where: { team: args.key } });
-      if (onTeam.length > 0) {
-        throw new PluginError("team_in_use", no.teamHasPeople(onTeam.length));
-      }
-      await ctx.records(teams).archive(existing.id);
-      await ctx.events.emit("team-changed", { key: args.key });
-      return { text: words.teamRemoved(existing.data.name), data: { removed: 1 } };
-    }
-    const name = args.name?.trim() ?? existing?.data.name ?? "";
-    if (name.length === 0) {
-      throw new PluginError("name", no.teamNeedsName);
-    }
-    const next: Team = {
-      key: args.key,
-      name,
-      approverIds:
-        args.clear === true
-          ? []
-          : (args.approvers?.map((person) => person.id) ?? existing?.data.approverIds ?? []),
-    };
-    const saved =
-      existing === null
-        ? await ctx.records(teams).create(next)
-        : await ctx.records(teams).update(existing.id, next, { baseVersion: existing.version });
-    await ctx.events.emit("team-changed", { key: args.key });
-    return { text: words.teamSaved(name), data: saved };
-  },
-});
-
 /** A JSON text checked against a schema at the edge, or the refusal of what does not fit it. */
 function parsed<T>(
   text: string,
@@ -1484,17 +1399,17 @@ function parsed<T>(
 
 export const configure = defineCommand({
   about:
-    "HR: changes the configuration, the fields given: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
+    "HR: changes the configuration, the fields given: the line and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar.",
   args: {
     line: arg.text({
       about:
-        'the default line as JSON: [{"sources":["line"],"people":[],"mode":"any"}]; [] asks nobody',
+        'the default line as JSON: [{"sources":["manager"],"people":[],"mode":"any"}]; [] asks nobody',
       optional: true,
       max: 8000,
     }),
     rules: arg.text({
       about:
-        'the exceptions as JSON, the first that holds winning: [{"name":"...","kinds":[],"teams":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]',
+        'the exceptions as JSON, the first that holds winning: [{"name":"...","kinds":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]',
       optional: true,
       max: 20_000,
     }),
@@ -1510,11 +1425,11 @@ export const configure = defineCommand({
       max: 365,
     }),
     "balance-visibility": arg.enum(BALANCE_VISIBILITIES as unknown as [string, ...string[]], {
-      about: "beyond the person and HR: approver, or everyone; self for nobody",
+      about: "beyond the person and HR: manager, or everyone; self for nobody",
       optional: true,
     }),
     "calendar-visibility": arg.enum(CALENDAR_VISIBILITIES as unknown as [string, ...string[]], {
-      about: "who sees who is out: everyone, the team, or hr and approvers",
+      about: "who sees who is out: everyone, the team, or hr and managers",
       optional: true,
     }),
     "calendar-shows-type": arg.enum(ON_OFF, {
@@ -1574,7 +1489,7 @@ export const configure = defineCommand({
   },
 });
 
-/** Refuses a line or a rule that names a kind, a team or a person that does not exist. */
+/** Refuses a line or a rule that names a kind or a person that does not exist. */
 async function checkNames(
   ctx: PluginContext,
   patch: Partial<Pick<Config, "line" | "rules">>,
@@ -1595,12 +1510,6 @@ async function checkNames(
       throw new PluginError("unknown_type", no.unknownType(key));
     }
   }
-  const teamKeys = new Set((patch.rules ?? []).flatMap((rule) => rule.teams));
-  for (const key of teamKeys) {
-    if ((await teamByKey(ctx, key)) === null) {
-      throw new PluginError("unknown_team", no.unknownTeam(key));
-    }
-  }
 }
 
 export const commands = {
@@ -1612,7 +1521,6 @@ export const commands = {
   offboard,
   policy,
   type,
-  team,
   configure,
   holiday,
   "generate-holidays": generateHolidays,

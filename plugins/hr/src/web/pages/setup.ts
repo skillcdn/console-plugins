@@ -1,5 +1,5 @@
-// Setup, for HR: three questions the first time, then the line of approvers, the kinds of leave, the
-// policies, the teams, the holidays and how the organization works, each a tab under the page's
+// Setup, for HR: three questions the first time, then the line, the kinds of leave, the policies,
+// the holidays and how the organization works, each a tab under the page's
 // address (/plugins/hr/setup/<tab>). The parts live in the files beside this one.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
@@ -35,12 +35,11 @@ import { generalTab } from "./setup-general.js";
 import { holidaysTab } from "./setup-holidays.js";
 import { policiesTab } from "./setup-policies.js";
 import type { SetupView } from "./setup-shared.js";
-import { teamsTab } from "./setup-teams.js";
 import { typesTab } from "./setup-types.js";
 
-const TABS: readonly SetupTab[] = ["approval", "types", "policies", "teams", "holidays", "general"];
-type WhoApproves = "line" | "manager" | "hr" | "none";
-const WHO_APPROVES: readonly WhoApproves[] = ["line", "manager", "hr", "none"];
+const TABS: readonly SetupTab[] = ["approval", "types", "policies", "holidays", "general"];
+type WhoApproves = "manager" | "hr" | "none";
+const WHO_APPROVES: readonly WhoApproves[] = ["manager", "hr", "none"];
 
 function tabFromPath(path: string): SetupTab {
   const first = path.split("/").find((part) => part.length > 0) ?? "";
@@ -73,7 +72,7 @@ function firstRun(view: SetupView, onDone: () => Promise<void>): HTMLElement {
   );
   const approves = optionCards<WhoApproves>(
     optionsOf(WHO_APPROVES, words.whoApproves, words.whoApprovesHint),
-    "line",
+    "manager",
     words.whoApprovesTitle,
   );
   const calendar = pills<CalendarVisibility>(
@@ -83,7 +82,7 @@ function firstRun(view: SetupView, onDone: () => Promise<void>): HTMLElement {
   );
   const balance = pills<BalanceVisibility>(
     optionsOf(BALANCE_VISIBILITIES, words.balanceVisibility),
-    "approver",
+    "manager",
     words.balanceVisibilityLabel,
   );
   const submit = submitButton(words.runSetup);
@@ -128,7 +127,6 @@ const RENDERERS: Readonly<Record<SetupTab, (body: HTMLElement, view: SetupView) 
     approval: approvalTab,
     types: typesTab,
     policies: policiesTab,
-    teams: teamsTab,
     holidays: holidaysTab,
     general: generalTab,
   };

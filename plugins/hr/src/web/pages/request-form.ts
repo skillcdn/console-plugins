@@ -1,4 +1,4 @@
-// The form that asks for leave, shared by a person's own page, an approver writing for their people
+// The form that asks for leave, shared by a person's own page, a manager writing for their people
 // and HR: the kind, the days, a part of a day and a reason on the left, and on the right what the
 // request would be, as the server module says: the days it counts for, the balance after it, the
 // notice it meets and the line it would travel. The page decides nothing; it asks `preview`.

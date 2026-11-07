@@ -110,7 +110,7 @@ describe("a draft", () => {
 
   it("stands on a record only HR reads through the console's routes", () => {
     expect(announcements.read).toEqual(["hr"]);
-    expect(announcementPictures.read).toEqual(["member", "manager", "hr"]);
+    expect(announcementPictures.read).toEqual(["member", "hr"]);
     expect(Object.keys(announcementPictures.schema.shape)).toEqual([]);
   });
 

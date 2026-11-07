@@ -8,7 +8,6 @@ import {
   ANNOUNCEMENT_CATEGORIES,
   ANNOUNCEMENT_STATES,
   ANNOUNCEMENT_TITLE_AT_MOST,
-  APPROVER_SOURCES,
   AUTO_MODES,
   BALANCE_VISIBILITIES,
   BALANCES,
@@ -29,6 +28,7 @@ import {
   REQUEST_STATES,
   ROUNDINGS,
   STEP_MODES,
+  STEP_SOURCES,
   TENURE_ATS,
   UNITS,
   YEAR_BASES,
@@ -57,7 +57,7 @@ const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "is a time as HH:MM
 /** One step of a line, as HR writes it: someone is named, by a source or outright. */
 export const step = z
   .object({
-    sources: z.array(wordsOf(APPROVER_SOURCES)).max(5),
+    sources: z.array(wordsOf(STEP_SOURCES)).max(3),
     people: z.array(id).max(10),
     mode: wordsOf(STEP_MODES),
   })
@@ -70,7 +70,6 @@ export const steps = z.array(step).max(5);
 export const rule = z.object({
   name: z.string().min(1).max(80),
   kinds: z.array(slug).max(32),
-  teams: z.array(slug).max(32),
   daysAtLeast: z.nullable(z.number().finite().min(0).max(366)),
   lateOnly: z.boolean(),
   steps,
@@ -88,15 +87,13 @@ export const people = defineCollection("people", {
     hiredOn: z.nullable(day),
     leftOn: z.nullable(day),
     policy: z.nullable(slug),
-    approverIds: z.array(id).max(10),
     workDays: z.nullable(z.array(wordsOf(WEEKDAYS)).min(1).max(7)),
-    team: z.nullable(slug),
     title: z.nullable(line(80)),
     employment: wordsOf(EMPLOYMENTS),
     note: line(2000),
   }),
-  indexes: ["personId", "leave", "policy", "team", "leftOn", "hiredOn"],
-  search: ["login", "name", "team", "title"],
+  indexes: ["personId", "leave", "policy", "leftOn", "hiredOn"],
+  search: ["login", "name", "title"],
   owner: "personId",
   read: ["hr"],
   readOwn: ["member"],
@@ -185,7 +182,7 @@ export const requests = defineCollection("requests", {
     steps: z
       .array(
         z.object({
-          approverIds: z.array(id).max(30),
+          deciderIds: z.array(id).max(30),
           mode: wordsOf(STEP_MODES),
           approvedBy: z.array(z.object({ id, by: id, at: line(40) })).max(30),
         }),
@@ -243,16 +240,6 @@ export const holidays = defineCollection("holidays", {
   read: ["member"],
 });
 
-export const teams = defineCollection("teams", {
-  schema: z.object({
-    key: slug,
-    name: z.string().min(1).max(80),
-    approverIds: z.array(id).max(10),
-  }),
-  indexes: ["key"],
-  read: ["manager", "hr"],
-});
-
 export const config = defineCollection("config", {
   schema: z.object({
     line: steps,
@@ -300,7 +287,7 @@ export const announcements = defineCollection("announcements", {
  */
 export const announcementPictures = defineCollection("announcement-pictures", {
   schema: z.object({}),
-  read: ["member", "manager", "hr"],
+  read: ["member", "hr"],
   history: false,
 });
 
@@ -319,7 +306,6 @@ export const collections = [
   people,
   policies,
   types,
-  teams,
   config,
   requests,
   ledger,

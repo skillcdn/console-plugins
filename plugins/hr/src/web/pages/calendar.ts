@@ -1,7 +1,7 @@
 // The calendar: a month of who is out, as HR's configuration lets the person see, with the holidays
 // and the non-working days of the workspace, in the console's own calendar and starting the week
 // as the workspace does. Each entry is a face and a name, the kind's colour where the configuration
-// shows it; a reason is never here. An approver may keep it to the people they approve.
+// shows it; a reason is never here. A manager may keep it to the people they manage.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import type { CalendarEntry, CalendarReport, Holiday, LeaveType } from "../../shared/contracts.js";
 import {
