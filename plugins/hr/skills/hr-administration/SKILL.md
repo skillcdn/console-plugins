@@ -34,14 +34,14 @@ Set up before enrolling, and enroll before the first request. `console plugin hr
 
 Each person's manager in the console is the first to approve. An administrator sets it, on the console's People page or with `console person manager <login> <manager login>`; the plugin changes nothing there. Whoever stands above a person holds what their manager holds: they see the same people, record leave for them, and may answer the decision, which is addressed to the nearest alone. A person with no manager goes to the administrators.
 
-A request travels a line: the default line, which is the person's manager unless HR says otherwise, or the first exception that holds for it. A step asks by `sources` (`manager`, the nearest manager nobody has asked yet, so that a second such step goes one higher; `admin`, the console's administrators; `hr`, the holders of the role) or outright by `people` (ids, which `--json` of `people` says), and its `mode` is `any`, one answer closing it, or `all`, one after another. Nobody approves their own leave, a person approves once in a line, and a step left with nobody is passed over; a line left with nobody goes to the administrators, then to HR.
+A request travels a line: the default line, which is the person's manager unless HR says otherwise, or the first exception that holds for it. A step asks by `sources` (`manager`, the nearest manager nobody has asked yet, so that a second such step goes one higher; `admin`, the console's administrators; `hr`, the holders of the role) or outright by `people` (ids, which `--json` of `people` says), and its `mode` is `any`, one answer closing it, or `all`, one after another. Nobody approves their own leave, a person is asked once in a line, and a step left with nobody is passed over; a line left with nobody goes to the administrators, then to HR.
 
 | Do | Command |
 |---|---|
 | Set the default line, as JSON; `[]` approves everything as it is written | `console plugin hr configure --line '[{"sources":["manager"],"people":[],"mode":"any"},{"sources":["hr"],"people":[],"mode":"any"}]'` |
 | Set the exceptions, the first that holds winning; `kinds` empty means all | `console plugin hr configure --rules '[{"name":"Long leave","kinds":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]'` |
 
-Every manager must be able to work in the plugin's board project, since a decision is addressed within it. Where the console refuses the one asked, the decision goes on up the person's managers, to the administrators and to HR, and a task says whom to add to the project's members.
+Every manager must be able to work in the plugin's board project, since a decision is addressed within it; `console plugin hr` names it. The console lets anyone who works there answer a decision, so the project holds those who approve and nobody else. Where the console refuses the one asked, the decision goes on up the person's managers, to the administrators and to HR, and a task says whom to add to the project's members.
 
 ## People
 
@@ -57,16 +57,16 @@ Every manager must be able to work in the plugin's board project, since a decisi
 
 | Do | Command |
 |---|---|
-| Give or take days, with a note; a credit expires at the period's end unless `--expires` says when | `console plugin hr adjust <login> --days <n> --note <why> [--type <key>] [--kind adjust\|grant\|payout] [--expires <day>] [--on <day>]` |
+| Give or take days, with a note; a credit expires as the policy's credits do unless `--expires` says when | `console plugin hr adjust <login> --days <n> --note <why> [--type <key>] [--kind adjust\|grant\|payout] [--expires <day>] [--on <day>]` |
 | Write what the policies owe by today, for one person or everyone: what the daily job does | `console plugin hr accrue [--person <login>]` |
-| Record leave for anyone, approved at once; without `--approved` it travels the person's line | `console plugin hr request <from> [<to>] --person <login> --approved [--type <key>] [--reason <words>]` |
+| Record leave for anyone else, approved at once; without `--approved` it travels the person's line | `console plugin hr request <from> [<to>] --person <login> --approved [--type <key>] [--reason <words>]` |
 | Cancel any request, approved or not | `console plugin hr cancel <id> [--reason <words>]` |
-| Everyone's requests, or those waiting | `console plugin hr requests --scope all [--state requested]` |
+| Everyone's requests, or those waiting: twenty unless `--limit` says more, 200 at most | `console plugin hr requests --scope all [--state requested] [--limit <n>]` |
 | The year's ledger or requests as a CSV file, for payroll | `console plugin hr export <year> [--what ledger\|requests]` |
 
 ## What happens by itself
 
-When the console deactivates a person, the plugin turns their leave off from that day and leaves HR a task to settle what is left; when a person comes back, it leaves HR a task to say whether their leave is on again. The daily job writes the days due, closes expired credits as expired or paid out, carries days over where the policy says, turns leave off for a person past the day they left, and leaves HR a task where someone must act: days about to expire (the use-promotion notice), a period to grant by hand, a leaver to settle.
+When the console deactivates a person, the plugin turns their leave off from that day and leaves HR a task to settle what is left; when a person comes back, it leaves HR a task to say whether their leave is on again, and `enroll <login> --leave on` takes away the day they left. The daily job writes the days due, closes expired credits as expired or paid out, carries days over where the policy says, turns leave off for a person past the day they left, and leaves HR a task where someone must act: days about to expire (the use-promotion notice), a period to grant by hand, someone the console deactivated, to settle. A day written with `offboard` leaves no task: HR wrote it.
 
 ## Rules
 

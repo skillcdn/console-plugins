@@ -16,7 +16,7 @@ The plugin keeps the workspace's leave as records of the console. You act as the
 
 ## Commands
 
-`console plugin hr` lists what the person may run, and `console plugin hr help <command>` says one in full. A query prints JSON; add `--limit <n>` to a list to read less.
+`console plugin hr` lists what the person may run and names the board project, and `console plugin hr help <command>` says one in full. A query prints JSON. `requests` and `ledger` stop at twenty lines and `announcements` at ten; `--limit <n>` says how many.
 
 | Do | Command |
 |---|---|
@@ -35,7 +35,7 @@ The plugin keeps the workspace's leave as records of the console. You act as the
 
 1. When the person asks for days, read `preview` first: it counts the span in working days, weekends and holidays not being leave, and writes nothing.
 2. Run `request` once. It refuses in the person's language; say the refusal as it was said, and ask what they want instead.
-3. Where someone must approve, the command prints the decision's id and exits with 3. Wait with `console decision <id> --wait 100`. A line of several steps goes on by itself, so read `requests` to see how far it has come and say that to the person. Where nobody has to approve, the leave is recorded at once.
+3. Where someone must approve, the command prints the decision's id and exits with 3. Where the person works in the board project, wait with `console decision <id> --project <board> --wait 100`. Where they do not, the console answers `project.not_found`: the request stands all the same, so tell the person it is waiting and read `requests` when they ask. A line of several steps goes on by itself, and `requests` says how far it has come. Where nobody has to approve, the leave is recorded at once.
 4. An answer in someone's own words returns the request, with their words in its note: read them to the person, who cancels it and asks again as the words say.
 
 ## For a manager
@@ -45,7 +45,7 @@ Whoever stands above a person in the console, at any depth, holds this with no r
 | Do | Command |
 |---|---|
 | What waits for them; the requests of everyone below them; those people | `console plugin hr requests --scope waiting`, `console plugin hr requests --scope team`, `console plugin hr people` |
-| Answer a request as they tell you. Its decision is `request.decisionId`; `console decision <id>` prints the options by number. Their own words send it back to the person. The record names you beside them | `console answer <id> --option <n> [--note <words>]`, `console answer <id> --own "<words>"` |
+| Answer a request as they tell you. Its decision is `request.decisionId`, or `request.cancelDecisionId` where it is `cancelling`; `console decision <id> --project <board>` prints the options by number. Their own words send a request back to the person, and leave the leave as it was where a cancellation was asked. The record names you beside them | `console answer <id> --project <board> --option <n> [--note <words>]`, `console answer <id> --project <board> --own "<words>"` |
 | Record leave for someone below them, approved as it is written; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
 | The balance or the ledger of someone below them | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
 

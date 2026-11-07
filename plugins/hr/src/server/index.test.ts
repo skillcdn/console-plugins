@@ -957,6 +957,32 @@ describe("requests, calendar and the overview", () => {
     expect(view?.decidedBy).toBeNull();
   });
 
+  it("keeps a reason from whoever only the balances were opened to", async () => {
+    const ctx = await korea(board(), { "balance-visibility": "everyone" });
+    await request.run(ctx.as(ALICE), { from: "2026-11-10", reason: "A clinic" });
+    const asked = { person: personOf(ALICE) };
+    const seen = (await requestsQuery.run(ctx.as(BOB), asked)) as RequestView[];
+    expect(seen[0]?.request).toMatchObject({ from: "2026-11-10", reason: "", note: null });
+    const asManager = (await requestsQuery.run(ctx.as(MANAGER), asked)) as RequestView[];
+    expect(asManager[0]?.request.reason).toBe("A clinic");
+    const asHr = (await requestsQuery.run(ctx, asked)) as RequestView[];
+    expect(asHr[0]?.request.reason).toBe("A clinic");
+    const own = (await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[];
+    expect(own[0]?.request.reason).toBe("A clinic");
+  });
+
+  it("refuses HR its own leave as approved: nobody approves their own", async () => {
+    const ctx = await korea(board());
+    await enroll.run(ctx, { person: personOf(HR), leave: "on", "hired-on": "2024-01-02" });
+    await expect(request.run(ctx, { from: "2026-11-10", approved: true })).rejects.toMatchObject({
+      code: "own_leave",
+    });
+    await expect(
+      request.run(ctx, { from: "2026-11-10", person: personOf(HR), approved: true }),
+    ).rejects.toMatchObject({ code: "own_leave" });
+    expect(ctx.all("requests")).toEqual([]);
+  });
+
   it("refuses --approved to anyone but HR, rather than leave it unread", async () => {
     const ctx = await korea(board());
     await expect(
@@ -1076,6 +1102,22 @@ describe("requests, calendar and the overview", () => {
 });
 
 describe("people, policies, types and holidays", () => {
+  it("brings back someone whose leave is turned on after their last day", async () => {
+    const ctx = await korea(board());
+    await offboard.run(ctx, { person: personOf(ALICE), on: "2026-11-01" });
+    expect(ctx.all("people")[0]?.data).toMatchObject({ leave: false, leftOn: "2026-11-01" });
+    await enroll.run(ctx, { person: personOf(ALICE), leave: "on" });
+    expect(ctx.all("people")[0]?.data).toMatchObject({ leave: true, leftOn: null });
+    await expect(request.run(ctx.as(ALICE), { from: "2026-11-10" })).resolves.toBeDefined();
+  });
+
+  it("keeps a last day to come when leave stays on", async () => {
+    const ctx = await korea(board());
+    await offboard.run(ctx, { person: personOf(ALICE), on: "2026-12-31" });
+    await enroll.run(ctx, { person: personOf(ALICE), leave: "on" });
+    expect(ctx.all("people")[0]?.data).toMatchObject({ leave: true, leftOn: "2026-12-31" });
+  });
+
   it("lists every member for HR with their records, a manager's people, and nobody for others", async () => {
     const ctx = await korea(board());
     const all = (await peopleQuery.run(ctx, { balances: true })) as PeopleReport;
@@ -1087,6 +1129,11 @@ describe("people, policies, types and holidays", () => {
     expect(alice?.record).not.toHaveProperty("login");
     const plain = (await peopleQuery.run(ctx, {})) as PeopleReport;
     expect(plain.people.every((row) => row.annual === null)).toBe(true);
+    const manager = (await peopleQuery.run(ctx.as(MANAGER), { balances: true })) as PeopleReport;
+    expect(manager.people[0]?.annual).toEqual({ available: 15, used: 0, pending: 0 });
+    await configure.run(ctx, { "balance-visibility": "self" });
+    const closed = (await peopleQuery.run(ctx.as(MANAGER), { balances: true })) as PeopleReport;
+    expect(closed.people[0]?.annual).toBeNull();
     expect(all.people.find((row) => row.person.login === "bob")?.record).toBeNull();
     const team = (await peopleQuery.run(ctx.as(MANAGER), {})) as PeopleReport;
     expect(team.scope).toBe("team");

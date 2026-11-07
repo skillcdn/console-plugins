@@ -256,6 +256,9 @@ export async function prepareRequest(
       ? { id: actor.id, login: actor.login, name: actor.name }
       : { id: asked.person.id, login: asked.person.login, name: asked.person.name };
   const forOther = target.id !== actor.id;
+  if (asked.approved === true && !forOther) {
+    throw new PluginError("own_leave", no.ownLeave);
+  }
   const [directory, found] = await Promise.all([directoryOf(ctx), personRecord(ctx, target.id)]);
   const staff = await staffOf(ctx, directory);
   const standing = standingOf(target.id, directory);
@@ -384,7 +387,7 @@ export const request = defineCommand({
       optional: true,
     }),
     approved: arg.boolean({
-      about: "HR only: record the leave as approved, raising no decision",
+      about: "HR, for someone else: record the leave as approved, raising no decision",
       optional: true,
     }),
   },
@@ -732,6 +735,9 @@ export const enroll = defineCommand({
     };
     const leave = on(args.leave) ?? current.leave;
     const hiredOn = args["hired-on"] ?? current.hiredOn;
+    // Leave turned on for someone whose last day has passed: they are back, and the daily job
+    // would turn it off again on the day that still stood.
+    const back = args.leave === "on" && current.leftOn !== null && current.leftOn < clock.today;
     if (leave && hiredOn === null) {
       throw new PluginError("hired_on_required", no.hiredOnRequired);
     }
@@ -741,7 +747,7 @@ export const enroll = defineCommand({
       name: args.person.name,
       leave,
       hiredOn,
-      leftOn: clear.has("left-on") ? null : current.leftOn,
+      leftOn: clear.has("left-on") || back ? null : current.leftOn,
       policy: args.policy ?? current.policy,
       workDays: clear.has("work-days") ? null : (args["work-days"] ?? current.workDays),
       title: clear.has("title") ? null : (args.title ?? current.title),

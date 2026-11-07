@@ -165,9 +165,17 @@ function viewOf(
   config: Config,
   today: string,
   directoryMap: Directory,
+  reach: ReadonlySet<string>,
 ): RequestView {
   const { data } = record;
   const open = data.state === "requested";
+  // What a person wrote is for them, those above them, whoever their line asks and HR: a
+  // configuration that opens balances to more people opens the dates, not the reasons.
+  const close =
+    actor.hr ||
+    data.personId === actor.id ||
+    reach.has(data.personId) ||
+    data.steps.some((step) => step.deciderIds.includes(actor.id));
   const current = data.steps[data.step];
   const asked =
     data.state === "cancelling"
@@ -184,11 +192,11 @@ function viewOf(
       to: data.to,
       part: data.part,
       days: data.days,
-      reason: data.reason,
+      reason: close ? data.reason : "",
       state: data.state,
       late: data.late,
       rule: data.rule,
-      note: data.note,
+      note: close ? data.note : null,
       decisionId: data.decisionId,
       cancelDecisionId: data.cancelDecisionId,
       requestedAt: data.requestedAt,
@@ -377,6 +385,7 @@ export const requestsQuery = defineQuery({
         config,
         clock.today,
         directoryMap,
+        reach,
       ),
     );
     const kept = scope === "waiting" ? views.filter((view) => view.mine) : views;
@@ -503,6 +512,7 @@ export const peopleQuery = defineQuery({
   async run(ctx, args): Promise<PeopleReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
+    const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const directoryMap = await directoryOf(ctx);
     const reach = reachOf(actor, directoryMap);
@@ -522,7 +532,13 @@ export const peopleQuery = defineQuery({
       const record = byPerson.get(id) ?? null;
       const known = directoryMap.get(id);
       let annualFigures: PersonRow["annual"] = null;
-      if (args.balances === true && record !== null && record.data.leave && annual !== undefined) {
+      if (
+        args.balances === true &&
+        record !== null &&
+        record.data.leave &&
+        annual !== undefined &&
+        maySeeBalance(actor, id, reach, config)
+      ) {
         const policy = await policyFor(ctx, record.data);
         const figures = await typeBalanceOf(
           ctx,
@@ -700,7 +716,7 @@ export const overview = defineQuery({
     const upcoming = mine
       .filter((item) => ["requested", "approved", "cancelling"].includes(item.data.state))
       .slice(0, 8)
-      .map((item) => viewOf(ctx, actor, item, me, config, clock.today, directoryMap));
+      .map((item) => viewOf(ctx, actor, item, me, config, clock.today, directoryMap, reach));
     const pending = await listAll<LeaveRequest>(ctx.records(requests), {
       where: { state: { in: ["requested", "cancelling"] } },
       order: { field: "from" },
@@ -715,6 +731,7 @@ export const overview = defineQuery({
           config,
           clock.today,
           directoryMap,
+          reach,
         ),
       )
       .filter((view) => view.mine)
