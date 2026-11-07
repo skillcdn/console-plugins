@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { Policy } from "../../shared/contracts.js";
+import type { Notice, Policy } from "../../shared/contracts.js";
+import { serverWords } from "../words.js";
 import { KOREAN_TIERS, presetOf } from "./presets.js";
 import {
   allowanceDue,
   baseDays,
   countLeaveDays,
   creditsDue,
-  describePolicy,
+  isInTime,
   periodOf,
   roundUp,
   tenureAt,
@@ -269,7 +270,7 @@ describe("counting leave days", () => {
     const holidays = new Set(["2026-12-25"]);
     expect(
       countLeaveDays(
-        { from: "2026-12-24", to: "2026-12-28", half: "none" },
+        { from: "2026-12-24", to: "2026-12-28", part: "none" },
         "working",
         workDays,
         holidays,
@@ -277,7 +278,7 @@ describe("counting leave days", () => {
     ).toBe(2);
     expect(
       countLeaveDays(
-        { from: "2026-12-24", to: "2026-12-28", half: "none" },
+        { from: "2026-12-24", to: "2026-12-28", part: "none" },
         "calendar",
         workDays,
         holidays,
@@ -288,7 +289,7 @@ describe("counting leave days", () => {
   it("counts a half day as half of one counted day, and nothing on a day not counted", () => {
     expect(
       countLeaveDays(
-        { from: "2026-11-06", to: "2026-11-06", half: "am" },
+        { from: "2026-11-06", to: "2026-11-06", part: "am" },
         "working",
         workDays,
         new Set(),
@@ -296,7 +297,7 @@ describe("counting leave days", () => {
     ).toBe(0.5);
     expect(
       countLeaveDays(
-        { from: "2026-11-07", to: "2026-11-07", half: "pm" },
+        { from: "2026-11-07", to: "2026-11-07", part: "pm" },
         "working",
         workDays,
         new Set(),
@@ -304,7 +305,7 @@ describe("counting leave days", () => {
     ).toBe(0);
     expect(
       countLeaveDays(
-        { from: "2026-11-09", to: "2026-11-06", half: "none" },
+        { from: "2026-11-09", to: "2026-11-06", part: "none" },
         "working",
         workDays,
         new Set(),
@@ -313,11 +314,42 @@ describe("counting leave days", () => {
   });
 });
 
+describe("a request in time", () => {
+  const days = (count: number): Notice => ({ mode: "days", days: count, time: "18:00" });
+  const eve = (time: string): Notice => ({ mode: "dayBefore", days: 0, time });
+  const same = (time: string): Notice => ({ mode: "sameDay", days: 0, time });
+
+  it("asks nothing of a day to come, and is never in time for a day gone by", () => {
+    const none: Notice = { mode: "none", days: 0, time: "18:00" };
+    expect(isInTime(none, "2026-11-06", "2026-11-06", "23:59")).toBe(true);
+    expect(isInTime(none, "2026-11-05", "2026-11-06", "00:00")).toBe(false);
+  });
+
+  it("counts days ahead", () => {
+    expect(isInTime(days(7), "2026-11-13", "2026-11-06", "23:59")).toBe(true);
+    expect(isInTime(days(7), "2026-11-12", "2026-11-06", "00:00")).toBe(false);
+  });
+
+  it("reads a time on the day before, up to that minute", () => {
+    expect(isInTime(eve("18:00"), "2026-11-07", "2026-11-06", "18:00")).toBe(true);
+    expect(isInTime(eve("18:00"), "2026-11-07", "2026-11-06", "18:01")).toBe(false);
+    expect(isInTime(eve("18:00"), "2026-11-08", "2026-11-06", "23:00")).toBe(true);
+    expect(isInTime(eve("18:00"), "2026-11-06", "2026-11-06", "09:00")).toBe(false);
+  });
+
+  it("reads a time on the same day", () => {
+    expect(isInTime(same("09:00"), "2026-11-06", "2026-11-06", "09:00")).toBe(true);
+    expect(isInTime(same("09:00"), "2026-11-06", "2026-11-06", "09:01")).toBe(false);
+    expect(isInTime(same("09:00"), "2026-11-07", "2026-11-06", "23:00")).toBe(true);
+    expect(isInTime(same("09:00"), "2026-11-05", "2026-11-06", "08:00")).toBe(false);
+  });
+});
+
 describe("describing a policy", () => {
   it("says the basis, the giving, the tiers and the carry-over in a sentence", () => {
-    const text = describePolicy(policyOf("kr-statutory"));
+    const text = serverWords("en").policySummary(policyOf("kr-statutory"));
     expect(text).toContain("hire anniversary");
-    expect(text).toContain("15 from year 1");
+    expect(text).toContain("15 days from year 1");
     expect(text).toContain("one day per month in the first year");
     expect(text).toContain("expire at the period's end");
   });

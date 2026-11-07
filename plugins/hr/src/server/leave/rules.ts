@@ -6,9 +6,11 @@
 import {
   type AccrualMode,
   ANNUAL,
-  type Half,
+  type Notice,
+  type Part,
   type Policy,
   type Rounding,
+  shareOf,
   type Tier,
 } from "../../shared/contracts.js";
 import {
@@ -179,7 +181,7 @@ export function creditsDue(policy: Policy, employee: Employee, upTo: string): Cr
         on,
         period: period.start,
         expiresOn: policy.monthlyUntil === "anniversary" ? addDays(anniversary, -1) : period.end,
-        note: `month ${month} of the first year`,
+        note: `~month:${month}`,
       });
     }
   }
@@ -194,7 +196,7 @@ export function creditsDue(policy: Policy, employee: Employee, upTo: string): Cr
     if (policy.accrual === "upfront") {
       let days = 0;
       let on = period.start;
-      let note = "the period's days";
+      let note = "~period";
       if (policy.earning === "served") {
         if (!periodOfHire) {
           if (beforeFirstAnniversary) {
@@ -203,10 +205,10 @@ export function creditsDue(policy: Policy, employee: Employee, upTo: string): Cr
             const length = daysInclusive(previous.start, previous.end);
             if (policy.firstPeriod === "prorated") {
               days = roundUp((base * served) / length, policy.rounding);
-              note = `prorated: ${served} of ${length} days served`;
+              note = `~served:${served}:${length}`;
             } else if (policy.firstPeriod === "full") {
               days = base;
-              note = "the first period's days in full";
+              note = "~first-full";
             }
           } else {
             days = entitlement;
@@ -221,10 +223,10 @@ export function creditsDue(policy: Policy, employee: Employee, upTo: string): Cr
           const length = daysInclusive(period.start, period.end);
           if (policy.firstPeriod === "prorated") {
             days = roundUp((base * remaining) / length, policy.rounding);
-            note = `prorated: ${remaining} of ${length} days ahead`;
+            note = `~ahead:${remaining}:${length}`;
           } else if (policy.firstPeriod === "full") {
             days = base;
-            note = "the first period's days in full";
+            note = "~first-full";
           }
         }
       } else {
@@ -261,7 +263,7 @@ export function creditsDue(policy: Policy, employee: Employee, upTo: string): Cr
           on,
           period: period.start,
           expiresOn,
-          note: `accrual ${index + 1} of ${count}`,
+          note: `~accrual:${index + 1}:${count}`,
         });
       }
     }
@@ -299,7 +301,7 @@ export function allowanceDue(
         on,
         period: period.start,
         expiresOn: period.end,
-        note: "the period's allowance",
+        note: "~allowance",
       });
     }
     period = nextPeriod(policy, hiredOn, period);
@@ -310,7 +312,7 @@ export function allowanceDue(
 export interface Span {
   readonly from: string;
   readonly to: string;
-  readonly half: Half;
+  readonly part: Part;
 }
 
 /** Whether a day is one leave is counted on: a working day that is no holiday, or any day on a calendar count. */
@@ -323,7 +325,7 @@ export function isCounted(
   return countDays === "calendar" || (workDays.includes(weekdayOf(day)) && !holidays.has(day));
 }
 
-/** How many days a span of leave counts for; a half day is half of one counted day. */
+/** How many days a span of leave counts for; a part of a day is its share of one counted day. */
 export function countLeaveDays(
   span: Span,
   countDays: Policy["countDays"],
@@ -333,8 +335,10 @@ export function countLeaveDays(
   if (span.to < span.from) {
     return 0;
   }
-  if (span.half !== "none") {
-    return span.from === span.to && isCounted(span.from, countDays, workDays, holidays) ? 0.5 : 0;
+  if (span.part !== "none") {
+    return span.from === span.to && isCounted(span.from, countDays, workDays, holidays)
+      ? shareOf(span.part)
+      : 0;
   }
   let days = 0;
   for (const day of eachDay(span.from, span.to)) {
@@ -345,23 +349,21 @@ export function countLeaveDays(
   return days;
 }
 
-/** A sentence of the policy for a person who asks what theirs is. */
-export function describePolicy(policy: Policy): string {
-  const tiers = [...policy.tiers]
-    .sort((a, b) => a.fromYears - b.fromYears)
-    .map((tier) => `${tier.days} from year ${tier.fromYears}`)
-    .join(", ");
-  const basis =
-    policy.basis === "anniversary"
-      ? "a year from the hire anniversary"
-      : `a year from ${policy.startMonth}/${policy.startDay}`;
-  const carry =
-    policy.carryOver === "none"
-      ? "unused days expire at the period's end"
-      : policy.carryOver === "all"
-        ? policy.carryOverMonths === null
-          ? "unused days carry over"
-          : `unused days carry over for ${policy.carryOverMonths} months`
-        : `up to ${policy.carryOverDays ?? 0} unused days carry over`;
-  return `${basis}; ${policy.accrual === "upfront" ? "given at the period's start" : policy.accrual === "manual" ? "given by HR" : `accrued ${policy.accrual}`}; ${tiers}${policy.firstYearMonthly ? "; one day per month in the first year" : ""}; ${carry}.`;
+/**
+ * Whether a request is in time for the notice its kind asks: `today` and `time` the workspace's.
+ * A day gone by is never in time, whatever the kind asks.
+ */
+export function isInTime(notice: Notice, from: string, today: string, time: string): boolean {
+  switch (notice.mode) {
+    case "days":
+      return daysBetween(today, from) >= notice.days;
+    case "dayBefore": {
+      const eve = addDays(from, -1);
+      return today < eve || (today === eve && time <= notice.time);
+    }
+    case "sameDay":
+      return today < from || (today === from && time <= notice.time);
+    default:
+      return from >= today;
+  }
 }

@@ -1,6 +1,6 @@
-// The overview: the person's leave at a glance, from the query of the same name. Whether leave is
-// on for them, their annual figures, their leave to come, what waits for their decision, who is
-// out today, the next holidays and the organization's notice. A request's reason is never here.
+// The overview: the person's leave at a glance, from the query of the same name. How many days they
+// have, their leave to come, what waits for their decision, who is out today, the next holidays and
+// the organization's announcement, each a pane of its own. A request's reason is never here.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
@@ -9,35 +9,37 @@ import {
   type LeaveType,
   type OverviewReport,
   type RequestView,
+  type TypeBalance,
+  waitingDecision,
 } from "../../shared/contracts.js";
 import {
   badge,
   button,
   callout,
-  DASH,
   el,
   empty,
   errorBlock,
+  eyebrow,
   type Formatters,
   formattersFor,
   holds,
   loadTypes,
+  meter,
   muted,
   nameIn,
-  num,
   page,
-  personNode,
-  row,
-  section,
+  pageHead,
+  panel,
+  panelWith,
+  personLabel,
   sequenced,
   spanText,
   stack,
-  stat,
   stateBadge,
-  table,
-  toolbar,
+  todayDay,
   typeBadge,
   watch,
+  who,
 } from "../ui.js";
 import type { Words } from "../words.js";
 
@@ -49,105 +51,160 @@ interface View {
   readonly types: ReadonlyMap<string, LeaveType>;
 }
 
-function notEnrolled(report: OverviewReport, view: View, hr: boolean): HTMLDivElement {
-  const { words } = view;
-  if (hr && report.counts !== null && report.counts.enrolled === 0) {
+function notEnrolled(report: OverviewReport, view: View, hr: boolean): HTMLElement {
+  const { words, frame } = view;
+  if (hr && !report.ready) {
     const node = callout(words.notSetUpTitle, words.notSetUpBody);
-    const commands = el("div", "commands");
-    commands.append(
-      el("code", "code", words.setupCommandKr),
-      el("code", "code", words.setupCommandUs),
-    );
-    node.firstElementChild?.append(commands);
+    node.append(button(words.notSetUpAction, () => frame.navigate("/plugins/hr/setup"), "primary"));
     return node;
   }
   return callout(words.notEnrolledTitle, words.notEnrolledBody);
 }
 
-function tiles(report: OverviewReport, view: View): HTMLElement | null {
-  const annual = report.balance?.types.find((type) => type.type === ANNUAL);
-  if (annual === undefined) {
-    return null;
-  }
+/** How many days a person has, as a figure and a bar, for a pane or a widget. */
+export function balanceFigure(
+  annual: TypeBalance,
+  view: Pick<View, "words" | "format">,
+): HTMLElement {
   const { words, format } = view;
-  const next = annual.expiring[0];
-  const node = el("div", "tiles");
+  const node = el("div", "balance");
+  const figure = el("p", "balance-figure");
+  figure.append(
+    el("strong", "balance-value", format.number(annual.available)),
+    el("span", "balance-unit", words.daysLeft),
+  );
+  const total = annual.available + annual.used + annual.pending;
   node.append(
-    stat(words.available, format.number(annual.available)),
-    stat(words.used, format.number(annual.used)),
-    stat(words.pending, format.number(annual.pending)),
-    next === undefined
-      ? stat(words.expiringNext, DASH, words.nothingExpiring)
-      : stat(words.expiringNext, format.number(next.days), format.day(next.on)),
+    figure,
+    meter(total, [
+      { value: annual.used, tone: "used" },
+      { value: annual.pending, tone: "pending" },
+      { value: annual.available, tone: "left" },
+    ]),
   );
   return node;
 }
 
-function decisionButton(path: string | null, view: View): HTMLElement | string {
-  if (path === null) {
-    return "";
+function myLeave(report: OverviewReport, view: View): HTMLElement | null {
+  const annual = report.balance?.types.find((type) => type.type === ANNUAL);
+  if (annual === undefined) {
+    return null;
   }
-  return button(view.words.openDecision, () => view.frame.navigate(path), "secondary", true);
+  const { words, format, language, types } = view;
+  const next = annual.expiring[0];
+  const legend = el("dl", "legend");
+  const item = (tone: string, label: string, value: string) => {
+    const row = el("div", "legend-item");
+    row.append(el("span", `legend-dot legend-${tone}`), el("dt", "", label), el("dd", "", value));
+    return row;
+  };
+  legend.append(
+    item("used", words.used, format.days(annual.used)),
+    item("pending", words.pending, format.days(annual.pending)),
+    item(
+      "expiring",
+      words.expiringNext,
+      next === undefined
+        ? words.nothingExpiring
+        : `${format.monthDay(next.on)} · ${format.days(next.days)}`,
+    ),
+  );
+  const others = (report.balance?.types ?? []).filter((type) => type.type !== ANNUAL);
+  const parts: HTMLElement[] = [
+    eyebrow(nameIn(annual.name, language)),
+    balanceFigure(annual, view),
+    legend,
+  ];
+  if (others.length > 0) {
+    const list = el("ul", "kinds");
+    for (const other of others) {
+      const row = el("li", "kinds-item");
+      row.append(
+        typeBadge(types.get(other.type), other.type, language),
+        el("span", "kinds-value", format.days(other.available)),
+      );
+      list.append(row);
+    }
+    parts.push(list);
+  }
+  return panel(null, ...parts);
 }
 
 function upcoming(views: readonly RequestView[], view: View): HTMLElement {
-  const { words, format, language, types } = view;
+  const { words, format, language, types, frame } = view;
   if (views.length === 0) {
-    return section(words.upcomingTitle, empty(words.upcomingEmpty));
+    return panel(words.upcomingTitle, muted(words.upcomingEmpty));
   }
-  const rows = views.map((item) =>
-    row([
-      spanText(item.request.from, item.request.to, item.request.half, format, words),
-      typeBadge(types.get(item.request.type), item.request.type, language),
-      num(format.number(item.request.days)),
-      stateBadge(item.request.state, words),
-      decisionButton(
-        item.request.state === "cancelling"
-          ? (item.cancelDecisionPath ?? item.decisionPath)
-          : item.decisionPath,
-        view,
+  const list = el("ul", "rows");
+  for (const item of views) {
+    const row = el("li", "rows-item");
+    row.append(
+      el(
+        "span",
+        "rows-main",
+        spanText(item.request.from, item.request.to, item.request.part, format, words),
       ),
-    ]),
-  );
-  return section(
+      typeBadge(types.get(item.request.type), item.request.type, language),
+      stateBadge(item.request.state, words),
+    );
+    list.append(row);
+  }
+  return panelWith(
     words.upcomingTitle,
-    table([words.span, words.type, words.daysHeader, words.state, ""], rows),
+    [button(words.allMyLeave, () => frame.navigate("/plugins/hr/leave"), "ghost", true)],
+    list,
   );
 }
 
 function waiting(views: readonly RequestView[], view: View): HTMLElement {
-  const { words, format, language, types } = view;
-  const rows = views.map((item) =>
-    row([
-      personNode(item.person),
-      spanText(item.request.from, item.request.to, item.request.half, format, words),
+  const { words, format, language, types, frame } = view;
+  const list = el("ul", "rows");
+  for (const item of views.slice(0, 5)) {
+    const row = el("li", "rows-item");
+    const path = waitingDecision(item);
+    row.append(
+      who(
+        frame,
+        item.person,
+        spanText(item.request.from, item.request.to, item.request.part, format, words),
+      ),
       typeBadge(types.get(item.request.type), item.request.type, language),
-      num(format.number(item.request.days)),
-      decisionButton(item.decisionPath, view),
-    ]),
-  );
-  return section(
+    );
+    if (path !== null) {
+      row.append(button(words.decide, () => frame.navigate(path), "secondary", true));
+    }
+    list.append(row);
+  }
+  return panelWith(
     words.waitingTitle,
-    table([words.person, words.span, words.type, words.daysHeader, ""], rows),
+    [button(words.allApprovals, () => frame.navigate("/plugins/hr/approvals"), "ghost", true)],
+    list,
   );
 }
 
-export function outTodayList(entries: readonly CalendarEntry[], view: View): HTMLElement {
-  const { words, language, types } = view;
+export function outTodayList(
+  entries: readonly CalendarEntry[],
+  view: View,
+  atMost = 8,
+): HTMLElement {
+  const { words, language, types, frame } = view;
   if (entries.length === 0) {
     return muted(words.outTodayEmpty);
   }
-  const list = el("ul", "list");
-  for (const entry of entries) {
-    const item = el("li", "list-item");
-    item.append(personNode(entry.person));
+  const list = el("ul", "rows");
+  for (const entry of entries.slice(0, atMost)) {
+    const item = el("li", "rows-item");
+    item.append(who(frame, entry.person));
     if (entry.type !== null) {
       item.append(typeBadge(types.get(entry.type), entry.type, language));
     }
-    if (entry.half !== "none") {
-      item.append(badge(words.halfShort[entry.half], "neutral"));
+    if (entry.part !== "none") {
+      item.append(badge(words.partShort[entry.part], "neutral"));
     }
     list.append(item);
+  }
+  if (entries.length > atMost) {
+    list.append(el("li", "rows-more", words.andMore(String(entries.length - atMost))));
   }
   return list;
 }
@@ -157,13 +214,13 @@ function holidayList(holidays: readonly Holiday[], view: View): HTMLElement {
   if (holidays.length === 0) {
     return muted(words.nextHolidaysEmpty);
   }
-  const list = el("ul", "list");
+  const list = el("ul", "rows");
   for (const holiday of holidays) {
-    const item = el("li", "list-item");
+    const item = el("li", "rows-item");
     item.append(
-      el("span", "day", format.day(holiday.on)),
-      el("span", "", nameIn(holiday.name, language)),
-      badge(words.holidayKind[holiday.kind], "neutral"),
+      el("span", "rows-day", format.monthDay(holiday.on)),
+      el("span", "rows-main", nameIn(holiday.name, language)),
+      el("span", "sc-muted rows-side", format.weekday(holiday.on)),
     );
     list.append(item);
   }
@@ -176,26 +233,46 @@ function build(report: OverviewReport, view: View, hr: boolean): HTMLElement[] {
   if (!report.enrolled) {
     parts.push(notEnrolled(report, view, hr));
   }
-  const figures = tiles(report, view);
-  if (figures !== null) {
-    parts.push(figures);
+  if (report.announcement.trim().length > 0) {
+    parts.push(panel(words.announcementTitle, el("div", "announcement", report.announcement)));
   }
-  parts.push(upcoming(report.upcoming, view));
+  const main = stack();
+  const mine = myLeave(report, view);
+  if (mine !== null) {
+    main.append(mine);
+  }
   if (report.waiting.length > 0) {
-    parts.push(waiting(report.waiting, view));
+    main.append(waiting(report.waiting, view));
   }
-  parts.push(section(words.outTodayTitle, outTodayList(report.outToday, view)));
-  parts.push(section(words.nextHolidaysTitle, holidayList(report.nextHolidays, view)));
-  if (report.notice.trim().length > 0) {
-    parts.push(section(words.noticeTitle, el("div", "notice", report.notice)));
+  if (report.enrolled) {
+    main.append(upcoming(report.upcoming, view));
   }
+  const side = stack();
+  side.append(
+    panel(words.outTodayTitle, outTodayList(report.outToday, view)),
+    panel(words.nextHolidaysTitle, holidayList(report.nextHolidays, view)),
+  );
   if (report.counts !== null) {
-    parts.push(
-      muted(
-        words.hrCounts(format.number(report.counts.enrolled), format.number(report.counts.waiting)),
+    side.append(
+      panel(
+        words.hrAtAGlance,
+        el(
+          "p",
+          "line",
+          words.hrCounts(
+            format.number(report.counts.enrolled),
+            format.number(report.counts.waiting),
+          ),
+        ),
       ),
     );
   }
+  const columns = el("div", "columns");
+  if (main.childElementCount === 0) {
+    main.append(panel(null, empty(words.overviewEmpty)));
+  }
+  columns.append(main, side);
+  parts.push(columns);
   return parts;
 }
 
@@ -205,18 +282,18 @@ export async function renderOverview(
   words: Words,
 ): Promise<void> {
   const language = frame.context.language;
-  const view: View = {
-    frame,
-    words,
-    language,
-    format: formattersFor(language, words),
-    types: await loadTypes(frame),
-  };
+  const format = formattersFor(language, words);
+  const view: View = { frame, words, language, format, types: await loadTypes(frame) };
   const hr = holds(frame, "hr");
   const content = stack();
   const node = page();
+  const person = frame.context.person;
   node.append(
-    toolbar(button(words.requestLeave, () => frame.navigate("/plugins/hr/leave"), "primary")),
+    pageHead(
+      words.hello(personLabel({ id: person.id, login: person.login, name: person.name })),
+      format.day(todayDay(frame)),
+      button(words.requestLeave, () => frame.navigate("/plugins/hr/leave"), "primary"),
+    ),
     content,
   );
   root.replaceChildren(node);

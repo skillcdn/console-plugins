@@ -136,6 +136,24 @@ export function dayIn(instant: Date, timeZone: string): string {
   }
 }
 
+/** The hour and the minute an instant shows in a time zone, `HH:MM`; UTC's when the zone is unknown. */
+export function timeIn(instant: Date, timeZone: string): string {
+  const utc = instant.toISOString().slice(11, 16);
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(instant);
+    const hour = parts.find((part) => part.type === "hour")?.value;
+    const minute = parts.find((part) => part.type === "minute")?.value;
+    return hour === undefined || minute === undefined ? utc : `${hour}:${minute}`;
+  } catch {
+    return utc;
+  }
+}
+
 /** A figure of days to two decimals, so that halves and quarters stay exact and sums do not drift. */
 export function roundDays(value: number): number {
   return Math.round(value * 100) / 100;

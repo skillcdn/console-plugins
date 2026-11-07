@@ -1,5 +1,5 @@
 // The queries of leave: what an agent or a page reads, each answering what the caller may see and
-// nothing more. The visibility settings are read here, once, for every answer; the pages show what
+// nothing more. The visibility configured is read here, once, for every answer; the pages show what
 // comes back and decide nothing themselves.
 import {
   arg,
@@ -11,24 +11,34 @@ import {
 } from "@skillcdn/console/plugin";
 import {
   ANNUAL,
+  type Approvers,
   type BalanceReport,
   type CalendarEntry,
   type CalendarReport,
+  type Config,
+  type ConfigReport,
   type Entry,
   type EntryView,
   type Holiday,
   type LeaveRequest,
   type LeaveType,
   type OverviewReport,
+  PARTS,
+  type Part,
   type PeopleReport,
   type Person,
   type PersonBrief,
   type PersonRow,
   type Policy,
+  type PolicyView,
   type PresetView,
   REQUEST_STATES,
+  type RequestPreview,
+  type RequestStep,
   type RequestView,
-  type Settings,
+  type StepView,
+  type Team,
+  type TeamView,
 } from "../../shared/contracts.js";
 import {
   addDays,
@@ -43,7 +53,6 @@ import {
 import {
   type Actor,
   actorOf,
-  approves,
   calendarScope,
   calendarShows,
   maySeeBalance,
@@ -51,41 +60,38 @@ import {
   ROLE_HR,
   ROLE_MANAGER,
   ROLE_MEMBER,
+  reachOf,
   requireHr,
   requirePerson,
+  standingOf,
+  teamsByKey,
 } from "../access.js";
 import { holidays, ledger, people, policies, requests } from "../collections.js";
-import { settingsOf } from "../settings.js";
+import { configOf, configRecord, DEFAULT_CONFIG } from "../config.js";
 import {
+  allTeams,
   allTypes,
   balancedTypes,
   clockOf,
+  type Directory,
+  directoryOf,
   holidaysBetween,
   listAll,
   personRecord,
   policyFor,
 } from "../store.js";
+import { noteIn, serverWords } from "../words.js";
+import { approvedAs, approversOf, nextOf, waitingIn } from "./approval.js";
+import { prepareRequest } from "./commands.js";
 import { typeBalanceOf } from "./engine.js";
-import { PRESETS } from "./presets.js";
-import { describePolicy, isCounted } from "./rules.js";
-
-type RestPerson = Awaited<ReturnType<PluginContext["console"]["people"]["list"]>>[number];
+import { PRESETS, policyAbout, policyName } from "./presets.js";
+import { isCounted } from "./rules.js";
 
 const CALENDAR_DAYS_AT_MOST = 92;
 
-/** The people the caller may see, by id, read once; empty where the console refuses the read. */
-async function directory(ctx: PluginContext): Promise<Map<string, RestPerson>> {
-  try {
-    const list = await ctx.console.people.list();
-    return new Map(list.map((person) => [person.id, person]));
-  } catch {
-    return new Map();
-  }
-}
-
 function briefOf(
   id: string,
-  directoryMap: ReadonlyMap<string, RestPerson>,
+  directoryMap: Directory,
   record: Person | null,
   actor?: Actor,
 ): PersonBrief {
@@ -106,12 +112,7 @@ function decisionPath(ctx: PluginContext, decisionId: string | null): string | n
     : `/projects/${board.key}/decisions/${decisionId}`;
 }
 
-function cancellable(
-  actor: Actor,
-  request: LeaveRequest,
-  settings: Settings,
-  today: string,
-): boolean {
+function cancellable(actor: Actor, request: LeaveRequest, config: Config, today: string): boolean {
   if (actor.isConsole) {
     return false;
   }
@@ -128,12 +129,33 @@ function cancellable(
         return true;
       }
       return (
-        settings.cancellation === "approval" ||
-        (settings.cancellation === "free" && request.from > today)
+        config.cancellation === "approval" ||
+        (config.cancellation === "free" && request.from > today)
       );
     default:
       return false;
   }
+}
+
+/** A line of approvers for a page: who stands in each step, and where the request is. */
+function stepViews(
+  steps: readonly RequestStep[],
+  directoryMap: Directory,
+  open: boolean,
+): StepView[] {
+  const at = open ? nextOf(steps)?.step : undefined;
+  return steps.map((step, index) => {
+    let state: StepView["state"] = "done";
+    if (at !== undefined) {
+      state = index < at ? "done" : index === at ? "waiting" : "ahead";
+    }
+    return {
+      approvers: step.approverIds.map((id) => briefOf(id, directoryMap, null)),
+      mode: step.mode,
+      approvedBy: step.approvedBy.map((entry) => briefOf(entry.by, directoryMap, null)),
+      state,
+    };
+  });
 }
 
 function viewOf(
@@ -141,29 +163,62 @@ function viewOf(
   actor: Actor,
   record: PluginRecord<LeaveRequest>,
   person: PersonBrief,
-  settings: Settings,
+  config: Config,
   today: string,
+  directoryMap: Directory,
 ): RequestView {
+  const { data } = record;
+  const open = data.state === "requested";
+  const current = data.steps[data.step];
+  const asked =
+    data.state === "cancelling"
+      ? (data.steps[0]?.approverIds ?? [])
+      : current
+        ? waitingIn(current)
+        : [];
   return {
     id: record.id,
     version: record.version,
     person,
-    request: record.data,
-    decisionPath: decisionPath(ctx, record.data.decisionId),
-    cancelDecisionPath: decisionPath(ctx, record.data.cancelDecisionId),
-    cancellable: cancellable(actor, record.data, settings, today),
+    request: data,
+    recordedBy:
+      data.requestedBy === data.personId ? null : briefOf(data.requestedBy, directoryMap, null),
+    line: stepViews(data.steps, directoryMap, open),
+    mine: (open || data.state === "cancelling") && asked.includes(actor.id),
+    decisionPath: decisionPath(ctx, data.decisionId),
+    cancelDecisionPath: decisionPath(ctx, data.cancelDecisionId),
+    cancellable: cancellable(actor, data, config, today),
   };
+}
+
+/** A person's approvers for a page, and where they were read. */
+function approversView(
+  record: Person,
+  teams: ReadonlyMap<string, Team>,
+  directoryMap: Directory,
+): Approvers {
+  const { ids, source } = approversOf(standingOf(record, teams, directoryMap));
+  return { people: ids.map((id) => briefOf(id, directoryMap, null)), source };
+}
+
+function teamOf(
+  record: Person | null,
+  teams: ReadonlyMap<string, Team>,
+): { readonly key: string; readonly name: string } | null {
+  const team = record?.team === null || record === null ? undefined : teams.get(record.team);
+  return team === undefined ? null : { key: team.key, name: team.name };
 }
 
 async function balanceReport(
   ctx: PluginContext,
   target: PersonBrief,
   record: PluginRecord<Person> | null,
-  directoryMap: ReadonlyMap<string, RestPerson>,
+  directoryMap: Directory,
   asOf: string,
 ): Promise<BalanceReport> {
   const data = record?.data ?? null;
   const policy = await policyFor(ctx, data);
+  const teams = await teamsByKey(ctx);
   const types = data === null || !data.leave ? [] : balancedTypes(await allTypes(ctx));
   const balances = [];
   for (const type of types) {
@@ -180,11 +235,14 @@ async function balanceReport(
     policy:
       policy === null
         ? null
-        : { key: policy.data.key, name: policy.data.name, summary: describePolicy(policy.data) },
-    approver:
-      data?.approverId === null || data?.approverId === undefined
-        ? null
-        : briefOf(data.approverId, directoryMap, null),
+        : {
+            key: policy.data.key,
+            name: policyName(policy.data, ctx.language),
+            summary: serverWords(ctx.language).policySummary(policy.data),
+          },
+    approvers:
+      data === null ? { people: [], source: "none" } : approversView(data, teams, directoryMap),
+    team: teamOf(data, teams),
     types: balances,
   };
 }
@@ -200,14 +258,15 @@ export const balance = defineQuery({
   async run(ctx, args): Promise<BalanceReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    const settings = settingsOf(ctx);
+    const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const targetId = args.person?.id ?? actor.id;
     const record = await personRecord(ctx, targetId);
-    if (!maySeeBalance(actor, targetId, record?.data ?? null, settings)) {
-      throw new PluginError("not_visible", "this person's balance is not shown to you");
+    const directoryMap = await directoryOf(ctx);
+    const reach = await reachOf(ctx, actor, directoryMap);
+    if (!maySeeBalance(actor, targetId, reach, config)) {
+      throw new PluginError("not_visible", serverWords(ctx.language).refused.notVisibleBalance);
     }
-    const directoryMap = await directory(ctx);
     const target =
       args.person === undefined
         ? briefOf(actor.id, directoryMap, record?.data ?? null, actor)
@@ -218,9 +277,9 @@ export const balance = defineQuery({
 
 export const requestsQuery = defineQuery({
   about:
-    "Requests of leave: the caller's own; with --scope team those of the people whose approver the caller is; with --scope all everyone's, for HR; or one person's with --person.",
+    "Requests of leave: the caller's; --scope waiting, those waiting for their decision; --scope team, their people's; --scope all, everyone's, for HR; or one person's with --person.",
   args: {
-    scope: arg.enum(["mine", "team", "all"], {
+    scope: arg.enum(["mine", "waiting", "team", "all"], {
       about: "whose requests; mine unless said",
       optional: true,
     }),
@@ -244,9 +303,11 @@ export const requestsQuery = defineQuery({
   async run(ctx, args): Promise<RequestView[]> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    const settings = settingsOf(ctx);
+    const no = serverWords(ctx.language).refused;
+    const config = await configOf(ctx);
     const clock = await clockOf(ctx);
-    const directoryMap = await directory(ctx);
+    const directoryMap = await directoryOf(ctx);
+    const reach = await reachOf(ctx, actor, directoryMap);
     const where: Record<string, WhereValue> = {};
     if (args.state !== undefined) {
       where.state = args.state;
@@ -261,32 +322,25 @@ export const requestsQuery = defineQuery({
       where.type = args.type;
     }
     const scope = args.person !== undefined ? "person" : (args.scope ?? "mine");
-    const records = new Map<string, Person>();
     if (scope === "person" && args.person !== undefined) {
-      const record = await personRecord(ctx, args.person.id);
-      if (!maySeeRequests(actor, args.person.id, record?.data ?? null, settings)) {
-        throw new PluginError("not_visible", "this person's requests are not shown to you");
+      if (!maySeeRequests(actor, args.person.id, reach, config)) {
+        throw new PluginError("not_visible", no.notVisibleRequests);
       }
       where.personId = args.person.id;
-      if (record !== null) {
-        records.set(args.person.id, record.data);
-      }
     } else if (scope === "mine") {
       where.personId = actor.id;
     } else if (scope === "team") {
       if (!actor.manager) {
-        throw new PluginError("not_visible", "the team's requests are the approver's to see");
+        throw new PluginError("not_visible", no.notVisibleTeam);
       }
-      const team = await listAll<Person>(ctx.records(people), { where: { approverId: actor.id } });
-      for (const member of team) {
-        records.set(member.data.personId, member.data);
-      }
-      if (team.length === 0 && !actor.hr) {
+      if (reach.size === 0 && !actor.hr) {
         return [];
       }
       if (!actor.hr) {
-        where.personId = { in: team.map((member) => member.data.personId) };
+        where.personId = { in: [...reach] };
       }
+    } else if (scope === "waiting") {
+      where.state = args.state ?? { in: ["requested", "cancelling"] };
     } else {
       requireHr(actor);
     }
@@ -294,34 +348,33 @@ export const requestsQuery = defineQuery({
       where,
       order: { field: "from", descending: true },
     });
-    const views: RequestView[] = [];
-    for (const item of items.slice(0, args.limit ?? 100)) {
-      const record = records.get(item.data.personId) ?? null;
-      views.push(
-        viewOf(
-          ctx,
-          actor,
-          item,
-          briefOf(item.data.personId, directoryMap, record, actor),
-          settings,
-          clock.today,
-        ),
-      );
-    }
-    return views;
+    const views = items.map((item) =>
+      viewOf(
+        ctx,
+        actor,
+        item,
+        briefOf(item.data.personId, directoryMap, null, actor),
+        config,
+        clock.today,
+        directoryMap,
+      ),
+    );
+    const kept = scope === "waiting" ? views.filter((view) => view.mine) : views;
+    return kept.slice(0, args.limit ?? 100);
   },
 });
 
 async function calendarEntries(
   ctx: PluginContext,
   actor: Actor,
-  settings: Settings,
+  config: Config,
   from: string,
   to: string,
-  directoryMap: ReadonlyMap<string, RestPerson>,
+  directoryMap: Directory,
+  reach: ReadonlySet<string>,
   holidayDays: ReadonlySet<string>,
 ): Promise<{ entries: CalendarEntry[]; scope: CalendarReport["scope"] }> {
-  const scope = calendarScope(actor, settings);
+  const scope = calendarScope(actor, config);
   const own = await personRecord(ctx, actor.id);
   const spanning = await listAll<LeaveRequest>(ctx.records(requests), {
     where: { from: { lte: to }, to: { gte: from } },
@@ -340,15 +393,15 @@ async function calendarEntries(
   const entries: CalendarEntry[] = [];
   for (const item of active) {
     const record = recordsById.get(item.data.personId) ?? null;
-    if (!calendarShows(scope, actor, item.data.personId, record, own?.data ?? null)) {
+    if (!calendarShows(scope, actor, item.data.personId, record, own?.data ?? null, reach)) {
       continue;
     }
     const showsType =
-      settings.calendarShowsType ||
+      config.calendarShowsType ||
       actor.hr ||
       item.data.personId === actor.id ||
-      approves(actor, record);
-    const workDays = record?.workDays ?? settings.workDays;
+      reach.has(item.data.personId);
+    const workDays = record?.workDays ?? config.workDays;
     const first = item.data.from < from ? from : item.data.from;
     const last = item.data.to > to ? to : item.data.to;
     for (const day of eachDay(first, last)) {
@@ -359,7 +412,7 @@ async function calendarEntries(
         on: day,
         person: briefOf(item.data.personId, directoryMap, record, actor),
         type: showsType ? item.data.type : null,
-        half: item.data.half,
+        part: item.data.part,
         state: item.data.state === "approved" ? "approved" : "requested",
         requestId: item.id,
       });
@@ -373,7 +426,7 @@ async function calendarEntries(
 
 export const calendar = defineQuery({
   about:
-    "Who is out when, within a span of up to three months, as the visibility settings allow the caller to see; with the holidays of the span.",
+    "Who is out when, within a span of up to three months, as HR's configuration lets the caller see; with the holidays of the span.",
   args: {
     from: arg.day({ about: "the first day; the first of this month unless said", optional: true }),
     to: arg.day({
@@ -385,26 +438,29 @@ export const calendar = defineQuery({
   async run(ctx, args): Promise<CalendarReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    const settings = settingsOf(ctx);
+    const no = serverWords(ctx.language).refused;
+    const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const from = args.from ?? dayOf(yearOf(clock.today), monthOf(clock.today), 1);
     const to =
       args.to ?? dayOf(yearOf(from), monthOf(from), daysInMonth(yearOf(from), monthOf(from)));
     if (to < from) {
-      throw new PluginError("span", "the last day is before the first");
+      throw new PluginError("span", no.spanBackwards);
     }
     if (daysInclusive(from, to) > CALENDAR_DAYS_AT_MOST) {
-      throw new PluginError("span", `a calendar spans at most ${CALENDAR_DAYS_AT_MOST} days`);
+      throw new PluginError("span", no.calendarTooLong(CALENDAR_DAYS_AT_MOST));
     }
     const span = await holidaysBetween(ctx, from, to);
-    const directoryMap = await directory(ctx);
+    const directoryMap = await directoryOf(ctx);
+    const reach = await reachOf(ctx, actor, directoryMap);
     const { entries, scope } = await calendarEntries(
       ctx,
       actor,
-      settings,
+      config,
       from,
       to,
       directoryMap,
+      reach,
       span.days,
     );
     return {
@@ -412,35 +468,36 @@ export const calendar = defineQuery({
       to,
       holidays: span.items.map((item) => item.data),
       entries,
-      workDays: settings.workDays,
+      workDays: config.workDays,
       scope,
+      mine: [...reach],
     };
   },
 });
 
 export const peopleQuery = defineQuery({
   about:
-    "The people and their records of leave: for HR every member of the workspace, enrolled or not, with their annual balance; for an approver the people who name them.",
+    "The people and their records of leave: for HR every member of the workspace, enrolled or not, with their annual balance; for an approver the people they approve.",
   args: {
     balances: arg.boolean({
       about: "with each person's annual balance; on unless said",
       optional: true,
     }),
-    team: arg.text({ about: "one team alone", optional: true, max: 80 }),
+    team: arg.text({ about: "one team alone, by its key", optional: true, max: 32 }),
   },
   roles: [ROLE_MANAGER, ROLE_HR],
   async run(ctx, args): Promise<PeopleReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
     if (!actor.manager) {
-      throw new PluginError("not_visible", "the people are shown to HR and approvers");
+      throw new PluginError("not_visible", serverWords(ctx.language).refused.notVisiblePeople);
     }
     const clock = await clockOf(ctx);
-    const directoryMap = await directory(ctx);
-    const records = await listAll<Person>(
-      ctx.records(people),
-      actor.hr ? {} : { where: { approverId: actor.id } },
-    );
+    const directoryMap = await directoryOf(ctx);
+    const reach = await reachOf(ctx, actor, directoryMap);
+    const teams = await teamsByKey(ctx);
+    const all = await listAll<Person>(ctx.records(people));
+    const records = actor.hr ? all : all.filter((item) => reach.has(item.data.personId));
     const byPerson = new Map(records.map((record) => [record.data.personId, record]));
     const ids = new Set<string>(byPerson.keys());
     if (actor.hr) {
@@ -477,10 +534,15 @@ export const peopleQuery = defineQuery({
         person: briefOf(id, directoryMap, record?.data ?? null, actor),
         status: known?.status === "deactivated" ? "deactivated" : "active",
         record: record?.data ?? null,
-        approver:
-          record?.data.approverId === undefined || record.data.approverId === null
+        manager:
+          (known?.managerId ?? null) === null
             ? null
-            : briefOf(record.data.approverId, directoryMap, null),
+            : briefOf(known?.managerId ?? "", directoryMap, null),
+        team: teamOf(record?.data ?? null, teams),
+        approvers:
+          record === null
+            ? { people: [], source: "none" }
+            : approversView(record.data, teams, directoryMap),
         annual: annualFigures,
       });
     }
@@ -491,11 +553,17 @@ export const peopleQuery = defineQuery({
       ? (await listAll<Policy>(ctx.records(policies), { where: { enabled: true } })).map(
           (record) => ({
             key: record.data.key,
-            name: record.data.name,
+            name: policyName(record.data, ctx.language),
           }),
         )
       : [];
-    return { people: rows, policies: policyList, scope: actor.hr ? "all" : "team" };
+    const teamList = [...teams.values()].map((team) => ({ key: team.key, name: team.name }));
+    return {
+      people: rows,
+      policies: policyList,
+      teams: teamList,
+      scope: actor.hr ? "all" : "team",
+    };
   },
 });
 
@@ -503,11 +571,31 @@ export const policiesQuery = defineQuery({
   about:
     "The leave policies, whole, for HR; a member reads their own policy's summary with balance.",
   roles: [ROLE_HR],
-  async run(ctx): Promise<PluginRecord<Policy>[]> {
+  async run(ctx): Promise<PolicyView[]> {
     const actor = actorOf(ctx);
     requireHr(actor);
     const all = await listAll<Policy>(ctx.records(policies));
-    return all.sort((a, b) => (a.data.key < b.data.key ? -1 : 1));
+    const assigned = await listAll<Person>(ctx.records(people), { where: { leave: true } });
+    const words = serverWords(ctx.language);
+    const keys = new Set(all.map((record) => record.data.key));
+    return all
+      .sort(
+        (a, b) =>
+          Number(b.data.isDefault) - Number(a.data.isDefault) || (a.data.key < b.data.key ? -1 : 1),
+      )
+      .map((record) => ({
+        id: record.id,
+        version: record.version,
+        policy: record.data,
+        name: policyName(record.data, ctx.language),
+        about: policyAbout(record.data, ctx.language),
+        summary: words.policySummary(record.data),
+        people: assigned.filter((person) =>
+          person.data.policy !== null && keys.has(person.data.policy)
+            ? person.data.policy === record.data.key
+            : record.data.isDefault,
+        ).length,
+      }));
   },
 });
 
@@ -570,30 +658,34 @@ export const ledgerQuery = defineQuery({
   async run(ctx, args): Promise<EntryView[]> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    const settings = settingsOf(ctx);
+    const words = serverWords(ctx.language);
+    const config = await configOf(ctx);
     const targetId = args.person?.id ?? actor.id;
-    const record = await personRecord(ctx, targetId);
-    if (!maySeeBalance(actor, targetId, record?.data ?? null, settings)) {
-      throw new PluginError("not_visible", "this person's ledger is not shown to you");
+    const reach = await reachOf(ctx, actor, await directoryOf(ctx));
+    if (!maySeeBalance(actor, targetId, reach, config)) {
+      throw new PluginError("not_visible", words.refused.notVisibleLedger);
     }
     const items = await listAll<Entry>(ctx.records(ledger), {
       where: { personId: targetId, type: args.type ?? ANNUAL },
       order: { field: "on", descending: true },
     });
-    return items.slice(0, args.limit ?? 100).map((item) => ({ id: item.id, entry: item.data }));
+    return items
+      .slice(0, args.limit ?? 100)
+      .map((item) => ({ id: item.id, entry: item.data, note: noteIn(item.data.note, words) }));
   },
 });
 
 export const overview = defineQuery({
   about:
-    "The caller's leave at a glance: their balance, their leave to come, what waits for their decision, who is out today, the next holidays and the notice.",
+    "The caller's leave at a glance: their balance, their leave to come, what waits for their decision, who is out today, the next holidays and the announcement.",
   roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
   async run(ctx): Promise<OverviewReport> {
     const actor = actorOf(ctx);
     requirePerson(actor);
-    const settings = settingsOf(ctx);
+    const config = await configOf(ctx);
     const clock = await clockOf(ctx);
-    const directoryMap = await directory(ctx);
+    const directoryMap = await directoryOf(ctx);
+    const reach = await reachOf(ctx, actor, directoryMap);
     const record = await personRecord(ctx, actor.id);
     const me = briefOf(actor.id, directoryMap, record?.data ?? null, actor);
     const enrolled = record?.data.leave === true;
@@ -607,48 +699,41 @@ export const overview = defineQuery({
     const upcoming = mine
       .filter((item) => ["requested", "approved", "cancelling"].includes(item.data.state))
       .slice(0, 8)
-      .map((item) => viewOf(ctx, actor, item, me, settings, clock.today));
-    let waiting: RequestView[] = [];
-    if (actor.manager) {
-      const pending = await listAll<LeaveRequest>(ctx.records(requests), {
-        where: { state: "requested" },
-        order: { field: "from" },
-      });
-      const team = actor.hr
-        ? null
-        : new Set(
-            (await listAll<Person>(ctx.records(people), { where: { approverId: actor.id } })).map(
-              (member) => member.data.personId,
-            ),
-          );
-      waiting = pending
-        .filter((item) => team === null || team.has(item.data.personId))
-        .slice(0, 20)
-        .map((item) =>
-          viewOf(
-            ctx,
-            actor,
-            item,
-            briefOf(item.data.personId, directoryMap, null, actor),
-            settings,
-            clock.today,
-          ),
-        );
-    }
+      .map((item) => viewOf(ctx, actor, item, me, config, clock.today, directoryMap));
+    const pending = await listAll<LeaveRequest>(ctx.records(requests), {
+      where: { state: { in: ["requested", "cancelling"] } },
+      order: { field: "from" },
+    });
+    const waiting = pending
+      .map((item) =>
+        viewOf(
+          ctx,
+          actor,
+          item,
+          briefOf(item.data.personId, directoryMap, null, actor),
+          config,
+          clock.today,
+          directoryMap,
+        ),
+      )
+      .filter((view) => view.mine)
+      .slice(0, 20);
     const todaySpan = await holidaysBetween(ctx, clock.today, clock.today);
     const { entries } = await calendarEntries(
       ctx,
       actor,
-      settings,
+      config,
       clock.today,
       clock.today,
       directoryMap,
+      reach,
       todaySpan.days,
     );
     const nextHolidays = await listAll<Holiday>(ctx.records(holidays), {
       where: { on: { gte: clock.today, lte: addMonths(clock.today, 3) } },
       order: { field: "on" },
     });
+    const written = await ctx.records(policies).list({ limit: 1 });
     let counts: OverviewReport["counts"] = null;
     if (actor.hr) {
       const enrolledPeople = await ctx
@@ -672,8 +757,9 @@ export const overview = defineQuery({
       waiting,
       outToday: entries,
       nextHolidays: nextHolidays.slice(0, 5).map((item) => item.data),
-      notice: settings.notice,
+      announcement: config.announcement,
       counts,
+      ready: written.items.length > 0,
     };
   },
 });
@@ -700,7 +786,7 @@ export const exportQuery = defineQuery({
   async run(ctx, args) {
     const actor = actorOf(ctx);
     requireHr(actor);
-    const directoryMap = await directory(ctx);
+    const directoryMap = await directoryOf(ctx);
     const from = `${args.year}-01-01`;
     const to = `${args.year}-12-31`;
     const login = (id: string) => directoryMap.get(id)?.login ?? id;
@@ -751,7 +837,7 @@ export const exportQuery = defineQuery({
           "type",
           "from",
           "to",
-          "half",
+          "part",
           "days",
           "state",
           "requested_at",
@@ -773,7 +859,7 @@ export const exportQuery = defineQuery({
             request.type,
             request.from,
             request.to,
-            request.half,
+            request.part,
             request.days,
             request.state,
             request.requestedAt,
@@ -791,14 +877,111 @@ export const exportQuery = defineQuery({
   },
 });
 
+export const preview = defineQuery({
+  about:
+    "What a request would be before it is made: its days, whether it is in time, what is available, who would approve it, and the refusal the command would answer.",
+  args: {
+    from: arg.day({ about: "the first day", positional: true }),
+    to: arg.day({ about: "the last day", optional: true, positional: true }),
+    type: arg.text({ about: "the kind of leave", optional: true, max: 32 }),
+    part: arg.enum(PARTS as unknown as [Part, ...Part[]], {
+      about: "a part of one day",
+      optional: true,
+    }),
+    reason: arg.text({ about: "why", optional: true, max: 2000 }),
+    person: arg.person({ about: "whose leave, for their approver or HR", optional: true }),
+  },
+  roles: [ROLE_MEMBER, ROLE_MANAGER, ROLE_HR],
+  async run(ctx, args): Promise<RequestPreview> {
+    const actor = actorOf(ctx);
+    const words = serverWords(ctx.language);
+    const config = await configOf(ctx);
+    const clock = await clockOf(ctx);
+    const directoryMap = await directoryOf(ctx);
+    try {
+      const prepared = await prepareRequest(ctx, actor, clock, config, args);
+      // Whoever writes leave for someone approves it as they write it.
+      const steps =
+        prepared.target.id === actor.id
+          ? prepared.line
+          : approvedAs(prepared.line, actor.id, clock.now.toISOString());
+      return {
+        refusal: null,
+        days: prepared.days,
+        late: prepared.late,
+        notice: words.noticeText(prepared.type.notice),
+        available: prepared.available,
+        automatic: nextOf(steps) === null,
+        line: stepViews(steps, directoryMap, true),
+      };
+    } catch (error) {
+      if (error instanceof PluginError) {
+        return {
+          refusal: error.message,
+          days: 0,
+          late: false,
+          notice: "",
+          available: null,
+          automatic: false,
+          line: [],
+        };
+      }
+      throw error;
+    }
+  },
+});
+
+export const teamsQuery = defineQuery({
+  about: "The teams, each with its approvers and its people.",
+  roles: [ROLE_MANAGER, ROLE_HR],
+  async run(ctx): Promise<TeamView[]> {
+    const directoryMap = await directoryOf(ctx);
+    const everyone = await listAll<Person>(ctx.records(people));
+    return (await allTeams(ctx)).map((record) => ({
+      id: record.id,
+      version: record.version,
+      team: record.data,
+      approvers: record.data.approverIds.map((id) => briefOf(id, directoryMap, null)),
+      members: everyone
+        .filter((person) => person.data.team === record.data.key)
+        .map((person) => briefOf(person.data.personId, directoryMap, person.data)),
+    }));
+  },
+});
+
+export const configQuery = defineQuery({
+  about:
+    "HR's configuration: the line of approvers and its exceptions, cancelling, how far back, who sees what, the working days, the holiday calendar, the announcement.",
+  roles: [ROLE_HR],
+  async run(ctx): Promise<ConfigReport> {
+    const actor = actorOf(ctx);
+    requireHr(actor);
+    const record = await configRecord(ctx);
+    const config = record?.data ?? DEFAULT_CONFIG;
+    const directoryMap = await directoryOf(ctx);
+    const steps = [...config.line, ...config.rules.flatMap((rule) => rule.steps)];
+    const ids = [...new Set(steps.flatMap((step) => step.people))];
+    const written = await ctx.records(policies).list({ limit: 1 });
+    return {
+      version: record?.version ?? 0,
+      config,
+      ready: written.items.length > 0,
+      people: ids.map((id) => briefOf(id, directoryMap, null)),
+    };
+  },
+});
+
 export const queries = {
   balance,
+  preview,
   requests: requestsQuery,
   calendar,
   people: peopleQuery,
   policies: policiesQuery,
   presets: presetsQuery,
   types: typesQuery,
+  teams: teamsQuery,
+  config: configQuery,
   holidays: holidaysQuery,
   ledger: ledgerQuery,
   overview,

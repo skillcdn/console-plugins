@@ -1,17 +1,21 @@
-// People: the members and their records of leave, for HR and for an approver their own people.
-// HR edits a record in a panel under the table: enrolment, the leaving day, an adjustment of the
-// balance, an accrual run by hand. Every change is a command of the server module.
+// People: the members as cards, for HR everyone and for an approver the people they approve, each
+// opening a page of their own under the address (/plugins/hr/people/<login>): their balance, their
+// requests and ledger, and for HR their record, an adjustment of the balance and the day they leave.
+// Every change is a command of the server module.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
+  type BalanceReport,
   EMPLOYMENTS,
   type LeaveType,
   type PeopleReport,
   type PersonRow,
+  type RequestView,
 } from "../../shared/contracts.js";
 import { isDay, WEEKDAYS, type Weekday } from "../../shared/days.js";
 import {
   actions,
+  avatar,
   badge,
   button,
   checkbox,
@@ -20,7 +24,9 @@ import {
   empty,
   errorBlock,
   type Formatters,
+  faces,
   field,
+  fold,
   form,
   formattersFor,
   formRow,
@@ -28,15 +34,17 @@ import {
   holds,
   input,
   loadTypes,
+  meter,
   muted,
   nameIn,
   onSubmit,
   optionsOf,
-  PREFIX,
   page,
+  pageHead,
+  panel,
+  peoplePicker,
   personLabel,
-  personNode,
-  row,
+  pills,
   runCommand,
   say,
   select,
@@ -45,39 +53,101 @@ import {
   stack,
   statusLine,
   submitButton,
-  table,
   textarea,
   todayDay,
+  toggles,
   toolbar,
   watch,
 } from "../ui.js";
 import type { Words } from "../words.js";
+import { type LeaveView, ledgerPanel, requestsList, termsFacts, typeCards } from "./leave.js";
+import { requestForm } from "./request-form.js";
 
-interface View {
-  readonly frame: PluginFrame;
-  readonly words: Words;
-  readonly format: Formatters;
-  readonly language: string;
+interface View extends LeaveView {
+  readonly hr: boolean;
   readonly balanced: readonly LeaveType[];
 }
 
 const ADJUST_KINDS = ["adjust", "grant", "payout"] as const;
+type Show = "all" | "on" | "off";
 
-function block(title: string, ...children: HTMLElement[]): HTMLDivElement {
-  const node = el("div", "block");
-  node.append(el("h4", "block-title", title), ...children);
-  return node;
+function pathOf(login: string): string {
+  return `/plugins/hr/people/${encodeURIComponent(login)}`;
 }
 
-/** The login of a person of the report by id, where the report has them; the id's head otherwise. */
-function loginOf(report: PeopleReport, id: string | null): string {
-  if (id === null) {
-    return "";
+function loginFromPath(path: string): string | null {
+  const first = path.split("/").find((part) => part.length > 0);
+  if (first === undefined) {
+    return null;
   }
-  return report.people.find((item) => item.person.id === id)?.person.login ?? id.slice(0, 8);
+  try {
+    return decodeURIComponent(first);
+  } catch {
+    return null;
+  }
 }
 
-function enrollForm(
+function personCard(item: PersonRow, view: View): HTMLElement {
+  const { frame, words, format } = view;
+  const card = el("li", "sc-person-card person");
+  card.tabIndex = 0;
+  const open = () => frame.navigate(pathOf(item.person.login));
+  card.addEventListener("click", open);
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      open();
+    }
+  });
+  const head = el("div", "sc-person-card-head");
+  const names = el("div", "sc-person-card-who");
+  names.append(
+    el("span", "sc-person-card-name", personLabel(item.person)),
+    el("span", "sc-person-card-note", item.record?.title ?? item.person.login),
+  );
+  head.append(avatar(frame, item.person, "md"), names);
+  card.append(head);
+  const facts = el("dl", "sc-person-facts person-facts");
+  const fact = (label: string, value: string | Node) => {
+    const row = el("div", "sc-person-fact");
+    const detail = el("dd", "");
+    detail.append(value);
+    row.append(el("dt", "", label), detail);
+    facts.append(row);
+  };
+  fact(words.teamLabel, item.team?.name ?? DASH);
+  fact(
+    words.approverLabel,
+    item.approvers.people.length === 0 ? words.noApprover : faces(frame, item.approvers.people, 4),
+  );
+  fact(
+    words.hiredOnLabel,
+    item.record?.hiredOn === null || item.record === null ? DASH : format.day(item.record.hiredOn),
+  );
+  card.append(facts);
+  if (item.status === "deactivated") {
+    card.append(badge(words.status.deactivated, "neutral"));
+  } else if (item.record?.leave !== true) {
+    card.append(badge(words.leaveOff, "neutral"));
+  } else if (item.annual !== null) {
+    const { available, used, pending } = item.annual;
+    const figures = el("p", "person-figures");
+    figures.append(
+      el("strong", "", format.number(available)),
+      el("span", "sc-muted", words.annualLeft),
+    );
+    card.append(
+      figures,
+      meter(available + used + pending, [
+        { value: used, tone: "used" },
+        { value: pending, tone: "pending" },
+        { value: available, tone: "left" },
+      ]),
+    );
+  }
+  return card;
+}
+
+function recordForm(
   item: PersonRow,
   report: PeopleReport,
   view: View,
@@ -86,32 +156,49 @@ function enrollForm(
   const { frame, words } = view;
   const record = item.record;
   const login = item.person.login;
-  const onOff = { on: words.on, off: words.off };
   const leaveInitial = record?.leave === true ? "on" : "off";
-  const leave = select(optionsOf(["on", "off"], onOff), leaveInitial);
+  const leave = pills(
+    [
+      { value: "on", label: words.leaveOn },
+      { value: "off", label: words.leaveOff },
+    ],
+    leaveInitial,
+    words.leaveOnOff,
+  );
   const hiredOn = input("date", { value: record?.hiredOn ?? "" });
   const policyInitial = record?.policy ?? "";
   const policy = select(
     [
-      { value: "", label: policyInitial === "" ? words.policyDefault : words.keepCurrent },
+      { value: "", label: words.policyDefault },
       ...report.policies.map((option) => ({ value: option.key, label: option.name })),
     ],
     policyInitial,
   );
-  const approverInitial = loginOf(report, record?.approverId ?? null);
-  const approver = input("text", {
-    value: approverInitial,
-    placeholder: words.approverHint,
-    maxLength: 80,
+  const teamInitial = record?.team ?? "";
+  const team = select(
+    [
+      { value: "", label: words.noTeam },
+      ...report.teams.map((option) => ({ value: option.key, label: option.name })),
+    ],
+    teamInitial,
+  );
+  const approversInitial = record?.approverIds ?? [];
+  const approvers = peoplePicker(
+    report.people.map((row) => row.person).filter((person) => person.id !== item.person.id),
+    approversInitial,
+    words,
+  );
+  const useWorkspace = checkbox(words.workDaysOwn, record?.workDays !== null && record !== null);
+  const workDaysInitial: readonly Weekday[] = record?.workDays ?? [];
+  const workDays = toggles(
+    WEEKDAYS.map((day) => ({ value: day, label: words.weekday[day] })),
+    workDaysInitial,
+    words.workDaysLabel,
+  );
+  workDays.node.hidden = !useWorkspace.box.checked;
+  useWorkspace.box.addEventListener("change", () => {
+    workDays.node.hidden = !useWorkspace.box.checked;
   });
-  const currentDays = WEEKDAYS.filter((weekday) => record?.workDays?.includes(weekday) ?? false);
-  const boxes = WEEKDAYS.map((weekday) => ({
-    weekday,
-    ...checkbox(words.weekday[weekday], currentDays.includes(weekday)),
-  }));
-  const checks = el("div", "checks");
-  checks.append(...boxes.map((box) => box.wrapper));
-  const team = input("text", { value: record?.team ?? "", maxLength: 80 });
   const title = input("text", { value: record?.title ?? "", maxLength: 80 });
   const employmentInitial = record?.employment ?? "full-time";
   const employment = select(optionsOf(EMPLOYMENTS, words.employment), employmentInitial);
@@ -119,26 +206,23 @@ function enrollForm(
   const submit = submitButton(words.saveRecord);
   const status = statusLine();
   const node = form(
-    formRow(
-      field(words.leaveOnOff, leave),
-      field(words.hiredOnLabel, hiredOn),
-      field(words.policyLabel, policy),
-      field(words.approverLabel, approver),
+    formRow(group(words.leaveOnOff, leave.node), field(words.hiredOnLabel, hiredOn)),
+    formRow(field(words.policyLabel, policy), field(words.teamLabel, team)),
+    group(words.ownApprovers, approvers.node, el("span", "sc-field-hint", words.ownApproversHint)),
+    fold(
+      words.moreOfRecord,
+      formRow(field(words.titleHeader, title), field(words.employmentLabel, employment)),
+      group(words.workDaysLabel, useWorkspace.wrapper, workDays.node),
+      field(words.noteLabel, note),
     ),
-    group(words.workDaysLabel, checks),
-    formRow(
-      field(words.teamHeader, team),
-      field(words.titleHeader, title),
-      field(words.employmentLabel, employment),
-    ),
-    field(words.noteLabel, note),
     actions(submit),
     status,
   );
   onSubmit(node, async () => {
     const args: Record<string, unknown> = { person: login };
-    if (record === null || leave.value !== leaveInitial) {
-      args.leave = leave.value;
+    const clear: string[] = [];
+    if (record === null || leave.value() !== leaveInitial) {
+      args.leave = leave.value();
     }
     if (isDay(hiredOn.value) && hiredOn.value !== (record?.hiredOn ?? "")) {
       args["hired-on"] = hiredOn.value;
@@ -146,27 +230,51 @@ function enrollForm(
     if (policy.value !== "" && policy.value !== policyInitial) {
       args.policy = policy.value;
     }
-    const approverValue = approver.value.trim();
-    if (approverValue !== "" && approverValue !== approverInitial) {
-      args.approver = approverValue;
+    if (team.value !== teamInitial) {
+      if (team.value === "") {
+        clear.push("team");
+      } else {
+        args.team = team.value;
+      }
     }
-    const chosen: Weekday[] = boxes.filter((box) => box.box.checked).map((box) => box.weekday);
-    if (chosen.length > 0 && chosen.join(",") !== currentDays.join(",")) {
-      args["work-days"] = chosen;
+    const chosen = approvers.value();
+    if (chosen.join(",") !== approversInitial.join(",")) {
+      if (chosen.length === 0) {
+        clear.push("approvers");
+      } else {
+        const logins = chosen.map(
+          (id) => report.people.find((row) => row.person.id === id)?.person.login ?? id,
+        );
+        args.approvers = logins;
+      }
+    }
+    if (useWorkspace.box.checked) {
+      const days = workDays.value();
+      if (days.length > 0 && days.join(",") !== workDaysInitial.join(",")) {
+        args["work-days"] = days;
+      }
+    } else if (record?.workDays !== null && record !== null) {
+      clear.push("work-days");
     }
     const texts: readonly [string, HTMLInputElement | HTMLTextAreaElement, string][] = [
-      ["team", team, record?.team ?? ""],
       ["title", title, record?.title ?? ""],
       ["note", note, record?.note ?? ""],
     ];
     for (const [arg, control, initial] of texts) {
       const value = control.value.trim();
-      if (value !== "" && value !== initial) {
-        args[arg] = value;
+      if (value !== initial) {
+        if (value === "") {
+          clear.push(arg);
+        } else {
+          args[arg] = value;
+        }
       }
     }
     if (employment.value !== employmentInitial) {
       args.employment = employment.value;
+    }
+    if (clear.length > 0) {
+      args.clear = clear;
     }
     const result = await runCommand(frame, submit, status, words, "enroll", args);
     if (result !== null) {
@@ -177,30 +285,10 @@ function enrollForm(
   return node;
 }
 
-function offboardForm(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
-  const { frame, words } = view;
-  const on = input("date", { value: item.record?.leftOn ?? todayDay() });
-  const submit = submitButton(words.offboard, "danger");
-  const status = statusLine();
-  const node = form(formRow(field(words.lastDayLabel, on)), actions(submit), status);
-  onSubmit(node, async () => {
-    const args: Record<string, unknown> = { person: item.person.login };
-    if (isDay(on.value)) {
-      args.on = on.value;
-    }
-    const result = await runCommand(frame, submit, status, words, "offboard", args);
-    if (result !== null) {
-      say(status, words.saved, "ok");
-      await onSaved();
-    }
-  });
-  return block(words.offboardTitle, node);
-}
-
 function adjustForm(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
   const { frame, words, language, balanced } = view;
   if (balanced.length === 0) {
-    return block(words.adjustTitle, muted(words.noBalanceTypes));
+    return muted(words.noBalanceTypes);
   }
   const days = input("number", { step: "0.25", min: "-366", max: "366", required: true });
   const type = select(
@@ -248,26 +336,142 @@ function adjustForm(item: PersonRow, view: View, onSaved: () => Promise<void>): 
       await onSaved();
     }
   });
-  return block(words.adjustTitle, node);
+  return node;
 }
 
-function accrueBlock(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
+function offboardForm(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
   const { frame, words } = view;
+  const on = input("date", { value: item.record?.leftOn ?? todayDay(frame) });
+  const submit = submitButton(words.offboard, "danger");
   const status = statusLine();
-  const run = button(words.accrueOne, () => {
-    void (async () => {
-      const result = await runCommand(frame, run, status, words, "accrue", {
-        person: item.person.login,
-      });
-      if (result !== null) {
-        say(status, result.text, "ok");
-        await onSaved();
-      }
-    })();
+  const node = form(formRow(field(words.lastDayLabel, on)), actions(submit), status);
+  onSubmit(node, async () => {
+    const args: Record<string, unknown> = { person: item.person.login };
+    if (isDay(on.value)) {
+      args.on = on.value;
+    }
+    const result = await runCommand(frame, submit, status, words, "offboard", args);
+    if (result !== null) {
+      say(status, words.saved, "ok");
+      await onSaved();
+    }
   });
-  const node = el("div", "block");
-  node.append(actions(run), status);
   return node;
+}
+
+/** A person's page: everything of them on one page, what HR may change at its end. */
+async function personPage(
+  body: HTMLElement,
+  login: string,
+  view: View,
+  report: PeopleReport,
+  refreshAll: () => Promise<void>,
+): Promise<() => Promise<void>> {
+  const { frame, words, format, language, hr, balanced, types } = view;
+  const item = report.people.find((row) => row.person.login === login);
+  if (item === undefined) {
+    body.replaceChildren(empty(words.personNotFound));
+    return async () => {};
+  }
+  const cards = stack();
+  const terms = stack();
+  const requestsBox = stack();
+  const status = statusLine();
+  const ledger = ledgerPanel(view, balanced, item.person);
+  const recordBox = stack();
+  const enrolled = item.record?.leave === true;
+
+  const refresh = sequenced(async (fresh) => {
+    const [balanceResult, requestsResult] = await Promise.allSettled([
+      frame.query("balance", { person: login }) as Promise<BalanceReport>,
+      frame.query("requests", { person: login, limit: 100 }) as Promise<readonly RequestView[]>,
+    ]);
+    if (!fresh()) {
+      return;
+    }
+    if (balanceResult.status === "fulfilled") {
+      cards.replaceChildren(typeCards(balanceResult.value, view));
+      terms.replaceChildren(termsFacts(balanceResult.value, view));
+    } else {
+      cards.replaceChildren(errorBlock(balanceResult.reason, words));
+    }
+    requestsBox.replaceChildren(
+      requestsResult.status === "fulfilled"
+        ? requestsList(requestsResult.value, view, status, refreshAll)
+        : errorBlock(requestsResult.reason, words),
+    );
+    await ledger.refresh();
+  });
+
+  const head = el("div", "person-head");
+  const names = el("div", "person-head-text");
+  names.append(
+    el("h1", "sc-page-title", personLabel(item.person)),
+    el(
+      "p",
+      "sc-page-lead",
+      [item.record?.title, item.team?.name, item.person.login]
+        .filter((part): part is string => typeof part === "string" && part.length > 0)
+        .join(" · "),
+    ),
+  );
+  const toggle = button(
+    words.recordForThem,
+    () => {
+      recordBox.replaceChildren(
+        ...(recordBox.childElementCount > 0
+          ? []
+          : [
+              panel(
+                words.recordTitle,
+                requestForm({
+                  frame,
+                  words,
+                  format,
+                  language,
+                  types: sortedTypes(types).filter((type) => type.enabled),
+                  person: item.person,
+                  onSent: refreshAll,
+                }),
+              ),
+            ]),
+      );
+    },
+    "primary",
+  );
+  head.append(avatar(frame, item.person, "lg"), names);
+  if (enrolled) {
+    head.append(toggle);
+  }
+  const back = el("div", "back");
+  back.append(
+    button(words.backToPeople, () => frame.navigate("/plugins/hr/people"), "ghost", true),
+  );
+  body.replaceChildren(
+    back,
+    head,
+    recordBox,
+    ...(enrolled
+      ? [
+          cards,
+          panel(words.termsTitle, terms),
+          panel(words.requestsOfPerson, requestsBox, status),
+          ledger.node,
+        ]
+      : []),
+    ...(hr ? [panel(words.recordOfPerson, recordForm(item, report, view, refreshAll))] : []),
+    ...(hr && enrolled
+      ? [
+          panel(words.adjustTitle, adjustForm(item, view, refreshAll)),
+          panel(null, fold(words.offboardTitle, offboardForm(item, view, refreshAll))),
+        ]
+      : []),
+  );
+  frame.setTitle(personLabel(item.person));
+  if (enrolled) {
+    await refresh();
+  }
+  return refresh;
 }
 
 export async function renderPeople(
@@ -276,7 +480,7 @@ export async function renderPeople(
   words: Words,
 ): Promise<void> {
   const language = frame.context.language;
-  const format = formattersFor(language, words);
+  const format: Formatters = formattersFor(language, words);
   const hr = holds(frame, "hr");
   const types = await loadTypes(frame);
   const view: View = {
@@ -284,173 +488,172 @@ export async function renderPeople(
     words,
     format,
     language,
+    types,
+    hr,
     balanced: sortedTypes(types).filter((type) => type.key === ANNUAL || type.balance === "own"),
   };
   let report: PeopleReport | null = null;
   let filterText = "";
-  let openLogin: string | null = null;
-  let openRecordJson = "";
+  let show: Show = "all";
+  let team = "";
+  let openLogin = loginFromPath(frame.context.path);
+  let refreshPerson: () => Promise<void> = async () => {};
 
-  const filter = input("search", { placeholder: words.filterPlaceholder, maxLength: 80 });
+  const body = stack();
+  const listBox = stack();
   const topStatus = statusLine();
-  const tableBox = stack();
-  const panelBox = stack();
-  const tools = toolbar(filter);
-  if (hr) {
-    const accrueAll = button(words.accrueAll, () => {
-      void (async () => {
-        const result = await runCommand(frame, accrueAll, topStatus, words, "accrue", {});
-        if (result !== null) {
-          say(topStatus, result.text, "ok");
-          await refresh();
-        }
-      })();
-    });
-    tools.append(accrueAll);
-  }
+  const search = input("search", { placeholder: words.filterPlaceholder, maxLength: 80 });
+  const showControl = pills(
+    [
+      { value: "all", label: words.showAll },
+      { value: "on", label: words.leaveOn },
+      { value: "off", label: words.leaveOff },
+    ],
+    "all",
+    words.leaveOnOff,
+  );
+  const teamHolder = el("span", "");
 
   const matches = (item: PersonRow): boolean => {
+    if (show === "on" && item.record?.leave !== true) {
+      return false;
+    }
+    if (show === "off" && item.record?.leave === true) {
+      return false;
+    }
+    if (team !== "" && item.record?.team !== team) {
+      return false;
+    }
     if (filterText === "") {
       return true;
     }
-    return [item.person.login, item.person.name ?? "", item.record?.team ?? ""]
+    return [
+      item.person.login,
+      item.person.name ?? "",
+      item.team?.name ?? "",
+      item.record?.title ?? "",
+    ]
       .join(" ")
       .toLowerCase()
       .includes(filterText);
   };
 
-  const policyName = (key: string | null): string => {
-    if (report === null || key === null) {
-      return words.policyDefault;
-    }
-    return report.policies.find((option) => option.key === key)?.name ?? key;
-  };
-
-  const drawTable = () => {
+  const drawList = () => {
     if (report === null) {
       return;
     }
-    const current = report;
-    const rows = current.people.filter(matches).map((item) => {
-      const record = item.record;
-      const cells: (string | Node)[] = [
-        personNode(item.person),
-        badge(words.status[item.status], item.status === "active" ? "success" : "neutral"),
-        record?.leave === true ? badge(words.leaveOn, "success") : badge(words.leaveOff, "neutral"),
-        record?.hiredOn === undefined || record.hiredOn === null
-          ? DASH
-          : format.day(record.hiredOn),
-        record === null ? DASH : policyName(record.policy),
-        record?.approverId === undefined || record.approverId === null
-          ? DASH
-          : loginOf(current, record.approverId),
-        record?.team ?? DASH,
-        record?.title ?? DASH,
-        item.annual === null
-          ? DASH
-          : `${format.number(item.annual.available)} / ${format.number(item.annual.used)} / ${format.number(item.annual.pending)}`,
-      ];
-      if (hr) {
-        cells.push(button(words.edit, () => openPanel(item.person.login), "ghost", true));
-      }
-      const line = row(cells);
-      if (hr) {
-        line.classList.add(`${PREFIX}row-clickable`);
-        line.addEventListener("click", (event) => {
-          if (event.target instanceof HTMLButtonElement) {
-            return;
-          }
-          openPanel(item.person.login);
-        });
-      }
-      if (item.person.login === openLogin) {
-        line.classList.add(`${PREFIX}row-open`);
-      }
-      return line;
-    });
-    const headers = [
-      words.person,
-      words.statusHeader,
-      words.leaveHeader,
-      words.hiredOnLabel,
-      words.policyLabel,
-      words.approverLabel,
-      words.teamHeader,
-      words.titleHeader,
-      words.annualHeader,
-      ...(hr ? [""] : []),
-    ];
-    tableBox.replaceChildren(rows.length === 0 ? empty(words.peopleEmpty) : table(headers, rows));
-  };
-
-  const drawPanel = () => {
-    const item = report?.people.find((candidate) => candidate.person.login === openLogin);
-    if (report === null || item === undefined) {
-      panelBox.replaceChildren();
+    const kept = report.people.filter(matches);
+    if (kept.length === 0) {
+      listBox.replaceChildren(empty(words.peopleEmpty));
       return;
     }
-    openRecordJson = JSON.stringify(item.record);
-    const panel = el("div", "panel");
-    const head = el("div", "panel-head");
-    head.append(
-      el("h3", "panel-title", words.recordOf(personLabel(item.person))),
-      button(
-        words.close,
-        () => {
-          openLogin = null;
-          panelBox.replaceChildren();
-          drawTable();
-        },
-        "ghost",
-        true,
-      ),
-    );
-    panel.append(
-      head,
-      enrollForm(item, report, view, refresh),
-      offboardForm(item, view, refresh),
-      adjustForm(item, view, refresh),
-      accrueBlock(item, view, refresh),
-    );
-    panelBox.replaceChildren(panel);
+    const list = el("ul", "sc-people");
+    list.append(...kept.map((item) => personCard(item, view)));
+    listBox.replaceChildren(list);
   };
 
-  function openPanel(login: string): void {
-    openLogin = login;
-    drawTable();
-    drawPanel();
+  const accrueAll = button(words.accrueAll, () => {
+    void (async () => {
+      const result = await runCommand(frame, accrueAll, topStatus, words, "accrue", {});
+      if (result !== null) {
+        say(topStatus, result.text, "ok");
+        await refresh();
+      }
+    })();
+  });
+
+  const showList = () => {
+    const current = report;
+    const enrolledCount = current?.people.filter((item) => item.record?.leave === true).length ?? 0;
+    const tools = toolbar(search, showControl.node, teamHolder);
+    if (current !== null && current.teams.length > 0) {
+      const choice = select(
+        [
+          { value: "", label: words.allTeams },
+          ...current.teams.map((option) => ({ value: option.key, label: option.name })),
+        ],
+        team,
+      );
+      choice.addEventListener("change", () => {
+        team = choice.value;
+        drawList();
+      });
+      teamHolder.replaceChildren(choice);
+    }
+    body.replaceChildren(
+      pageHead(
+        words.peopleTitle,
+        words.peopleLead(format.number(enrolledCount), format.number(current?.people.length ?? 0)),
+        ...(hr ? [accrueAll] : []),
+      ),
+      topStatus,
+      tools,
+      listBox,
+    );
+    frame.setTitle(words.peopleTitle);
+    drawList();
+  };
+
+  const draw = async () => {
+    if (report === null) {
+      return;
+    }
+    if (openLogin === null) {
+      refreshPerson = async () => {};
+      showList();
+    } else {
+      refreshPerson = await personPage(body, openLogin, view, report, reload);
+    }
+  };
+
+  async function load(): Promise<void> {
+    report = (await frame.query("people", { balances: true })) as PeopleReport;
   }
+
+  const reload = async () => {
+    await load();
+    await draw();
+  };
 
   const refresh = sequenced(async (fresh) => {
     try {
-      const answer = (await frame.query("people", { balances: true })) as PeopleReport;
+      await load();
       if (!fresh()) {
         return;
       }
-      report = answer;
-      drawTable();
-      if (openLogin !== null) {
-        const item = answer.people.find((candidate) => candidate.person.login === openLogin);
-        // The panel is redrawn when the record it shows changed, not while HR is still typing in it.
-        if (item === undefined || JSON.stringify(item.record) !== openRecordJson) {
-          drawPanel();
-        }
+      if (openLogin === null) {
+        showList();
+      } else {
+        await refreshPerson();
       }
     } catch (error) {
       if (fresh()) {
-        tableBox.replaceChildren(errorBlock(error, words));
+        body.replaceChildren(errorBlock(error, words));
       }
     }
   });
-  filter.addEventListener("input", () => {
-    filterText = filter.value.trim().toLowerCase();
-    drawTable();
+
+  search.addEventListener("input", () => {
+    filterText = search.value.trim().toLowerCase();
+    drawList();
+  });
+  showControl.onChange(() => {
+    show = showControl.value();
+    drawList();
+  });
+  frame.onPath((path) => {
+    openLogin = loginFromPath(path);
+    void draw();
   });
 
   const node = page();
-  node.append(tools, topStatus, tableBox, panelBox);
+  node.append(body);
   root.replaceChildren(node);
-  frame.setTitle(words.peopleTitle);
   watch(frame, refresh);
-  await refresh();
+  try {
+    await load();
+    await draw();
+  } catch (error) {
+    body.replaceChildren(errorBlock(error, words));
+  }
 }

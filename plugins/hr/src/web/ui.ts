@@ -1,16 +1,17 @@
 // The DOM the pages share: elements built with createElement and filled with textContent, never
 // HTML; the console's `sc-` classes for the look and the plugin's own `pl-hr-` classes beside them;
 // the formatters of a language; and the way a form runs a command, with its button held while
-// the command runs and the refusal shown under it in the console's words.
+// the command runs and the refusal shown under it in the words it came in.
 import type { PluginFrame, PluginRecord } from "@skillcdn/console/plugin/web";
 import type {
-  Half,
   LeaveType,
+  Part,
   PersonBrief,
   PresetView,
   RequestState,
+  StepView,
 } from "../shared/contracts.js";
-import { dayOf, isDay } from "../shared/days.js";
+import { dayIn, isDay } from "../shared/days.js";
 import type { Words } from "./words.js";
 
 export const PREFIX = "pl-hr-";
@@ -21,9 +22,12 @@ export type CommandResult = Awaited<ReturnType<PluginFrame["command"]>>;
 export type Tone = "success" | "warning" | "danger" | "neutral" | "accent";
 export type ButtonKind = "primary" | "secondary" | "ghost" | "danger";
 
-export interface Option {
-  readonly value: string;
+export interface Option<K extends string = string> {
+  readonly value: K;
   readonly label: string;
+  readonly hint?: string;
+  /** A series colour shown in place of the words, which stay for assistive technology. */
+  readonly color?: number;
 }
 
 /** An element with its classes: the console's `sc-*` as they are, every other prefixed `pl-hr-`. */
@@ -72,12 +76,11 @@ export interface InputAttributes {
   readonly min?: string;
   readonly max?: string;
   readonly step?: string;
-  readonly readOnly?: boolean;
   readonly pattern?: string;
 }
 
 export function input(type: string, attributes: InputAttributes = {}): HTMLInputElement {
-  const node = el("input", "sc-input");
+  const node = el("input", "sc-input control");
   node.type = type;
   if (attributes.value !== undefined) {
     node.value = attributes.value;
@@ -100,9 +103,6 @@ export function input(type: string, attributes: InputAttributes = {}): HTMLInput
   if (attributes.step !== undefined) {
     node.step = attributes.step;
   }
-  if (attributes.readOnly === true) {
-    node.readOnly = true;
-  }
   if (attributes.pattern !== undefined) {
     node.pattern = attributes.pattern;
   }
@@ -110,7 +110,7 @@ export function input(type: string, attributes: InputAttributes = {}): HTMLInput
 }
 
 export function select(options: readonly Option[], value?: string): HTMLSelectElement {
-  const node = el("select", "sc-input");
+  const node = el("select", "sc-input control");
   for (const option of options) {
     const item = document.createElement("option");
     item.value = option.value;
@@ -127,8 +127,13 @@ export function select(options: readonly Option[], value?: string): HTMLSelectEl
 export function optionsOf<K extends string>(
   keys: readonly K[],
   labels: Readonly<Record<K, string>>,
-): Option[] {
-  return keys.map((key) => ({ value: key, label: labels[key] }));
+  hints?: Readonly<Record<K, string>>,
+): Option<K>[] {
+  return keys.map((key) => ({
+    value: key,
+    label: labels[key],
+    ...(hints === undefined ? {} : { hint: hints[key] }),
+  }));
 }
 
 export function textarea(
@@ -152,12 +157,235 @@ export function checkbox(
   label: string,
   checked = false,
 ): { readonly wrapper: HTMLLabelElement; readonly box: HTMLInputElement } {
-  const wrapper = el("label", "check");
+  const wrapper = el("label", "sc-check");
   const box = document.createElement("input");
   box.type = "checkbox";
   box.checked = checked;
   wrapper.append(box, el("span", "", label));
   return { wrapper, box };
+}
+
+/** A control that keeps a value, with its element. */
+export interface Control<V> {
+  readonly node: HTMLElement;
+  value(): V;
+  set(value: V): void;
+  onChange(handler: () => void): void;
+}
+
+let groupCount = 0;
+
+/** One choice among a few, as a row of pills: the console's toggle chips, one lit at a time. */
+export function pills<K extends string>(
+  options: readonly Option<K>[],
+  initial: K,
+  label: string,
+): Control<K> {
+  groupCount += 1;
+  const name = `${PREFIX}choice-${groupCount}`;
+  const node = el("fieldset", "sc-toggle-chips pills");
+  node.setAttribute("aria-label", label);
+  const boxes = new Map<K, HTMLInputElement>();
+  const handlers: (() => void)[] = [];
+  for (const option of options) {
+    const chip = el("label", "sc-toggle-chip pill");
+    const box = document.createElement("input");
+    box.type = "radio";
+    box.name = name;
+    box.checked = option.value === initial;
+    box.addEventListener("change", () => {
+      for (const handler of handlers) {
+        handler();
+      }
+    });
+    boxes.set(option.value, box);
+    if (option.color === undefined) {
+      chip.append(box, el("span", "", option.label));
+    } else {
+      box.setAttribute("aria-label", option.label);
+      chip.append(box, swatch(option.color));
+    }
+    node.append(chip);
+  }
+  return {
+    node,
+    value: () => {
+      for (const [key, box] of boxes) {
+        if (box.checked) {
+          return key;
+        }
+      }
+      return initial;
+    },
+    set: (value) => {
+      const box = boxes.get(value);
+      if (box !== undefined) {
+        box.checked = true;
+      }
+    },
+    onChange: (handler) => {
+      handlers.push(handler);
+    },
+  };
+}
+
+/** Several choices among a few, as a row of pills, each lit on its own. */
+export function toggles<K extends string>(
+  options: readonly Option<K>[],
+  initial: readonly K[],
+  label: string,
+): Control<K[]> {
+  const node = el("fieldset", "sc-toggle-chips pills");
+  node.setAttribute("aria-label", label);
+  const boxes = new Map<K, HTMLInputElement>();
+  const handlers: (() => void)[] = [];
+  for (const option of options) {
+    const chip = el("label", "sc-toggle-chip pill");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = initial.includes(option.value);
+    box.addEventListener("change", () => {
+      for (const handler of handlers) {
+        handler();
+      }
+    });
+    boxes.set(option.value, box);
+    chip.append(box, el("span", "", option.label));
+    node.append(chip);
+  }
+  return {
+    node,
+    value: () => options.map((option) => option.value).filter((key) => boxes.get(key)?.checked),
+    set: (value) => {
+      for (const [key, box] of boxes) {
+        box.checked = value.includes(key);
+      }
+    },
+    onChange: (handler) => {
+      handlers.push(handler);
+    },
+  };
+}
+
+/** One choice among a few that want a line each: a card per option. */
+export function optionCards<K extends string>(
+  options: readonly Option<K>[],
+  initial: K,
+  label: string,
+): Control<K> {
+  groupCount += 1;
+  const name = `${PREFIX}choice-${groupCount}`;
+  const node = el("fieldset", "option-cards");
+  node.setAttribute("aria-label", label);
+  const boxes = new Map<K, HTMLInputElement>();
+  const handlers: (() => void)[] = [];
+  for (const option of options) {
+    const card = el("label", "option-card");
+    const box = document.createElement("input");
+    box.type = "radio";
+    box.name = name;
+    box.checked = option.value === initial;
+    box.addEventListener("change", () => {
+      for (const handler of handlers) {
+        handler();
+      }
+    });
+    boxes.set(option.value, box);
+    const text = el("span", "option-card-text");
+    text.append(el("span", "option-card-label", option.label));
+    if (option.hint !== undefined) {
+      text.append(el("span", "option-card-hint", option.hint));
+    }
+    card.append(box, text);
+    node.append(card);
+  }
+  return {
+    node,
+    value: () => {
+      for (const [key, box] of boxes) {
+        if (box.checked) {
+          return key;
+        }
+      }
+      return initial;
+    },
+    set: (value) => {
+      const box = boxes.get(value);
+      if (box !== undefined) {
+        box.checked = true;
+      }
+    },
+    onChange: (handler) => {
+      handlers.push(handler);
+    },
+  };
+}
+
+/** The people chosen as chips, with one choice to add another. */
+export function peoplePicker(
+  candidates: readonly PersonBrief[],
+  initial: readonly string[],
+  words: Words,
+  atMost = 10,
+): Control<string[]> {
+  const node = el("div", "sc-chips");
+  const chosen = [...initial];
+  const handlers: (() => void)[] = [];
+  const byId = new Map(candidates.map((person) => [person.id, person]));
+  const draw = () => {
+    const chips = chosen.map((id) => {
+      const person = byId.get(id);
+      const chip = el(
+        "span",
+        "sc-chip",
+        person === undefined ? id.slice(0, 8) : personLabel(person),
+      );
+      const remove = el("button", "sc-chip-remove", "×");
+      remove.type = "button";
+      remove.setAttribute("aria-label", words.remove);
+      remove.addEventListener("click", () => {
+        chosen.splice(chosen.indexOf(id), 1);
+        draw();
+        for (const handler of handlers) {
+          handler();
+        }
+      });
+      chip.append(remove);
+      return chip;
+    });
+    const left = candidates.filter((person) => !chosen.includes(person.id));
+    const add = select(
+      [
+        { value: "", label: words.addPerson },
+        ...left.map((person) => ({ value: person.id, label: personLabel(person) })),
+      ],
+      "",
+    );
+    add.classList.add("sc-chip-add");
+    add.disabled = left.length === 0 || chosen.length >= atMost;
+    add.addEventListener("change", () => {
+      if (add.value !== "") {
+        chosen.push(add.value);
+        draw();
+        for (const handler of handlers) {
+          handler();
+        }
+      }
+    });
+    node.replaceChildren(...chips, add);
+  };
+  draw();
+  return {
+    node,
+    value: () => [...chosen],
+    set: (value) => {
+      chosen.splice(0, chosen.length, ...value);
+      draw();
+    },
+    onChange: (handler) => {
+      handlers.push(handler);
+    },
+  };
 }
 
 /** A labelled control, the hint under it. */
@@ -170,11 +398,32 @@ export function field(label: string, control: HTMLElement, hint?: string): HTMLL
   return wrapper;
 }
 
+/** A choice beside the title of a panel: its word, the control after it. */
+export function headChoice(label: string, control: HTMLElement): HTMLLabelElement {
+  const wrapper = el("label", "head-choice");
+  wrapper.append(el("span", "", label), control);
+  return wrapper;
+}
+
 /** A group of controls under one label, where one `<label>` cannot wrap them. */
 export function group(label: string, ...controls: HTMLElement[]): HTMLDivElement {
   const wrapper = el("div", "sc-field");
   wrapper.append(el("span", "sc-field-label", label), ...controls);
   return wrapper;
+}
+
+/** A row of the console's settings: what it is and why on the left, the control on the right. */
+export function settingRow(label: string, hint: string, ...controls: HTMLElement[]): HTMLElement {
+  const node = el("div", "sc-settings-row setting");
+  const words = el("div", "");
+  words.append(el("span", "sc-settings-label", label));
+  if (hint.length > 0) {
+    words.append(el("p", "sc-settings-hint", hint));
+  }
+  const control = el("div", "sc-settings-control setting-control");
+  control.append(...controls);
+  node.append(words, control);
+  return node;
 }
 
 export function form(...children: HTMLElement[]): HTMLFormElement {
@@ -243,35 +492,72 @@ export function swatch(color: number): HTMLSpanElement {
   return node;
 }
 
-export function stat(label: string, value: string, sub?: string): HTMLDivElement {
-  const node = el("div", "tile");
-  node.append(el("span", "tile-label", label), el("strong", "tile-value", value));
-  if (sub !== undefined) {
-    node.append(el("span", "tile-sub", sub));
+/** The head of a page: its title and a line beside it, its actions at the right. */
+export function pageHead(title: string, lead: string, ...buttons: HTMLElement[]): HTMLElement {
+  const node = el("div", "sc-page-head head");
+  const heading = el("div", "sc-page-heading");
+  heading.append(el("h1", "sc-page-title", title));
+  if (lead.length > 0) {
+    heading.append(el("p", "sc-page-lead", lead));
+  }
+  node.append(heading);
+  if (buttons.length > 0) {
+    const side = el("div", "sc-page-actions");
+    side.append(...buttons);
+    node.append(side);
   }
   return node;
 }
 
-export function section(title: string, ...children: HTMLElement[]): HTMLElement {
-  const node = el("section", "section");
-  node.append(el("h2", "sc-section-title", title), ...children);
+/** A section of a page, a pane of its own, set apart from the next. */
+export function panel(title: string | null, ...children: HTMLElement[]): HTMLElement {
+  const node = el("section", "sc-panel panel");
+  if (title !== null) {
+    node.append(el("h2", "panel-title", title));
+  }
+  node.append(...children);
   return node;
 }
 
-export function sectionHead(title: string, ...controls: HTMLElement[]): HTMLDivElement {
-  const node = el("div", "sc-section-head");
-  node.append(el("h2", "sc-section-title", title), ...controls);
+/** A panel with controls at the right of its title. */
+export function panelWith(
+  title: string,
+  controls: readonly HTMLElement[],
+  ...children: HTMLElement[]
+): HTMLElement {
+  const node = el("section", "sc-panel panel");
+  const head = el("div", "panel-head");
+  head.append(el("h2", "panel-title", title), ...controls);
+  node.append(head, ...children);
   return node;
 }
 
-export function empty(text: string): HTMLDivElement {
+/** A small heading above a block of a panel. */
+export function eyebrow(text: string): HTMLElement {
+  return el("p", "sc-eyebrow eyebrow", text);
+}
+
+/** What folds away until it is asked for. */
+export function fold(title: string, ...children: HTMLElement[]): HTMLDetailsElement {
+  const node = el("details", "fold");
+  const summary = el("summary", "fold-title", title);
+  const body = el("div", "fold-body");
+  body.append(...children);
+  node.append(summary, body);
+  return node;
+}
+
+export function empty(text: string, title?: string): HTMLDivElement {
   const node = el("div", "sc-empty");
+  if (title !== undefined) {
+    node.append(el("p", "sc-empty-title", title));
+  }
   node.append(el("p", "sc-empty-body", text));
   return node;
 }
 
 export function callout(title: string, body?: string, warning = false): HTMLDivElement {
-  const node = el("div", `sc-callout${warning ? " sc-callout-warning" : ""}`);
+  const node = el("div", `sc-callout callout${warning ? " sc-callout-warning" : ""}`);
   const text = el("div", "");
   text.append(el("p", "sc-callout-title", title));
   if (body !== undefined) {
@@ -282,10 +568,23 @@ export function callout(title: string, body?: string, warning = false): HTMLDivE
 }
 
 export function muted(text: string): HTMLParagraphElement {
-  return el("p", "sc-muted", text);
+  return el("p", "sc-muted line", text);
 }
 
-/** A table of rows already built with `row`. */
+/** Facts in a row, a label over a value each, as the console's head of a task has them. */
+export function factsRow(pairs: readonly (readonly [string, string | Node])[]): HTMLDListElement {
+  const node = el("dl", "sc-facts-row");
+  for (const [label, value] of pairs) {
+    const item = el("div", "");
+    const detail = el("dd", "");
+    detail.append(value);
+    item.append(el("dt", "", label), detail);
+    node.append(item);
+  }
+  return node;
+}
+
+/** A table that scrolls within its box where it is wider than the frame. */
 export function table(
   headers: readonly string[],
   rows: readonly HTMLTableRowElement[],
@@ -331,29 +630,119 @@ export function num(text: string): HTMLTableCellElement {
   return el("td", "numeric", text);
 }
 
-/** A list of facts, a label and a value each. */
-export function facts(pairs: readonly (readonly [string, string | Node])[]): HTMLDListElement {
-  const node = el("dl", "facts");
-  for (const [label, value] of pairs) {
-    const term = el("dt", "", label);
-    const detail = el("dd", "");
-    detail.append(value);
-    node.append(term, detail);
-  }
-  return node;
-}
-
 export function personLabel(person: PersonBrief): string {
   return person.name ?? person.login;
 }
 
-/** A person as name and login, the login alone where no name is known. */
-export function personNode(person: PersonBrief): HTMLSpanElement {
-  const node = el("span", "person");
-  if (person.name === null) {
-    node.append(el("span", "person-name", person.login));
-  } else {
-    node.append(el("span", "person-name", person.name), el("span", "person-login", person.login));
+function initialOf(person: PersonBrief): string {
+  return personLabel(person).trim().slice(0, 1).toUpperCase();
+}
+
+/** A person's face: their picture through the bridge, the initial until then and where they have none. */
+export function avatar(
+  frame: PluginFrame,
+  person: PersonBrief,
+  size: "sm" | "md" | "lg" = "sm",
+): HTMLElement {
+  const node = el(
+    "span",
+    `sc-avatar sc-avatar-${size} sc-avatar-initial avatar`,
+    initialOf(person),
+  );
+  node.title = personLabel(person);
+  void frame.people
+    .picture(person.id)
+    .then((address) => {
+      if (address !== null) {
+        const image = el("img", `sc-avatar sc-avatar-${size} avatar`);
+        image.src = address;
+        image.alt = "";
+        image.title = personLabel(person);
+        node.replaceWith(image);
+      }
+    })
+    .catch(() => {});
+  return node;
+}
+
+/** Faces side by side, overlapping, and how many more there are. */
+export function faces(
+  frame: PluginFrame,
+  people: readonly PersonBrief[],
+  atMost = 5,
+  size: "sm" | "md" = "sm",
+): HTMLElement {
+  const node = el("span", "faces");
+  for (const person of people.slice(0, atMost)) {
+    node.append(avatar(frame, person, size));
+  }
+  if (people.length > atMost) {
+    node.append(
+      el(
+        "span",
+        `sc-avatar sc-avatar-${size} sc-avatar-initial avatar faces-more`,
+        `+${people.length - atMost}`,
+      ),
+    );
+  }
+  return node;
+}
+
+/** A person with their face, their name and a line under it. */
+export function who(
+  frame: PluginFrame,
+  person: PersonBrief,
+  sub?: string,
+  size: "sm" | "md" = "sm",
+): HTMLElement {
+  const node = el("span", "who");
+  const text = el("span", "who-text");
+  text.append(el("span", "who-name", personLabel(person)));
+  const under = sub ?? (person.name === null ? undefined : person.login);
+  if (under !== undefined && under.length > 0) {
+    text.append(el("span", "who-sub", under));
+  }
+  node.append(avatar(frame, person, size), text);
+  return node;
+}
+
+export interface Segment {
+  readonly value: number;
+  readonly tone: "used" | "pending" | "left" | "expiring";
+}
+
+/** A bar of days: the console's progress bar, parts of it filled by tone. */
+export function meter(total: number, segments: readonly Segment[]): HTMLElement {
+  const bar = el("div", "sc-progress-bar meter");
+  if (total > 0) {
+    for (const segment of segments) {
+      if (segment.value > 0) {
+        const part = el("span", `meter-${segment.tone}`);
+        part.style.width = `${Math.min(100, (segment.value / total) * 100)}%`;
+        bar.append(part);
+      }
+    }
+  }
+  return bar;
+}
+
+/** The line of a request as a row of steps: who, and how far it has come. */
+export function lineSteps(
+  frame: PluginFrame,
+  steps: readonly StepView[],
+  words: Words,
+): HTMLElement {
+  const node = el("ol", "line-steps");
+  for (const step of steps) {
+    const item = el("li", `line-step line-step-${step.state}`);
+    item.append(faces(frame, step.approvers, 3));
+    const names = step.approvers.map(personLabel);
+    const label =
+      names.length <= 2
+        ? names.join(step.mode === "all" ? " → " : ", ")
+        : words.peopleCount(String(names.length));
+    item.append(el("span", "line-step-name", names.length === 0 ? words.anyHolder : label));
+    node.append(item);
   }
   return node;
 }
@@ -397,14 +786,20 @@ export function holds(frame: PluginFrame, role: string): boolean {
   return frame.context.person.admin || frame.context.roles.includes(role);
 }
 
-/** Today as the person's clock has it, `YYYY-MM-DD`. */
-export function todayDay(): string {
-  const now = new Date();
-  return dayOf(now.getFullYear(), now.getMonth() + 1, now.getDate());
+/** Today as the workspace's clock has it, `YYYY-MM-DD`. */
+export function todayDay(frame: PluginFrame): string {
+  return dayIn(new Date(), frame.context.workspace?.timeZone ?? "UTC");
+}
+
+/** The day the week begins on, 1 for Monday to 7 for Sunday, as the workspace has it. */
+export function firstDayOf(frame: PluginFrame): number {
+  return frame.context.workspace?.firstDay ?? 1;
 }
 
 export interface Formatters {
   readonly day: (day: string) => string;
+  readonly monthDay: (day: string) => string;
+  readonly weekday: (day: string) => string;
   readonly month: (day: string) => string;
   readonly dateTime: (iso: string) => string;
   readonly number: (value: number) => string;
@@ -430,6 +825,12 @@ export function formattersFor(language: string, words: Words): Formatters {
     day: "numeric",
     timeZone: "UTC",
   });
+  const monthDayFormat = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
   const monthFormat = new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
@@ -441,19 +842,20 @@ export function formattersFor(language: string, words: Words): Formatters {
   });
   const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
   const signedFormat = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
     signDisplay: "always",
   });
-  const day = (value: string) =>
-    isDay(value) ? dayFormat.format(new Date(`${value}T00:00:00Z`)) : value;
+  const instant = (value: string) => new Date(`${value}T00:00:00Z`);
+  const day = (value: string) => (isDay(value) ? dayFormat.format(instant(value)) : value);
   const number = (value: number) => numberFormat.format(value);
   return {
     day,
-    month: (value) => (isDay(value) ? monthFormat.format(new Date(`${value}T00:00:00Z`)) : value),
+    monthDay: (value) => (isDay(value) ? monthDayFormat.format(instant(value)) : value),
+    weekday: (value) => (isDay(value) ? weekdayFormat.format(instant(value)) : value),
+    month: (value) => (isDay(value) ? monthFormat.format(instant(value)) : value),
     dateTime: (iso) => {
-      const instant = new Date(iso);
-      return Number.isNaN(instant.getTime()) ? iso : dateTimeFormat.format(instant);
+      const at = new Date(iso);
+      return Number.isNaN(at.getTime()) ? iso : dateTimeFormat.format(at);
     },
     number,
     signed: (value) => signedFormat.format(value),
@@ -461,16 +863,16 @@ export function formattersFor(language: string, words: Words): Formatters {
   };
 }
 
-/** A span of leave as people read one: one day, with its half where there is one, or first to last. */
+/** A span of leave as people read one: one day, with its part where there is one, or first to last. */
 export function spanText(
   from: string,
   to: string,
-  half: Half,
+  part: Part,
   format: Formatters,
   words: Words,
 ): string {
   if (from === to) {
-    return half === "none" ? format.day(from) : `${format.day(from)} (${words.halfOption[half]})`;
+    return part === "none" ? format.day(from) : `${format.day(from)} (${words.partOption[part]})`;
   }
   return `${format.day(from)} ~ ${format.day(to)}`;
 }
@@ -570,7 +972,7 @@ export function toolbar(...children: HTMLElement[]): HTMLDivElement {
 }
 
 export function errorBlock(error: unknown, words: Words): HTMLDivElement {
-  const node = el("div", "sc-callout sc-callout-danger");
+  const node = el("div", "sc-callout sc-callout-danger callout");
   node.append(el("p", "sc-callout-body", errorText(error, words)));
   return node;
 }

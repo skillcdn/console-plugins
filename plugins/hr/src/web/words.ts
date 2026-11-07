@@ -3,325 +3,34 @@
 // later is one more pack in the map. The console sends the frame the person's language; the tabs
 // and the widgets' names come from the manifest in that language, the words inside the frame
 // from here. Nothing a page shows is a literal elsewhere; a name a person wrote (a leave type, a
-// holiday, a policy) comes from the records and is shown as text.
-import type {
-  AccrualMode,
-  Balance,
-  CalendarReport,
-  CarryOver,
-  CountDays,
-  Earning,
-  Employment,
-  EntryKind,
-  FirstPeriod,
-  Half,
-  HolidayKind,
-  HolidaySource,
-  MonthlyUntil,
-  ReasonRule,
-  RequestState,
-  Rounding,
-  TenureAt,
-  YearBasis,
-} from "../shared/contracts.js";
-import type { Weekday } from "../shared/days.js";
+// holiday, a policy, a team) comes from the records and is shown as text.
 
-export type SetupTab = "policies" | "types" | "holidays" | "presets";
+export type SetupTab = "approval" | "types" | "policies" | "teams" | "holidays" | "general";
 
-export interface Words {
-  // General
-  readonly failed: string;
-  readonly loading: string;
-  /** "3 days", from the figure already formatted for the language. */
-  readonly days: (count: string) => string;
-  readonly none: string;
-  readonly on: string;
-  readonly off: string;
-  readonly yes: string;
-  readonly no: string;
-  readonly save: string;
-  readonly close: string;
-  readonly edit: string;
-  readonly add: string;
-  readonly remove: string;
-  readonly saved: string;
-  readonly done: string;
-  readonly nothingChanged: string;
-  readonly today: string;
-  readonly keepCurrent: string;
-  readonly person: string;
-  readonly span: string;
-  readonly type: string;
-  readonly daysHeader: string;
-  readonly state: string;
-  readonly note: string;
-  readonly reason: string;
-  readonly requestedAt: string;
-  readonly openDecision: string;
-
-  // Enumerations
-  readonly requestState: Readonly<Record<RequestState, string>>;
-  readonly kind: Readonly<Record<EntryKind, string>>;
-  readonly halfOption: Readonly<Record<Half, string>>;
-  readonly halfShort: Readonly<Record<"am" | "pm", string>>;
-  readonly weekday: Readonly<Record<Weekday, string>>;
-  readonly employment: Readonly<Record<Employment, string>>;
-  readonly basis: Readonly<Record<YearBasis, string>>;
-  readonly earning: Readonly<Record<Earning, string>>;
-  readonly firstPeriod: Readonly<Record<FirstPeriod, string>>;
-  readonly monthlyUntil: Readonly<Record<MonthlyUntil, string>>;
-  readonly accrual: Readonly<Record<AccrualMode, string>>;
-  readonly carryOver: Readonly<Record<CarryOver, string>>;
-  readonly tenureAt: Readonly<Record<TenureAt, string>>;
-  readonly countDays: Readonly<Record<CountDays, string>>;
-  readonly rounding: Readonly<Record<Rounding, string>>;
-  readonly balanceKind: Readonly<Record<Balance, string>>;
-  readonly reasonRule: Readonly<Record<ReasonRule, string>>;
-  readonly holidayKind: Readonly<Record<HolidayKind, string>>;
-  readonly holidaySource: Readonly<Record<HolidaySource, string>>;
-  readonly scope: Readonly<Record<CalendarReport["scope"], string>>;
-  readonly country: Readonly<Record<"kr" | "us", string>>;
-  readonly setupBasis: Readonly<Record<"anniversary" | "fiscal", string>>;
-  readonly status: Readonly<Record<"active" | "deactivated", string>>;
-  readonly tabs: Readonly<Record<SetupTab, string>>;
-
-  // Overview
-  readonly overviewTitle: string;
-  readonly requestLeave: string;
-  readonly notEnrolledTitle: string;
-  readonly notEnrolledBody: string;
-  readonly notSetUpTitle: string;
-  readonly notSetUpBody: string;
-  readonly setupCommandKr: string;
-  readonly setupCommandUs: string;
-  readonly available: string;
-  readonly used: string;
-  readonly pending: string;
-  readonly expiringNext: string;
-  readonly expiringBy: (days: string, date: string) => string;
-  readonly nothingExpiring: string;
-  readonly upcomingTitle: string;
-  readonly upcomingEmpty: string;
-  readonly waitingTitle: string;
-  readonly outTodayTitle: string;
-  readonly outTodayEmpty: string;
-  readonly nextHolidaysTitle: string;
-  readonly nextHolidaysEmpty: string;
-  readonly noticeTitle: string;
-  readonly hrCounts: (enrolled: string, waiting: string) => string;
-
-  // My leave
-  readonly leaveTitle: string;
-  readonly policyLabel: string;
-  readonly approverLabel: string;
-  readonly hiredOnLabel: string;
-  readonly noPolicy: string;
-  readonly noApprover: string;
-  readonly periodLabel: string;
-  readonly granted: string;
-  readonly carriedIn: string;
-  readonly expired: string;
-  readonly adjusted: string;
-  readonly expiring: string;
-  readonly showBuckets: string;
-  readonly hideBuckets: string;
-  readonly bucketOn: string;
-  readonly bucketKind: string;
-  readonly remaining: string;
-  readonly expiresOn: string;
-  readonly projected: string;
-  readonly noExpiry: string;
-  readonly requestTitle: string;
-  readonly typeLabel: string;
-  readonly fromLabel: string;
-  readonly toLabel: string;
-  readonly toHint: string;
-  readonly halfLabel: string;
-  readonly reasonLabel: string;
-  readonly reasonRequiredHint: string;
-  readonly submitRequest: string;
-  readonly requestSent: string;
-  readonly requestWaiting: string;
-  readonly fromRequired: string;
-  readonly noTypes: string;
-  readonly myRequestsTitle: string;
-  readonly myRequestsEmpty: string;
-  readonly cancelLeave: string;
-  readonly cancelReasonPlaceholder: string;
-  readonly confirmCancel: string;
-  readonly cancelDone: string;
-  readonly cancelWaiting: string;
-  readonly ledgerTitle: string;
-  readonly ledgerEmpty: string;
-  readonly ledgerTypeLabel: string;
-
-  // Calendar
-  readonly calendarTitle: string;
-  readonly previousMonth: string;
-  readonly nextMonth: string;
-  readonly thisMonth: string;
-  readonly legendApproved: string;
-  readonly legendRequested: string;
-  readonly legendHoliday: string;
-  readonly legendOff: string;
-  readonly holidaysOfMonth: string;
-  readonly noHolidaysThisMonth: string;
-
-  // Approvals
-  readonly approvalsTitle: string;
-  readonly approvalsNote: string;
-  readonly approvalsEmpty: string;
-  readonly filterWaiting: string;
-  readonly filterApproved: string;
-  readonly filterAll: string;
-
-  // People
-  readonly peopleTitle: string;
-  readonly filterPlaceholder: string;
-  readonly statusHeader: string;
-  readonly leaveHeader: string;
-  readonly teamHeader: string;
-  readonly titleHeader: string;
-  readonly annualHeader: string;
-  readonly peopleEmpty: string;
-  readonly accrueAll: string;
-  readonly accrueOne: string;
-  readonly leaveOn: string;
-  readonly leaveOff: string;
-  readonly recordOf: (who: string) => string;
-  readonly leaveOnOff: string;
-  readonly workDaysLabel: string;
-  readonly employmentLabel: string;
-  readonly noteLabel: string;
-  readonly saveRecord: string;
-  readonly approverHint: string;
-  readonly policyDefault: string;
-  readonly offboardTitle: string;
-  readonly lastDayLabel: string;
-  readonly offboard: string;
-  readonly adjustTitle: string;
-  readonly adjustDaysLabel: string;
-  readonly adjustKindLabel: string;
-  readonly expiresLabel: string;
-  readonly adjustSubmit: string;
-  readonly noteRequired: string;
-  readonly noBalanceTypes: string;
-
-  // Setup
-  readonly setupTitle: string;
-  readonly policiesEmpty: string;
-  readonly newPolicy: string;
-  readonly keyLabel: string;
-  readonly keyHint: string;
-  readonly presetLabel: string;
-  readonly presetNone: string;
-  readonly nameLabel: string;
-  readonly descriptionLabel: string;
-  readonly basisLabel: string;
-  readonly startLabel: string;
-  readonly earningLabel: string;
-  readonly firstPeriodLabel: string;
-  readonly monthlyLabel: string;
-  readonly monthlyUntilLabel: string;
-  readonly monthlyMaxLabel: string;
-  readonly tiersLabel: string;
-  readonly tiersHint: string;
-  readonly tenureAtLabel: string;
-  readonly accrualLabel: string;
-  readonly capLabel: string;
-  readonly capFact: string;
-  readonly capNone: string;
-  /** The blank choice of a new policy's or type's field: the preset's value holds. */
-  readonly asPreset: string;
-  readonly carryOverLabel: string;
-  readonly carryOverDaysLabel: string;
-  readonly carryOverMonthsLabel: string;
-  readonly advanceDaysLabel: string;
-  readonly countDaysLabel: string;
-  readonly roundingLabel: string;
-  readonly remindersLabel: string;
-  readonly payoutLabel: string;
-  readonly defaultLabel: string;
-  readonly enabledLabel: string;
-  readonly savePolicy: string;
-  readonly defaultBadge: string;
-  readonly enabled: string;
-  readonly disabled: string;
-  readonly tiersHeader: string;
-  readonly tierText: (days: string, years: string) => string;
-  readonly countrySetupTitle: string;
-  readonly countrySetupBody: string;
-  readonly countryLabel: string;
-  readonly setupBasisLabel: string;
-  readonly setupBasisDefault: string;
-  readonly runSetup: string;
-  readonly typesEmpty: string;
-  readonly newType: string;
-  readonly nameEnLabel: string;
-  readonly nameKoLabel: string;
-  readonly paidLabel: string;
-  readonly balanceLabel: string;
-  readonly allowanceLabel: string;
-  readonly approvalLabel: string;
-  readonly reasonRuleLabel: string;
-  readonly halfDaysLabel: string;
-  readonly colorLabel: string;
-  readonly orderLabel: string;
-  readonly saveType: string;
-  readonly yearLabel: string;
-  readonly holidaysEmpty: string;
-  readonly addHoliday: string;
-  readonly holidayDateLabel: string;
-  readonly holidayKindLabel: string;
-  readonly saveHoliday: string;
-  readonly writeFromCalendar: string;
-  readonly calendarLabel: string;
-  readonly sourceHeader: string;
-  readonly onHeader: string;
-  readonly kindHeader: string;
-  readonly presetsIntro: string;
-
-  // Widgets
-  readonly daysAvailable: string;
-  readonly usedPending: (used: string, pending: string) => string;
-  readonly nextExpiry: (days: string, date: string) => string;
-  readonly requestsWaiting: (count: string) => string;
-}
-
-const ENGLISH: Words = {
-  failed: "The request could not be completed.",
-  loading: "Loading…",
-  days: (count) => (count === "1" ? "1 day" : `${count} days`),
-  none: "None",
+const ENGLISH = {
+  failed: "Something went wrong. Try again.",
+  days: (count: string) => (count === "1" ? "1 day" : `${count} days`),
   on: "On",
   off: "Off",
-  yes: "Yes",
-  no: "No",
   save: "Save",
   close: "Close",
   edit: "Edit",
-  add: "Add",
   remove: "Remove",
   saved: "Saved.",
-  done: "Done.",
-  nothingChanged: "Nothing changed.",
-  today: "Today",
-  keepCurrent: "Keep as it is",
-  person: "Person",
-  span: "Dates",
-  type: "Type",
-  daysHeader: "Days",
-  state: "State",
   note: "Note",
-  reason: "Reason",
-  requestedAt: "Requested",
+  daysHeader: "Days",
   openDecision: "Open the decision",
+  decide: "Decide",
+  addPerson: "Add a person",
+  andMore: (count: string) => `and ${count} more`,
+  peopleCount: (count: string) => (count === "1" ? "1 person" : `${count} people`),
+  anyHolder: "The console's default",
 
   requestState: {
     requested: "Waiting",
     approved: "Approved",
     rejected: "Rejected",
-    returned: "Returned",
+    returned: "Sent back",
     cancelling: "Cancelling",
     cancelled: "Cancelled",
   },
@@ -331,12 +40,20 @@ const ENGLISH: Words = {
     carry: "Carried over",
     adjust: "Adjustment",
     use: "Used",
-    reverse: "Reversed",
+    reverse: "Given back",
     expire: "Expired",
     payout: "Paid out",
   },
-  halfOption: { none: "Whole day", am: "Morning half", pm: "Afternoon half" },
-  halfShort: { am: "AM", pm: "PM" },
+  partOption: {
+    none: "Whole day",
+    am: "Morning half",
+    pm: "Afternoon half",
+    q1: "First quarter",
+    q2: "Second quarter",
+    q3: "Third quarter",
+    q4: "Last quarter",
+  },
+  partShort: { none: "", am: "AM", pm: "PM", q1: "Q1", q2: "Q2", q3: "Q3", q4: "Q4" },
   weekday: { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" },
   employment: {
     "full-time": "Full-time",
@@ -364,262 +81,430 @@ const ENGLISH: Words = {
   countDays: { working: "Working days", calendar: "Calendar days" },
   rounding: { exact: "Exact", half: "To the half day", whole: "To the whole day" },
   balanceKind: { annual: "The policy's days", own: "Its own allowance", none: "No balance" },
-  reasonRule: { optional: "Optional", required: "Required", hidden: "Not kept" },
+  reasonRule: { optional: "Optional", required: "Required", hidden: "Not asked" },
+  unit: { day: "Whole days", half: "Half days", quarter: "Quarter days" },
+  noticeMode: {
+    none: "No notice",
+    days: "Days before",
+    dayBefore: "By a time the day before",
+    sameDay: "By a time the same day",
+  },
+  lateRule: {
+    refuse: "Refused",
+    mark: "Allowed, and marked",
+    approver: "Only an approver or HR writes it",
+  },
+  autoMode: { never: "Never", always: "Always", upTo: "Short and in time" },
+  source: {
+    line: "Their approvers",
+    team: "The team's approvers",
+    manager: "Their manager",
+    manager2: "Their manager's manager",
+    hr: "HR",
+  },
+  stepMode: { any: "Any one of them", all: "All, one after another" },
+  approverSource: {
+    own: "Named for this person",
+    team: "The team's approvers",
+    manager: "Their manager",
+    none: "Nobody named: requests go to HR",
+  },
   holidayKind: { public: "Public", substitute: "Substitute", company: "Company" },
-  holidaySource: { kr: "Korea", us: "United States", manual: "By hand" },
+  holidayCalendar: { none: "None", kr: "Korea", us: "United States" },
   scope: {
     everyone: "Everyone's leave",
     team: "Your team's leave",
     self: "Your own leave",
-    hr: "Everyone's leave (HR)",
+    hr: "Everyone's leave, as HR sees it",
   },
   country: { kr: "Korea", us: "United States" },
-  setupBasis: { anniversary: "Hire anniversary", fiscal: "Fiscal year" },
+  setupBasis: { anniversary: "By hire date", fiscal: "By fiscal year" },
   status: { active: "Active", deactivated: "Deactivated" },
-  tabs: { policies: "Policies", types: "Leave types", holidays: "Holidays", presets: "Presets" },
+  cancellation: { free: "Free before it starts", approval: "Takes a decision", hr: "HR alone" },
+  cancellationHint: {
+    free: "The person cancels until the first day; HR after it.",
+    approval: "A cancellation goes to the approvers as a decision.",
+    hr: "Approved leave is cancelled by HR alone.",
+  },
+  balanceVisibility: {
+    self: "The person and HR",
+    approver: "Also approvers",
+    everyone: "Everyone",
+  },
+  calendarVisibility: { everyone: "Everyone", team: "The team", hr: "HR and approvers" },
+  whoApproves: {
+    line: "The approvers you name",
+    manager: "Each person's manager",
+    hr: "HR",
+    none: "Nobody",
+  },
+  whoApprovesHint: {
+    line: "Named for a person or a team, else their manager in the directory.",
+    manager: "As the reporting line of the People page says.",
+    hr: "Everyone who holds the role HR may answer.",
+    none: "A request is approved as it is written.",
+  },
+  tabs: {
+    approval: "Approval line",
+    types: "Leave types",
+    policies: "Policies",
+    teams: "Teams",
+    holidays: "Holidays",
+    general: "Work and visibility",
+  },
 
   overviewTitle: "Overview",
+  hello: (name: string) => `Hello, ${name}`,
   requestLeave: "Request leave",
-  notEnrolledTitle: "Leave is not on for you yet",
+  notEnrolledTitle: "You are not enrolled yet",
   notEnrolledBody: "HR turns it on by enrolling you with the day you were hired.",
+  notEnrolledShort: "You are not enrolled yet.",
   notSetUpTitle: "Leave is not set up yet",
-  notSetUpBody: "Set it up for a country in one go, on the Setup page or with:",
-  setupCommandKr: "console plugin hr setup kr",
-  setupCommandUs: "console plugin hr setup us",
-  available: "Available",
+  notSetUpBody: "Three questions and it is ready; everything can be changed afterwards.",
+  notSetUpAction: "Set up leave",
+  overviewEmpty: "Nothing to show yet.",
+  daysLeft: "days left",
+  daysUnit: "days",
   used: "Used",
-  pending: "Pending",
+  pending: "Waiting",
   expiringNext: "Expiring next",
-  expiringBy: (days, date) => `${days} by ${date}`,
-  nothingExpiring: "Nothing expiring",
+  expiringSoon: "Expiring",
+  expiringBy: (days: string, date: string) => `${days} expire on ${date}`,
+  usedPending: (used: string, pending: string) => `${used} used, ${pending} waiting`,
+  nothingExpiring: "Nothing soon",
   upcomingTitle: "Your leave to come",
   upcomingEmpty: "No leave ahead.",
+  otherKinds: "Other leave",
+  allMyLeave: "All my leave",
+  allApprovals: "All approvals",
   waitingTitle: "Waiting for your decision",
   outTodayTitle: "Out today",
   outTodayEmpty: "Nobody is out today.",
   nextHolidaysTitle: "Next holidays",
   nextHolidaysEmpty: "No holidays in the next three months.",
-  noticeTitle: "Notice",
-  hrCounts: (enrolled, waiting) =>
-    `${enrolled} people with leave on · ${waiting} requests waiting for a decision`,
+  nextHolidayLine: (name: string, date: string) => `Next: ${name}, ${date}`,
+  announcementTitle: "From HR",
+  hrAtAGlance: "HR",
+  hrCounts: (enrolled: string, waiting: string) =>
+    `${enrolled} people enrolled, ${waiting} requests waiting.`,
 
   leaveTitle: "My leave",
+  leaveLead: "What you have, what you asked for, and how it is counted.",
   policyLabel: "Policy",
-  approverLabel: "Approver",
+  approverLabel: "Approvers",
+  teamLabel: "Team",
   hiredOnLabel: "Hired on",
   noPolicy: "No policy applies yet.",
-  noApprover: "The default approver",
-  periodLabel: "Period",
+  noApprover: "Nobody named",
+  termsTitle: "Terms",
   granted: "Granted",
-  carriedIn: "Carried in",
   expired: "Expired",
-  adjusted: "Adjusted",
-  expiring: "Expiring",
-  showBuckets: "Show the days by grant",
-  hideBuckets: "Hide the days by grant",
+  showBuckets: "The days by grant",
   bucketOn: "On",
   bucketKind: "Kind",
-  remaining: "Remaining",
+  remaining: "Left",
   expiresOn: "Expires",
-  projected: "Projected",
+  projected: "Promised",
   noExpiry: "No end",
   requestTitle: "Request leave",
   typeLabel: "Kind of leave",
+  personLabel: "Whose leave",
+  choosePerson: "Choose a person",
+  personRequired: "Choose whose leave it is.",
   fromLabel: "First day",
   toLabel: "Last day",
   toHint: "Leave it empty for one day.",
-  halfLabel: "Half day",
+  partLabel: "Part of the day",
   reasonLabel: "Reason",
   reasonRequiredHint: "This kind of leave asks for a reason.",
   submitRequest: "Send the request",
+  submitRecord: "Record it",
   requestSent: "Approved and recorded.",
-  requestWaiting: "Requested; the decision waits for the approver.",
+  requestWaiting: "Sent; the decision waits for the approver.",
   fromRequired: "Choose the first day.",
   noTypes: "No kind of leave can be requested yet.",
+  quoteTitle: "This request",
+  quoteEmpty: "Choose the days to see what it comes to.",
+  quoteRefused: "It cannot be sent",
+  quoteBalance: (before: string, after: string) => `Balance ${before} → ${after}`,
+  quoteLate: "Past the notice",
+  quotePast: "It is for days gone by.",
+  quoteNotice: (notice: string) => `Requested ${notice}.`,
+  quoteLine: "Who approves",
+  quoteAutomatic: "Approved as it is written.",
   myRequestsTitle: "My requests",
   myRequestsEmpty: "No requests yet.",
+  lateBadge: "Late",
+  recordedBy: (name: string) => `Recorded by ${name}`,
+  byRule: (name: string) => `By the rule ${name}`,
   cancelLeave: "Cancel",
   cancelReasonPlaceholder: "Why (optional)",
-  confirmCancel: "Confirm the cancellation",
+  confirmCancel: "Confirm",
   cancelDone: "Cancelled.",
   cancelWaiting: "The cancellation waits for the approver's decision.",
-  ledgerTitle: "Ledger",
+  ledgerTitle: "History of days",
   ledgerEmpty: "No lines yet.",
+  olderLines: (count: string) => `${count} older lines`,
   ledgerTypeLabel: "Kind of leave",
+  noBalanceTypes: "No kind of leave keeps a balance.",
 
   calendarTitle: "Calendar",
-  previousMonth: "Previous month",
-  nextMonth: "Next month",
+  calendarEveryone: "Everyone",
+  calendarMine: "My people",
+  previousMonth: "Previous",
+  nextMonth: "Next",
   thisMonth: "This month",
   legendApproved: "Approved",
-  legendRequested: "Waiting for approval",
+  legendRequested: "Waiting",
   legendHoliday: "Holiday",
-  legendOff: "Non-working day",
+  legendOff: "Day off",
   holidaysOfMonth: "Holidays this month",
   noHolidaysThisMonth: "No holidays this month.",
 
   approvalsTitle: "Approvals",
-  approvalsNote:
-    "Decisions are answered on the console's decision page; this list shows where each request stands.",
+  approvalsLead: "Each request and where it stands. Decisions are answered on the console's page.",
   approvalsEmpty: "No requests here.",
-  filterWaiting: "Waiting",
+  approvalsMineEmpty: "Nothing waits for you.",
+  openApprovals: "Open",
+  requestsUnit: "waiting",
+  filterMine: "For me",
+  filterOpen: "In progress",
   filterApproved: "Approved",
   filterAll: "All",
+  recordForSomeone: "Record for someone",
+  recordForThem: "Record leave",
+  recordTitle: "Record leave for someone",
 
   peopleTitle: "People",
-  filterPlaceholder: "Filter by login, name or team",
-  statusHeader: "Status",
-  leaveHeader: "Leave",
-  teamHeader: "Team",
-  titleHeader: "Title",
-  annualHeader: "Annual: available / used / pending",
+  peopleLead: (enrolled: string, all: string) => `${enrolled} of ${all} enrolled`,
+  filterPlaceholder: "Search by name, login, team or title",
+  showAll: "All",
+  allTeams: "All teams",
   peopleEmpty: "Nobody here.",
-  accrueAll: "Run accrual for everyone",
-  accrueOne: "Run accrual now",
-  leaveOn: "Leave on",
-  leaveOff: "Leave off",
-  recordOf: (who) => `Record of ${who}`,
+  peopleUnit: "out today",
+  annualLeft: "days left",
+  accrueAll: "Write what is due",
+  leaveOn: "Enrolled",
+  leaveOff: "Not enrolled",
   leaveOnOff: "Leave",
-  workDaysLabel: "Working days (none chosen: the workspace's)",
-  employmentLabel: "Employment",
-  noteLabel: "Note for HR",
-  saveRecord: "Save the record",
-  approverHint: "The approver's login",
+  backToPeople: "All people",
+  personNotFound: "This person is not shown to you.",
+  requestsOfPerson: "Requests",
+  recordOfPerson: "Record",
   policyDefault: "The default policy",
-  offboardTitle: "Offboard",
+  noTeam: "No team",
+  ownApprovers: "Their own approvers",
+  ownApproversHint: "Left empty, their team's approvers, else their manager.",
+  moreOfRecord: "Title, employment, working days, note",
+  titleHeader: "Title",
+  employmentLabel: "Employment",
+  workDaysOwn: "Their own working days",
+  noteLabel: "Note",
+  saveRecord: "Save",
+  offboardTitle: "They are leaving",
+  offboard: "Write the last day",
   lastDayLabel: "Last day",
-  offboard: "Record the leaving",
-  adjustTitle: "Adjust balance",
+  adjustTitle: "Adjust the balance",
   adjustDaysLabel: "Days (negative to take)",
-  adjustKindLabel: "Kind",
-  expiresLabel: "Expires (optional)",
-  adjustSubmit: "Write the line",
-  noteRequired: "A note is required.",
-  noBalanceTypes: "No kind of leave keeps a balance.",
+  adjustKindLabel: "Kind of change",
+  expiresLabel: "Expires",
+  adjustSubmit: "Write it",
+  noteRequired: "Say why.",
 
   setupTitle: "Setup",
-  policiesEmpty: "No policy yet. Set up for a country, or write one.",
+  setupLead: "How leave works here. Only HR sees this page.",
+  firstRunTitle: "Set leave up",
+  firstRunBody: "Three questions. Everything can be changed afterwards.",
+  firstRunCountry: "Whose rules do you start from?",
+  firstRunSee: "Who sees what?",
+  whoApprovesTitle: "Who approves leave?",
+  runSetup: "Set it up",
+  skipFirstRun: "Skip, and set it up by hand",
+  countryLabel: "Country",
+  setupBasisLabel: "Basis",
+
+  defaultLineTitle: "The default line",
+  defaultLineHint: "Who approves a request, step by step, unless a rule below says otherwise.",
+  lineNobody: "Nobody: a request is approved as it is written.",
+  stepNumber: (number: string) => `Step ${number}`,
+  stepWho: "Who",
+  stepNamed: "People named",
+  stepHow: "How",
+  addStep: "Add a step",
+  saveLine: "Save the line",
+  gapTitle: (count: string) => `${count} people have nobody to approve them`,
+  gapBody: "Their requests go to HR. Name approvers, give them a team, or set their manager.",
+  rulesTitle: "Exceptions",
+  rulesHint: "The first that holds takes the place of the default line.",
+  rulesEmpty: "No exceptions: every request follows the default line.",
+  addRule: "Add an exception",
+  everyRequest: "Every request",
+  daysAtLeast: (days: string) => `${days} days or more`,
+  lateOnly: "Late requests only",
+  ruleName: "Name",
+  ruleKinds: "Kinds of leave",
+  ruleTeams: "Teams",
+  ruleAllHint: "None chosen means all.",
+  ruleDays: "From how many days",
+  ruleLate: "When",
+  ruleLine: "The line",
+
+  typesHint: "How each kind is taken: the notice it asks, and when it needs nobody's approval.",
+  typesEmpty: "No kinds of leave yet.",
+  newType: "New kind",
+  saveType: "Save",
+  typeNames: "Name",
+  typeNamesHint: "One language is enough; the other falls back to it.",
+  typeState: "State",
+  balanceHint: "What a request takes its days from.",
+  unitHint: "Half days and quarter days are offered on a single day.",
+  noticeHint: "How far ahead a request is in time.",
+  lateHint: "What happens to a request past the notice, days gone by included.",
+  autoHint: "When nobody is asked. Otherwise the request follows the approval line.",
+  nameKoLabel: "Name in Korean",
+  nameEnLabel: "Name in English",
+  nameRequired: "A name is needed.",
+  paidLabel: "Paid",
+  paid: "Paid",
+  unpaid: "Unpaid",
+  enabledLabel: "In use",
+  disabled: "Not in use",
+  colorLabel: "Colour",
+  colorName: (number: string) => `Colour ${number}`,
+  balanceLabel: "Balance",
+  allowanceLabel: "Days a period",
+  balanceAllowance: (days: string) => `${days} days a period`,
+  unitLabel: "Smallest unit",
+  reasonRuleLabel: "Reason",
+  noticeLabel: "Notice",
+  noticeDaysLabel: "How many days before",
+  noticeTimeLabel: "By what time",
+  noticeTimeHint: "In the workspace's time zone.",
+  noticeDays: (days: string) => `${days} days before`,
+  noticeDayBefore: (time: string) => `By ${time} the day before`,
+  noticeSameDay: (time: string) => `By ${time} the same day`,
+  lateLabel: "Past the notice",
+  autoLabel: "Approved as written",
+  autoDaysLabel: "Up to how many days",
+  autoUpTo: (days: string) => `Up to ${days} days, in time`,
+
+  policiesHint:
+    "How the days of annual leave come about. People without a policy follow the default.",
+  policiesEmpty: "No policies yet.",
   newPolicy: "New policy",
-  keyLabel: "Key",
-  keyHint: "A lowercase word: letters, digits and dashes.",
-  presetLabel: "Preset",
-  presetNone: "No preset",
+  savePolicy: "Save",
+  presetLabel: "Starting point",
+  presetsIntro:
+    "Start from what is closest. Each says which law or practice it follows; check it against the law of the day.",
+  usePreset: "Use this",
   nameLabel: "Name",
   descriptionLabel: "Description",
-  basisLabel: "Period basis",
-  startLabel: "Period start (MM-DD)",
-  earningLabel: "Days are earned",
-  firstPeriodLabel: "First period before the first anniversary",
-  monthlyLabel: "One day per month in the first year",
-  monthlyUntilLabel: "The first year's monthly days last",
-  monthlyMaxLabel: "Monthly days at most",
-  tiersLabel: "Tiers (years:days, comma-separated)",
-  tiersHint: "e.g. 1:15,3:16,5:17",
-  tenureAtLabel: "Tenure read at",
-  accrualLabel: "Accrual",
-  capLabel: "Cap (0 for none)",
-  capFact: "Cap",
-  capNone: "No cap",
-  asPreset: "As the preset has it",
-  carryOverLabel: "Carry-over",
-  carryOverDaysLabel: "Days carried over at most",
-  carryOverMonthsLabel: "Months carried days stay usable (0: as the rule says)",
-  advanceDaysLabel: "Days that may be taken in advance",
-  countDaysLabel: "Days counted",
-  roundingLabel: "Rounding",
-  remindersLabel: "Reminders, days before expiry (comma-separated)",
-  payoutLabel: "Unused days are paid out at expiry",
-  defaultLabel: "Make it the default policy",
-  enabledLabel: "Enabled",
-  savePolicy: "Save the policy",
+  policyDescriptionHint: "For HR; left empty, the preset's words.",
+  defaultLabel: "The default policy",
   defaultBadge: "Default",
-  enabled: "Enabled",
-  disabled: "Disabled",
-  tiersHeader: "Tiers",
-  tierText: (days, years) => `${days} from year ${years}`,
-  countrySetupTitle: "Set up for a country",
-  countrySetupBody:
-    "Writes the kinds of leave, a default policy from the country's preset and the public holidays of this year and the next; each may be changed afterwards.",
-  countryLabel: "Country",
-  setupBasisLabel: "Period basis",
-  setupBasisDefault: "The country's usual",
-  runSetup: "Set up",
-  typesEmpty: "No kind of leave yet.",
-  newType: "New kind of leave",
-  nameEnLabel: "Name (English)",
-  nameKoLabel: "Name (Korean)",
-  paidLabel: "Paid",
-  balanceLabel: "Balance",
-  allowanceLabel: "Allowance (days a period)",
-  approvalLabel: "Needs approval",
-  reasonRuleLabel: "Reason",
-  halfDaysLabel: "Half days",
-  colorLabel: "Colour (1 to 6)",
-  orderLabel: "Order",
-  saveType: "Save the kind of leave",
-  yearLabel: "Year",
-  holidaysEmpty: "No holidays written for this year.",
-  addHoliday: "Add a holiday",
-  holidayDateLabel: "Date",
-  holidayKindLabel: "Kind",
-  saveHoliday: "Save the holiday",
-  writeFromCalendar: "Write from a calendar",
-  calendarLabel: "Calendar",
-  sourceHeader: "Source",
-  onHeader: "Date",
-  kindHeader: "Kind",
-  presetsIntro:
-    "A policy starts from a preset and overrides its fields; what each preset says is written out here.",
+  policyPeople: (count: string) => `${count} people on it`,
+  foldPeriod: "The period",
+  foldDays: "The days by years of service",
+  foldCarry: "Carrying over and expiry",
+  foldOther: "Everything else",
+  basisLabel: "Periods run by",
+  startLabel: "Fixed start",
+  startHint: "MM-DD",
+  earningLabel: "Days are for",
+  firstPeriodLabel: "The first period",
+  accrualLabel: "How days are given",
+  tierYears: "years on",
+  tierDays: "days",
+  addTier: "Add a step",
+  tenureAtLabel: "Years read",
+  monthlyLabel: "One day a month in the first year",
+  monthlyUntilLabel: "Usable",
+  monthlyMaxLabel: "At most",
+  carryOverLabel: "Unused days",
+  carryOverDaysLabel: "How many carry over",
+  carryOverMonthsLabel: "Months usable (0 for no bound)",
+  remindersLabel: "Remind HR, days before expiry",
+  remindersHint: "With commas between.",
+  payoutLabel: "Unused days are owed as pay",
+  capLabel: "Cap (0 for none)",
+  advanceDaysLabel: "Days that may be taken ahead",
+  countDaysLabel: "Leave counts",
+  roundingLabel: "A prorated figure",
 
-  daysAvailable: "days available",
-  usedPending: (used, pending) => `used ${used} · pending ${pending}`,
-  nextExpiry: (days, date) => `${days} expire by ${date}`,
-  requestsWaiting: (count) =>
-    count === "1"
-      ? "1 request waits for your decision"
-      : `${count} requests wait for your decision`,
+  teamsHint: "A team's approvers approve its people, unless a person has their own.",
+  teamsEmpty: "No teams yet.",
+  newTeam: "New team",
+  saveTeam: "Save",
+  teamNameLabel: "Name",
+  teamApprovers: "Approvers",
+  teamApproversHint: "They must be able to work in the board project.",
+  teamNoApprover: "No approvers named",
+  teamApprovedBy: (names: string) => `Approved by ${names}`,
+
+  holidaysEmpty: "No holidays written for this year.",
+  fromCalendarTitle: "Write a country's holidays",
+  calendarLabel: "Calendar",
+  writeFromCalendar: "Write them",
+  addHoliday: "Add a day of your own",
+  holidayDateLabel: "Day",
+  holidayKindLabel: "Kind",
+  saveHoliday: "Add",
+
+  generalWork: "Working days and holidays",
+  workDaysLabel: "Working days",
+  workDaysHint: "Leave is counted on these days, unless a person has their own.",
+  holidayCalendarLabel: "Public holidays",
+  holidayCalendarHint: "Whose holidays are written for each year ahead.",
+  generalRequests: "Requests and cancelling",
+  cancellationLabel: "Cancelling approved leave",
+  cancellationIntro: "A request still waiting is always the person's to cancel.",
+  backdatingLabel: "How far back a request may start",
+  backdatingHint: "In days. HR is not bound by it.",
+  generalSee: "Who sees what",
+  balanceVisibilityLabel: "Who sees a balance",
+  balanceVisibilityHint: "Their history follows the same rule.",
+  calendarVisibilityLabel: "Who sees who is out",
+  calendarVisibilityHint: "A reason is never shown on the calendar.",
+  calendarKindLabel: "On the calendar",
+  calendarKindHint: "Off, it says only that a person is out.",
+  calendarShowsTypeLabel: "Show the kind of leave",
+  generalWords: "Your words",
+  announcementLabel: "On the leave page",
+  announcementHint: "Shown to everyone above their leave.",
 };
 
+export type Words = typeof ENGLISH;
+
 const KOREAN: Words = {
-  failed: "요청을 처리할 수 없습니다.",
-  loading: "불러오는 중…",
+  failed: "문제가 생겼습니다. 다시 시도해 주세요.",
   days: (count) => `${count}일`,
-  none: "없음",
   on: "켜짐",
   off: "꺼짐",
-  yes: "예",
-  no: "아니요",
   save: "저장",
   close: "닫기",
-  edit: "수정",
-  add: "추가",
+  edit: "편집",
   remove: "삭제",
   saved: "저장했습니다.",
-  done: "완료했습니다.",
-  nothingChanged: "바뀐 내용이 없습니다.",
-  today: "오늘",
-  keepCurrent: "그대로 두기",
-  person: "구성원",
-  span: "기간",
-  type: "종류",
-  daysHeader: "일수",
-  state: "상태",
   note: "메모",
-  reason: "사유",
-  requestedAt: "신청 시각",
-  openDecision: "결정 열기",
+  daysHeader: "일수",
+  openDecision: "결정 보기",
+  decide: "결재하기",
+  addPerson: "사람 추가",
+  andMore: (count) => `외 ${count}`,
+  peopleCount: (count) => `${count}명`,
+  anyHolder: "콘솔 기본값",
 
   requestState: {
-    requested: "대기",
+    requested: "결재 대기",
     approved: "승인",
     rejected: "반려",
-    returned: "반송",
+    returned: "보완 요청",
     cancelling: "취소 대기",
-    cancelled: "취소",
+    cancelled: "취소됨",
   },
   kind: {
     grant: "부여",
-    accrual: "적립",
+    accrual: "발생",
     carry: "이월",
     adjust: "조정",
     use: "사용",
@@ -627,8 +512,24 @@ const KOREAN: Words = {
     expire: "소멸",
     payout: "수당 정산",
   },
-  halfOption: { none: "종일", am: "오전 반차", pm: "오후 반차" },
-  halfShort: { am: "오전", pm: "오후" },
+  partOption: {
+    none: "종일",
+    am: "오전 반차",
+    pm: "오후 반차",
+    q1: "오전 전반",
+    q2: "오전 후반",
+    q3: "오후 전반",
+    q4: "오후 후반",
+  },
+  partShort: {
+    none: "",
+    am: "오전",
+    pm: "오후",
+    q1: "오전1",
+    q2: "오전2",
+    q3: "오후1",
+    q4: "오후2",
+  },
   weekday: { mon: "월", tue: "화", wed: "수", thu: "목", fri: "금", sat: "토", sun: "일" },
   employment: {
     "full-time": "정규직",
@@ -640,235 +541,409 @@ const KOREAN: Words = {
   basis: { anniversary: "입사일 기준", fixed: "고정 기준일" },
   earning: { served: "근무한 해에 대해", ahead: "다가오는 해에 대해" },
   firstPeriod: { prorated: "비례 부여", full: "전부 부여", none: "부여 없음" },
-  monthlyUntil: { anniversary: "입사 1주년까지", "period-end": "기간 종료까지" },
+  monthlyUntil: { anniversary: "입사 1주년까지", "period-end": "기간 끝까지" },
   accrual: {
-    upfront: "기간 시작 시 일괄",
+    upfront: "기간 시작에 일괄",
     monthly: "매월",
     semimonthly: "월 2회",
     biweekly: "2주마다",
-    manual: "수동",
+    manual: "직접 부여",
   },
-  carryOver: { none: "이월 없음", all: "전부 이월", upTo: "일부 이월" },
-  tenureAt: { start: "기간 시작 시점", end: "기간 종료 시점" },
-  countDays: { working: "근무일", calendar: "역일" },
-  rounding: { exact: "그대로", half: "0.5일 단위", whole: "1일 단위" },
+  carryOver: { none: "소멸", all: "전부 이월", upTo: "일부 이월" },
+  tenureAt: { start: "기간 시작 시점", end: "기간 끝 시점" },
+  countDays: { working: "근무일만", calendar: "달력일 전부" },
+  rounding: { exact: "그대로", half: "0.5일 단위 올림", whole: "1일 단위 올림" },
   balanceKind: { annual: "규정의 연차", own: "별도 한도", none: "잔여 없음" },
   reasonRule: { optional: "선택", required: "필수", hidden: "받지 않음" },
+  unit: { day: "하루 단위", half: "반차까지", quarter: "반반차까지" },
+  noticeMode: {
+    none: "기한 없음",
+    days: "며칠 전까지",
+    dayBefore: "전날 몇 시까지",
+    sameDay: "당일 몇 시까지",
+  },
+  lateRule: {
+    refuse: "신청 불가",
+    mark: "신청 가능, 표시함",
+    approver: "결재자·인사 담당만 등록",
+  },
+  autoMode: { never: "항상 결재", always: "자동 승인", upTo: "기한 내 짧은 휴가만 자동" },
+  source: {
+    line: "지정 결재자",
+    team: "팀 결재자",
+    manager: "직속 상사",
+    manager2: "상사의 상사",
+    hr: "인사 담당",
+  },
+  stepMode: { any: "누구든 한 명", all: "모두 차례로" },
+  approverSource: {
+    own: "이 사람에게 지정됨",
+    team: "팀 결재자",
+    manager: "직속 상사",
+    none: "지정 없음: 인사 담당에게 갑니다",
+  },
   holidayKind: { public: "공휴일", substitute: "대체공휴일", company: "회사 휴일" },
-  holidaySource: { kr: "한국", us: "미국", manual: "직접 입력" },
+  holidayCalendar: { none: "없음", kr: "한국", us: "미국" },
   scope: {
     everyone: "모든 구성원의 휴가",
-    team: "같은 팀의 휴가",
+    team: "우리 팀의 휴가",
     self: "내 휴가만",
-    hr: "모든 구성원의 휴가(인사 담당)",
+    hr: "모든 구성원의 휴가 (인사 담당)",
   },
   country: { kr: "한국", us: "미국" },
   setupBasis: { anniversary: "입사일 기준", fiscal: "회계연도 기준" },
   status: { active: "활성", deactivated: "비활성" },
-  tabs: { policies: "규정", types: "휴가 종류", holidays: "공휴일", presets: "프리셋" },
+  cancellation: { free: "시작 전 자유 취소", approval: "결재 필요", hr: "인사 담당만" },
+  cancellationHint: {
+    free: "첫날 전까지 본인이 취소하고, 그 뒤로는 인사 담당이 취소합니다.",
+    approval: "취소가 결재자에게 결정으로 올라갑니다.",
+    hr: "승인된 휴가는 인사 담당만 취소합니다.",
+  },
+  balanceVisibility: { self: "본인과 인사 담당", approver: "결재자까지", everyone: "모든 구성원" },
+  calendarVisibility: { everyone: "모든 구성원", team: "같은 팀", hr: "인사 담당과 결재자" },
+  whoApproves: {
+    line: "지정한 결재자",
+    manager: "각자의 직속 상사",
+    hr: "인사 담당",
+    none: "결재 없음",
+  },
+  whoApprovesHint: {
+    line: "구성원이나 팀에 지정한 사람, 없으면 콘솔의 직속 상사가 결재합니다.",
+    manager: "콘솔 구성원 페이지의 보고 라인을 따릅니다.",
+    hr: "인사 담당 역할을 가진 사람 누구든 결재합니다.",
+    none: "신청하면 바로 승인됩니다.",
+  },
+  tabs: {
+    approval: "결재선",
+    types: "휴가 종류",
+    policies: "휴가 규정",
+    teams: "팀",
+    holidays: "공휴일",
+    general: "근무·공개",
+  },
 
   overviewTitle: "개요",
+  hello: (name) => `${name}님, 안녕하세요`,
   requestLeave: "휴가 신청",
-  notEnrolledTitle: "아직 휴가가 켜져 있지 않습니다",
-  notEnrolledBody: "인사 담당이 입사일과 함께 등록하면 켜집니다.",
+  notEnrolledTitle: "아직 휴가가 등록되지 않았습니다",
+  notEnrolledBody: "인사 담당이 입사일과 함께 등록하면 쓸 수 있습니다.",
+  notEnrolledShort: "아직 휴가가 등록되지 않았습니다.",
   notSetUpTitle: "휴가가 아직 설정되지 않았습니다",
-  notSetUpBody: "설정 페이지에서, 또는 아래 명령으로 나라를 골라 한 번에 설정하세요:",
-  setupCommandKr: "console plugin hr setup kr",
-  setupCommandUs: "console plugin hr setup us",
-  available: "사용 가능",
+  notSetUpBody: "세 가지만 답하면 준비됩니다. 나중에 모두 바꿀 수 있습니다.",
+  notSetUpAction: "휴가 설정하기",
+  overviewEmpty: "아직 보여드릴 내용이 없습니다.",
+  daysLeft: "일 남음",
+  daysUnit: "일",
   used: "사용",
-  pending: "대기 중",
+  pending: "결재 대기",
   expiringNext: "다음 소멸",
-  expiringBy: (days, date) => `${date}까지 ${days}`,
-  nothingExpiring: "소멸 예정 없음",
+  expiringSoon: "소멸 예정",
+  expiringBy: (days, date) => `${date}에 ${days} 소멸`,
+  usedPending: (used, pending) => `사용 ${used}일, 대기 ${pending}일`,
+  nothingExpiring: "곧 소멸할 일수 없음",
   upcomingTitle: "다가오는 내 휴가",
   upcomingEmpty: "예정된 휴가가 없습니다.",
-  waitingTitle: "내 결정을 기다리는 신청",
+  otherKinds: "다른 휴가",
+  allMyLeave: "내 휴가 전체",
+  allApprovals: "결재 전체",
+  waitingTitle: "내 결재를 기다리는 신청",
   outTodayTitle: "오늘 휴가",
   outTodayEmpty: "오늘 휴가인 사람이 없습니다.",
   nextHolidaysTitle: "다가오는 공휴일",
   nextHolidaysEmpty: "앞으로 3개월 안에 공휴일이 없습니다.",
-  noticeTitle: "안내",
-  hrCounts: (enrolled, waiting) =>
-    `휴가 켜진 구성원 ${enrolled}명 · 결정을 기다리는 신청 ${waiting}건`,
+  nextHolidayLine: (name, date) => `다음 공휴일: ${name}, ${date}`,
+  announcementTitle: "인사 담당 안내",
+  hrAtAGlance: "인사 현황",
+  hrCounts: (enrolled, waiting) => `등록 구성원 ${enrolled}명, 결재 대기 ${waiting}건`,
 
   leaveTitle: "내 휴가",
-  policyLabel: "규정",
-  approverLabel: "승인자",
+  leaveLead: "남은 일수, 신청 내역, 적용되는 규정을 봅니다.",
+  policyLabel: "휴가 규정",
+  approverLabel: "결재자",
+  teamLabel: "팀",
   hiredOnLabel: "입사일",
   noPolicy: "적용되는 규정이 아직 없습니다.",
-  noApprover: "기본 승인자",
-  periodLabel: "기간",
+  noApprover: "지정 없음",
+  termsTitle: "적용 기준",
   granted: "부여",
-  carriedIn: "이월",
   expired: "소멸",
-  adjusted: "조정",
-  expiring: "소멸 예정",
-  showBuckets: "부여 내역 보기",
-  hideBuckets: "부여 내역 숨기기",
+  showBuckets: "부여 건별 보기",
   bucketOn: "일자",
   bucketKind: "구분",
-  remaining: "잔여",
+  remaining: "남음",
   expiresOn: "만료",
   projected: "예정",
   noExpiry: "만료 없음",
   requestTitle: "휴가 신청",
   typeLabel: "휴가 종류",
+  personLabel: "누구의 휴가",
+  choosePerson: "사람을 고르세요",
+  personRequired: "누구의 휴가인지 고르세요.",
   fromLabel: "시작일",
   toLabel: "종료일",
   toHint: "하루면 비워 두세요.",
-  halfLabel: "반차",
+  partLabel: "시간대",
   reasonLabel: "사유",
-  reasonRequiredHint: "이 종류의 휴가는 사유가 필요합니다.",
+  reasonRequiredHint: "이 휴가는 사유가 필요합니다.",
   submitRequest: "신청하기",
+  submitRecord: "등록하기",
   requestSent: "승인되어 기록되었습니다.",
-  requestWaiting: "신청했습니다. 승인자의 결정을 기다립니다.",
+  requestWaiting: "올렸습니다. 결재자의 결정을 기다립니다.",
   fromRequired: "시작일을 고르세요.",
   noTypes: "아직 신청할 수 있는 휴가 종류가 없습니다.",
+  quoteTitle: "이 신청은",
+  quoteEmpty: "날짜를 고르면 일수와 결재선을 보여드립니다.",
+  quoteRefused: "신청할 수 없습니다",
+  quoteBalance: (before, after) => `잔여 ${before} → ${after}`,
+  quoteLate: "기한이 지났습니다",
+  quotePast: "지난 날짜의 신청입니다.",
+  quoteNotice: (notice) => `${notice} 신청하는 휴가입니다.`,
+  quoteLine: "결재선",
+  quoteAutomatic: "결재 없이 바로 승인됩니다.",
   myRequestsTitle: "내 신청",
   myRequestsEmpty: "아직 신청이 없습니다.",
+  lateBadge: "기한 후",
+  recordedBy: (name) => `${name}님이 대신 등록`,
+  byRule: (name) => `예외: ${name}`,
   cancelLeave: "취소",
-  cancelReasonPlaceholder: "사유(선택)",
+  cancelReasonPlaceholder: "사유 (선택)",
   confirmCancel: "취소 확정",
   cancelDone: "취소했습니다.",
-  cancelWaiting: "취소가 승인자의 결정을 기다립니다.",
-  ledgerTitle: "기록",
-  ledgerEmpty: "기록이 없습니다.",
+  cancelWaiting: "취소가 결재자의 결정을 기다립니다.",
+  ledgerTitle: "휴가 내역",
+  ledgerEmpty: "내역이 없습니다.",
+  olderLines: (count) => `이전 내역 ${count}건`,
   ledgerTypeLabel: "휴가 종류",
+  noBalanceTypes: "잔여를 두는 휴가 종류가 없습니다.",
 
   calendarTitle: "캘린더",
-  previousMonth: "이전 달",
-  nextMonth: "다음 달",
+  calendarEveryone: "전체",
+  calendarMine: "내 구성원",
+  previousMonth: "이전",
+  nextMonth: "다음",
   thisMonth: "이번 달",
-  legendApproved: "승인됨",
-  legendRequested: "승인 대기",
+  legendApproved: "승인",
+  legendRequested: "결재 대기",
   legendHoliday: "공휴일",
-  legendOff: "휴무일",
+  legendOff: "쉬는 날",
   holidaysOfMonth: "이달의 공휴일",
   noHolidaysThisMonth: "이달에는 공휴일이 없습니다.",
 
-  approvalsTitle: "승인",
-  approvalsNote: "결정은 콘솔의 결정 페이지에서 답합니다. 이 목록은 각 신청의 상태를 보여 줍니다.",
+  approvalsTitle: "결재",
+  approvalsLead: "신청마다 어디까지 왔는지 봅니다. 결정은 콘솔의 결정 페이지에서 답합니다.",
   approvalsEmpty: "해당하는 신청이 없습니다.",
-  filterWaiting: "대기",
+  approvalsMineEmpty: "기다리는 결재가 없습니다.",
+  openApprovals: "열기",
+  requestsUnit: "건 대기",
+  filterMine: "내 결재",
+  filterOpen: "진행 중",
   filterApproved: "승인",
   filterAll: "전체",
+  recordForSomeone: "대신 등록",
+  recordForThem: "휴가 대신 등록",
+  recordTitle: "휴가 대신 등록",
 
   peopleTitle: "구성원",
-  filterPlaceholder: "로그인, 이름, 팀으로 찾기",
-  statusHeader: "상태",
-  leaveHeader: "휴가",
-  teamHeader: "팀",
-  titleHeader: "직함",
-  annualHeader: "연차: 사용 가능 / 사용 / 대기",
-  peopleEmpty: "구성원이 없습니다.",
-  accrueAll: "전원 발생 처리 실행",
-  accrueOne: "지금 발생 처리",
-  leaveOn: "휴가 켜짐",
-  leaveOff: "휴가 꺼짐",
-  recordOf: (who) => `${who}의 기록`,
+  peopleLead: (enrolled, all) => `${all}명 중 ${enrolled}명 등록`,
+  filterPlaceholder: "이름, 로그인, 팀, 직함으로 찾기",
+  showAll: "전체",
+  allTeams: "모든 팀",
+  peopleEmpty: "해당하는 사람이 없습니다.",
+  peopleUnit: "명 오늘 휴가",
+  annualLeft: "일 남음",
+  accrueAll: "발생 처리 실행",
+  leaveOn: "등록됨",
+  leaveOff: "미등록",
   leaveOnOff: "휴가 관리",
-  workDaysLabel: "근무일(고르지 않으면 워크스페이스 설정)",
-  employmentLabel: "고용 형태",
-  noteLabel: "인사 메모",
-  saveRecord: "기록 저장",
-  approverHint: "승인자의 로그인",
+  backToPeople: "구성원 전체",
+  personNotFound: "볼 수 없는 사람입니다.",
+  requestsOfPerson: "신청 내역",
+  recordOfPerson: "인사 기록",
   policyDefault: "기본 규정",
+  noTeam: "팀 없음",
+  ownApprovers: "이 사람의 결재자",
+  ownApproversHint: "비워 두면 팀 결재자, 없으면 직속 상사가 결재합니다.",
+  moreOfRecord: "직함, 고용 형태, 근무일, 메모",
+  titleHeader: "직함",
+  employmentLabel: "고용 형태",
+  workDaysOwn: "이 사람만의 근무일",
+  noteLabel: "메모",
+  saveRecord: "저장",
   offboardTitle: "퇴직 처리",
-  lastDayLabel: "마지막 근무일",
-  offboard: "퇴직 기록",
+  offboard: "마지막 날 기록",
+  lastDayLabel: "마지막 날",
   adjustTitle: "잔여 조정",
-  adjustDaysLabel: "일수(차감은 음수)",
-  adjustKindLabel: "구분",
-  expiresLabel: "만료일(선택)",
+  adjustDaysLabel: "일수 (차감은 음수)",
+  adjustKindLabel: "조정 구분",
+  expiresLabel: "만료일",
   adjustSubmit: "기록하기",
-  noteRequired: "메모를 적어 주세요.",
-  noBalanceTypes: "잔여를 관리하는 휴가 종류가 없습니다.",
+  noteRequired: "사유를 적으세요.",
 
   setupTitle: "설정",
-  policiesEmpty: "규정이 아직 없습니다. 나라를 골라 설정하거나 직접 작성하세요.",
+  setupLead: "휴가가 돌아가는 방식을 정합니다. 인사 담당만 봅니다.",
+  firstRunTitle: "휴가 설정 시작",
+  firstRunBody: "세 가지만 답하세요. 나중에 모두 바꿀 수 있습니다.",
+  firstRunCountry: "어느 나라 규칙에서 시작할까요?",
+  firstRunSee: "누가 무엇을 볼까요?",
+  whoApprovesTitle: "누가 휴가를 결재하나요?",
+  runSetup: "설정 마치기",
+  skipFirstRun: "건너뛰고 직접 설정",
+  countryLabel: "나라",
+  setupBasisLabel: "기준",
+
+  defaultLineTitle: "기본 결재선",
+  defaultLineHint: "아래 예외에 해당하지 않으면 이 순서로 결재합니다.",
+  lineNobody: "결재 없음: 신청하면 바로 승인됩니다.",
+  stepNumber: (number) => `${number}단계`,
+  stepWho: "누가",
+  stepNamed: "지정한 사람",
+  stepHow: "어떻게",
+  addStep: "단계 추가",
+  saveLine: "결재선 저장",
+  gapTitle: (count) => `결재자가 없는 구성원 ${count}명`,
+  gapBody:
+    "이들의 신청은 인사 담당에게 갑니다. 결재자나 팀을 지정하거나 콘솔에서 직속 상사를 정하세요.",
+  rulesTitle: "예외 결재선",
+  rulesHint: "위에서부터 먼저 맞는 예외가 기본 결재선을 대신합니다.",
+  rulesEmpty: "예외가 없습니다. 모든 신청이 기본 결재선을 따릅니다.",
+  addRule: "예외 추가",
+  everyRequest: "모든 신청",
+  daysAtLeast: (days) => `${days}일 이상`,
+  lateOnly: "기한 후 신청만",
+  ruleName: "이름",
+  ruleKinds: "휴가 종류",
+  ruleTeams: "팀",
+  ruleAllHint: "고르지 않으면 전체입니다.",
+  ruleDays: "며칠 이상",
+  ruleLate: "언제",
+  ruleLine: "결재선",
+
+  typesHint: "종류마다 언제까지 신청하는지, 언제 결재 없이 승인되는지 정합니다.",
+  typesEmpty: "휴가 종류가 아직 없습니다.",
+  newType: "새 종류",
+  saveType: "저장",
+  typeNames: "이름",
+  typeNamesHint: "한쪽만 적어도 됩니다. 비어 있는 언어에는 적은 이름이 보입니다.",
+  typeState: "상태",
+  balanceHint: "신청이 어느 일수에서 차감되는지 정합니다.",
+  unitHint: "반차와 반반차는 하루를 신청할 때만 고를 수 있습니다.",
+  noticeHint: "신청이 언제까지 들어와야 기한 안인지 정합니다.",
+  lateHint: "기한이 지났거나 지난 날짜인 신청을 어떻게 할지 정합니다.",
+  autoHint: "자동 승인이 아니면 결재선을 따릅니다.",
+  nameKoLabel: "한국어 이름",
+  nameEnLabel: "영어 이름",
+  nameRequired: "이름이 필요합니다.",
+  paidLabel: "유급",
+  paid: "유급",
+  unpaid: "무급",
+  enabledLabel: "사용 중",
+  disabled: "사용 안 함",
+  colorLabel: "색",
+  colorName: (number) => `색 ${number}`,
+  balanceLabel: "잔여",
+  allowanceLabel: "기간당 일수",
+  balanceAllowance: (days) => `기간당 ${days}일`,
+  unitLabel: "가장 작은 단위",
+  reasonRuleLabel: "사유",
+  noticeLabel: "신청 기한",
+  noticeDaysLabel: "며칠 전까지",
+  noticeTimeLabel: "몇 시까지",
+  noticeTimeHint: "워크스페이스 시간대 기준입니다.",
+  noticeDays: (days) => `${days}일 전까지`,
+  noticeDayBefore: (time) => `전날 ${time}까지`,
+  noticeSameDay: (time) => `당일 ${time}까지`,
+  lateLabel: "기한 후 신청",
+  autoLabel: "자동 승인",
+  autoDaysLabel: "며칠까지",
+  autoUpTo: (days) => `기한 내 ${days}일까지 자동`,
+
+  policiesHint:
+    "연차가 어떻게 생기는지 정합니다. 규정을 지정하지 않은 사람은 기본 규정을 따릅니다.",
+  policiesEmpty: "휴가 규정이 아직 없습니다.",
   newPolicy: "새 규정",
-  keyLabel: "키",
-  keyHint: "소문자, 숫자, 하이픈으로 된 한 단어.",
-  presetLabel: "프리셋",
-  presetNone: "프리셋 없음",
+  savePolicy: "저장",
+  presetLabel: "시작점",
+  presetsIntro:
+    "가장 가까운 것에서 시작하세요. 각각 어떤 법이나 관행을 따르는지 적혀 있으니 현행법과 대조해 쓰세요.",
+  usePreset: "이걸로 시작",
   nameLabel: "이름",
   descriptionLabel: "설명",
-  basisLabel: "기간 기준",
-  startLabel: "기간 시작일(MM-DD)",
-  earningLabel: "일수 부여 기준",
-  firstPeriodLabel: "첫 기간(입사 1주년 전)",
-  monthlyLabel: "첫해 매월 1일 부여",
-  monthlyUntilLabel: "첫해 월차 사용 기한",
-  monthlyMaxLabel: "월차 최대 일수",
-  tiersLabel: "근속 단계(연:일수, 쉼표로 구분)",
-  tiersHint: "예: 1:15,3:16,5:17",
-  tenureAtLabel: "근속 산정 시점",
-  accrualLabel: "발생 방식",
-  capLabel: "상한(0이면 없음)",
-  capFact: "상한",
-  capNone: "상한 없음",
-  asPreset: "프리셋대로",
-  carryOverLabel: "이월",
-  carryOverDaysLabel: "최대 이월 일수",
-  carryOverMonthsLabel: "이월 일수 사용 가능 기간(개월, 0이면 규정대로)",
-  advanceDaysLabel: "선사용 가능 일수",
-  countDaysLabel: "일수 계산",
-  roundingLabel: "반올림",
-  remindersLabel: "소멸 알림(소멸 며칠 전, 쉼표로 구분)",
-  payoutLabel: "미사용 일수 소멸 시 수당 정산",
-  defaultLabel: "기본 규정으로 지정",
-  enabledLabel: "사용",
-  savePolicy: "규정 저장",
+  policyDescriptionHint: "인사 담당용 메모입니다. 비워 두면 시작점의 설명을 씁니다.",
+  defaultLabel: "기본 규정",
   defaultBadge: "기본",
-  enabled: "사용 중",
-  disabled: "사용 안 함",
-  tiersHeader: "근속 단계",
-  tierText: (days, years) => `${years}년차부터 ${days}일`,
-  countrySetupTitle: "나라별 기본 설정",
-  countrySetupBody:
-    "휴가 종류, 그 나라의 프리셋으로 만든 기본 규정, 올해와 내년의 공휴일을 한 번에 기록합니다. 이후 각각 바꿀 수 있습니다.",
-  countryLabel: "나라",
-  setupBasisLabel: "기간 기준",
-  setupBasisDefault: "그 나라의 관행대로",
-  runSetup: "설정 실행",
-  typesEmpty: "휴가 종류가 아직 없습니다.",
-  newType: "새 휴가 종류",
-  nameEnLabel: "이름(영어)",
-  nameKoLabel: "이름(한국어)",
-  paidLabel: "유급",
-  balanceLabel: "잔여 관리",
-  allowanceLabel: "한도(기간당 일수)",
-  approvalLabel: "승인 필요",
-  reasonRuleLabel: "사유",
-  halfDaysLabel: "반차 허용",
-  colorLabel: "색(1~6)",
-  orderLabel: "순서",
-  saveType: "휴가 종류 저장",
-  yearLabel: "연도",
-  holidaysEmpty: "이 연도에 기록된 공휴일이 없습니다.",
-  addHoliday: "휴일 추가",
+  policyPeople: (count) => `${count}명 적용`,
+  foldPeriod: "기간",
+  foldDays: "근속 연수별 일수",
+  foldCarry: "이월과 소멸",
+  foldOther: "그 밖의 설정",
+  basisLabel: "기간 기준",
+  startLabel: "고정 시작일",
+  startHint: "MM-DD",
+  earningLabel: "일수의 기준",
+  firstPeriodLabel: "첫 기간",
+  accrualLabel: "일수를 주는 방식",
+  tierYears: "년차부터",
+  tierDays: "일",
+  addTier: "구간 추가",
+  tenureAtLabel: "연수를 읽는 시점",
+  monthlyLabel: "첫해 매월 1일",
+  monthlyUntilLabel: "사용 기한",
+  monthlyMaxLabel: "최대",
+  carryOverLabel: "미사용분",
+  carryOverDaysLabel: "이월 일수",
+  carryOverMonthsLabel: "사용 가능 개월 (0은 제한 없음)",
+  remindersLabel: "소멸 며칠 전 인사 담당에게 알림",
+  remindersHint: "쉼표로 구분합니다.",
+  payoutLabel: "미사용분은 수당으로 지급",
+  capLabel: "상한 (0은 없음)",
+  advanceDaysLabel: "미리 쓸 수 있는 일수",
+  countDaysLabel: "휴가 일수 세기",
+  roundingLabel: "비례 계산 결과",
+
+  teamsHint: "팀 결재자가 그 팀 사람들을 결재합니다. 따로 지정한 사람이 있으면 그쪽이 먼저입니다.",
+  teamsEmpty: "팀이 아직 없습니다.",
+  newTeam: "새 팀",
+  saveTeam: "저장",
+  teamNameLabel: "이름",
+  teamApprovers: "결재자",
+  teamApproversHint: "보드 프로젝트에서 일할 수 있는 사람이어야 합니다.",
+  teamNoApprover: "지정한 결재자 없음",
+  teamApprovedBy: (names) => `결재: ${names}`,
+
+  holidaysEmpty: "이 해의 공휴일이 아직 없습니다.",
+  fromCalendarTitle: "나라별 공휴일 넣기",
+  calendarLabel: "캘린더",
+  writeFromCalendar: "넣기",
+  addHoliday: "회사 휴일 추가",
   holidayDateLabel: "날짜",
   holidayKindLabel: "구분",
-  saveHoliday: "휴일 저장",
-  writeFromCalendar: "캘린더에서 가져오기",
-  calendarLabel: "캘린더",
-  sourceHeader: "출처",
-  onHeader: "날짜",
-  kindHeader: "구분",
-  presetsIntro:
-    "규정은 프리셋에서 시작해 항목을 고쳐 만듭니다. 각 프리셋이 정하는 내용은 아래와 같습니다.",
+  saveHoliday: "추가",
 
-  daysAvailable: "일 사용 가능",
-  usedPending: (used, pending) => `사용 ${used} · 대기 ${pending}`,
-  nextExpiry: (days, date) => `${date}까지 ${days} 소멸`,
-  requestsWaiting: (count) => `결정을 기다리는 신청 ${count}건`,
+  generalWork: "근무일과 공휴일",
+  workDaysLabel: "근무일",
+  workDaysHint: "이 요일만 휴가 일수로 셉니다. 사람별로 다르게 정할 수 있습니다.",
+  holidayCalendarLabel: "공휴일",
+  holidayCalendarHint: "해마다 다음 해 공휴일을 자동으로 넣을 나라입니다.",
+  generalRequests: "신청과 취소",
+  cancellationLabel: "승인된 휴가의 취소",
+  cancellationIntro: "대기 중인 신청은 언제나 본인이 취소할 수 있습니다.",
+  backdatingLabel: "며칠 전 날짜까지 신청 가능",
+  backdatingHint: "인사 담당은 제한이 없습니다.",
+  generalSee: "공개 범위",
+  balanceVisibilityLabel: "잔여를 보는 사람",
+  balanceVisibilityHint: "신청 내역도 같은 범위를 따릅니다.",
+  calendarVisibilityLabel: "누가 휴가인지 보는 사람",
+  calendarVisibilityHint: "사유는 캘린더에 나오지 않습니다.",
+  calendarKindLabel: "캘린더 표시",
+  calendarKindHint: "끄면 휴가 중이라는 사실만 보입니다.",
+  calendarShowsTypeLabel: "휴가 종류 표시",
+  generalWords: "안내문",
+  announcementLabel: "내 휴가·개요 페이지",
+  announcementHint: "모든 구성원에게 보입니다.",
 };
 
-/** The packs by language tag; English is what any other language falls back to. */
 const PACKS: Readonly<Record<string, Words>> = { en: ENGLISH, ko: KOREAN };
 
-/** The words for a language tag: the tag's pack (`ko`), else its primary subtag's (`ko` for `ko-KR`), else English. */
 export function wordsFor(language: string): Words {
   return PACKS[language] ?? PACKS[language.split("-")[0] ?? language] ?? ENGLISH;
 }

@@ -1,15 +1,19 @@
 {
   "key": "hr",
-  "name": { "en": "HR", "ko": "인사" },
+  "name": {
+    "en": "HR",
+    "ko": "인사"
+  },
   "description": {
-    "en": "Leave for the people of the workspace: requests, approvals as decisions, balances from a policy written for Korea, the US or your own rules. Attendance and the people's records to come.",
-    "ko": "워크스페이스 구성원의 휴가: 신청, 결정으로 받는 승인, 한국·미국 법규나 자체 규정에 따른 잔여 일수. 근태와 구성원 기록은 다음에 더합니다."
+    "en": "Leave for the people of the workspace: requests, lines of approvers, balances from a policy written for Korea, the US or your own rules. Attendance and the people's records to come.",
+    "ko": "워크스페이스 구성원의 휴가: 신청, 결재선, 한국·미국 법규나 자체 규정에 따른 잔여 일수. 근태와 구성원 기록은 다음에 더합니다."
   },
   "agentNote": {
-    "en": "Leave of the people here: request and cancel leave for the person you act as, read balance, requests and calendar; HR enrolls people and sets policies, types and holidays.",
-    "ko": "구성원의 휴가: 대신 일하는 사람의 휴가를 request로 신청하고 cancel로 취소하며 balance·requests·calendar로 읽습니다. 인사 담당은 구성원 등록, 규정, 종류, 공휴일을 관리합니다."
+    "en": "Leave of the people here: request and cancel leave for the person you act as, read balance, requests and calendar; approvers record leave for their people; HR keeps the rest.",
+    "ko": "구성원의 휴가: 대신 일하는 사람의 휴가를 request로 신청하고 cancel로 취소하며 balance·requests·calendar로 읽습니다. 결재자는 자기 사람의 휴가를 대신 등록하고 나머지는 인사 담당이 관리합니다."
   },
   "pluginApi": 1,
+  "console": ">=0.4.4 <0.5.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",
@@ -24,24 +28,33 @@
   ],
   "roles": {
     "member": {
-      "name": { "en": "Member", "ko": "구성원" },
+      "name": {
+        "en": "Member",
+        "ko": "구성원"
+      },
       "description": {
-        "en": "Requests and cancels their own leave, sees their own balance and history, and the calendar as the settings allow.",
-        "ko": "자기 휴가를 신청·취소하고, 자기 잔여와 기록을 보며, 설정이 허용하는 범위의 캘린더를 봅니다."
+        "en": "Requests and cancels their own leave, sees their own balance and history, and the calendar as HR allows.",
+        "ko": "자기 휴가를 신청·취소하고, 자기 잔여와 내역을 보며, 인사 담당이 허용한 범위의 캘린더를 봅니다."
       }
     },
     "manager": {
-      "name": { "en": "Manager", "ko": "승인자" },
+      "name": {
+        "en": "Approver",
+        "ko": "결재자"
+      },
       "description": {
-        "en": "Approves the leave of the people who name them as approver, and sees those people's balances and requests.",
-        "ko": "자신을 승인자로 둔 구성원의 휴가를 승인하고, 그 구성원들의 잔여와 신청을 봅니다."
+        "en": "Sees the people they approve, their balances and requests, and records leave for them. The decisions themselves reach them on the board.",
+        "ko": "자신이 결재하는 구성원과 그 잔여·신청을 보고, 그들의 휴가를 대신 등록합니다. 결재 자체는 보드의 결정으로 받습니다."
       }
     },
     "hr": {
-      "name": { "en": "HR", "ko": "인사 담당" },
+      "name": {
+        "en": "HR",
+        "ko": "인사 담당"
+      },
       "description": {
-        "en": "Enrolls people and turns their leave on or off, sets policies, leave types and holidays, adjusts balances, records leave on behalf, and sees everything.",
-        "ko": "구성원을 등록하고 휴가를 켜거나 끄며, 규정·휴가 종류·공휴일을 정하고, 잔여를 조정하고, 대신 휴가를 기록하며, 모든 것을 봅니다."
+        "en": "Keeps leave: people, teams, lines of approvers, kinds of leave, policies, holidays and balances; records leave for anyone and sees everything.",
+        "ko": "휴가 전체를 관리합니다: 구성원, 팀, 결재선, 휴가 종류, 규정, 공휴일, 잔여. 누구의 휴가든 등록하고 모든 것을 봅니다."
       }
     }
   },
@@ -50,191 +63,76 @@
     "needs": "required",
     "defaults": {
       "key": "hr",
-      "name": { "en": "HR", "ko": "인사" },
+      "name": {
+        "en": "HR",
+        "ko": "인사"
+      },
       "description": {
-        "en": "Leave approvals and the people's matters. Approvers must be members here, since a decision is addressed within the project.",
-        "ko": "휴가 승인과 인사 업무. 결정은 프로젝트 안에서 전달되므로 승인자는 이 프로젝트의 멤버여야 합니다."
+        "en": "Leave approvals and the people's matters. Decisions reach those who may work here, so approvers are members of this project.",
+        "ko": "휴가 결재와 인사 업무. 결정은 이 프로젝트에서 일할 수 있는 사람에게만 가므로 결재자를 멤버로 넣습니다."
       }
     }
   },
-  "settings": [
-    {
-      "key": "approvalMode",
-      "type": "enum",
-      "name": { "en": "Who approves", "ko": "승인 주체" },
-      "description": {
-        "en": "approver: the person's own approver, else the default approver, else the board project's owners; hr: always the default approver; none: a request is approved as it is made.",
-        "ko": "approver: 구성원별 승인자, 없으면 기본 승인자, 그도 없으면 보드 프로젝트 소유자. hr: 항상 기본 승인자. none: 신청 즉시 승인."
-      },
-      "options": [
-        { "value": "approver", "name": { "en": "The person's approver", "ko": "구성원별 승인자" } },
-        { "value": "hr", "name": { "en": "The default approver", "ko": "기본 승인자" } },
-        {
-          "value": "none",
-          "name": { "en": "Nobody: approved as requested", "ko": "없음: 신청 즉시 승인" }
-        }
-      ],
-      "default": "approver"
-    },
-    {
-      "key": "defaultApprover",
-      "type": "person",
-      "name": { "en": "Default approver", "ko": "기본 승인자" },
-      "description": {
-        "en": "Who decides when a person names no approver of their own; must be able to work in the board project.",
-        "ko": "구성원에게 지정된 승인자가 없을 때 결정하는 사람. 보드 프로젝트에서 일할 수 있어야 합니다."
-      }
-    },
-    {
-      "key": "cancellation",
-      "type": "enum",
-      "name": { "en": "Cancelling approved leave", "ko": "승인된 휴가의 취소" },
-      "description": {
-        "en": "free: the person cancels before the first day, HR after it; approval: a decision for the approver; hr: HR alone. A request still waiting is always the person's to cancel.",
-        "ko": "free: 첫날 전까지 본인이, 그 뒤는 인사 담당이 취소. approval: 취소가 승인자에게 결정으로 올라감. hr: 승인된 휴가는 인사 담당만 취소. 대기 중인 신청은 언제나 본인이 취소할 수 있습니다."
-      },
-      "options": [
-        { "value": "free", "name": { "en": "Free before it starts", "ko": "시작 전 자유 취소" } },
-        {
-          "value": "approval",
-          "name": { "en": "Needs the approver's decision", "ko": "승인자 결정 필요" }
-        },
-        { "value": "hr", "name": { "en": "HR only", "ko": "인사 담당만" } }
-      ],
-      "default": "free"
-    },
-    {
-      "key": "backdatingDays",
-      "type": "number",
-      "name": { "en": "Days a request may start in the past", "ko": "사후 신청 허용 일수" },
-      "description": {
-        "en": "How many days back a request's first day may lie; 0 forbids requests for days gone by. HR is not bound by it.",
-        "ko": "신청의 첫날이 오늘보다 며칠 전까지일 수 있는지. 0이면 지난 날의 신청을 막습니다. 인사 담당은 제한 없음."
-      },
-      "default": 30,
-      "min": 0,
-      "max": 365
-    },
-    {
-      "key": "balanceVisibility",
-      "type": "enum",
-      "name": { "en": "Who sees a balance", "ko": "잔여 공개 범위" },
-      "description": {
-        "en": "Beyond the person and HR: their approver (approver), or every member (everyone). The history follows the same rule.",
-        "ko": "본인과 인사 담당 외에: 승인자(approver), 또는 모든 구성원(everyone). 기록도 같은 규칙을 따릅니다."
-      },
-      "options": [
-        { "value": "self", "name": { "en": "The person and HR", "ko": "본인과 인사 담당" } },
-        { "value": "approver", "name": { "en": "Also their approver", "ko": "승인자까지" } },
-        { "value": "everyone", "name": { "en": "Every member", "ko": "모든 구성원" } }
-      ],
-      "default": "approver"
-    },
-    {
-      "key": "calendarVisibility",
-      "type": "enum",
-      "name": { "en": "Who sees who is out", "ko": "휴가 캘린더 공개 범위" },
-      "description": {
-        "en": "everyone: every member sees who is out; team: the people who share an approver, their approver and HR; hr: HR and approvers alone.",
-        "ko": "everyone: 모든 구성원이 누가 휴가인지 봅니다. team: 승인자가 같은 구성원과 그 승인자, 인사 담당. hr: 인사 담당과 승인자만."
-      },
-      "options": [
-        { "value": "everyone", "name": { "en": "Every member", "ko": "모든 구성원" } },
-        { "value": "team", "name": { "en": "The person's team", "ko": "같은 팀" } },
-        { "value": "hr", "name": { "en": "HR and approvers", "ko": "인사 담당과 승인자" } }
-      ],
-      "default": "everyone"
-    },
-    {
-      "key": "calendarShowsType",
-      "type": "boolean",
-      "name": { "en": "The calendar shows the kind of leave", "ko": "캘린더에 휴가 종류 표시" },
-      "description": {
-        "en": "Off, the calendar says only that a person is out; the reason is never shown there.",
-        "ko": "꺼져 있으면 캘린더는 휴가 중이라는 사실만 보입니다. 사유는 어느 경우에도 캘린더에 보이지 않습니다."
-      },
-      "default": false
-    },
-    {
-      "key": "workDays",
-      "type": "list",
-      "of": "enum",
-      "name": { "en": "Working days", "ko": "근무일" },
-      "description": {
-        "en": "The days of the week leave is counted on, unless a person's own record says otherwise.",
-        "ko": "휴가 일수를 세는 요일. 구성원 기록에 따로 정한 요일이 있으면 그것이 우선합니다."
-      },
-      "options": [
-        { "value": "mon", "name": { "en": "Monday", "ko": "월요일" } },
-        { "value": "tue", "name": { "en": "Tuesday", "ko": "화요일" } },
-        { "value": "wed", "name": { "en": "Wednesday", "ko": "수요일" } },
-        { "value": "thu", "name": { "en": "Thursday", "ko": "목요일" } },
-        { "value": "fri", "name": { "en": "Friday", "ko": "금요일" } },
-        { "value": "sat", "name": { "en": "Saturday", "ko": "토요일" } },
-        { "value": "sun", "name": { "en": "Sunday", "ko": "일요일" } }
-      ],
-      "default": ["mon", "tue", "wed", "thu", "fri"],
-      "min": 1,
-      "max": 7
-    },
-    {
-      "key": "holidayCalendar",
-      "type": "enum",
-      "name": { "en": "Public holidays", "ko": "공휴일" },
-      "description": {
-        "en": "The country whose public holidays the plugin writes for each year ahead; HR may add, remove or write them by hand instead.",
-        "ko": "해마다 다음 연도의 공휴일을 자동으로 넣을 나라. 인사 담당이 직접 추가·삭제·생성할 수도 있습니다."
-      },
-      "options": [
-        { "value": "none", "name": { "en": "None: written by hand", "ko": "없음: 직접 관리" } },
-        { "value": "kr", "name": { "en": "Korea", "ko": "한국" } },
-        { "value": "us", "name": { "en": "United States (federal)", "ko": "미국(연방)" } }
-      ],
-      "default": "none"
-    },
-    {
-      "key": "notice",
-      "type": "markdown",
-      "name": { "en": "Notice on the leave page", "ko": "휴가 페이지 안내문" },
-      "description": {
-        "en": "The organization's own words about leave, shown to every member above the request form.",
-        "ko": "휴가에 관한 조직의 안내. 모든 구성원에게 신청 폼 위에 보입니다."
-      }
-    }
-  ],
-  "menu": { "group": "people", "order": 10 },
+  "menu": {
+    "group": "people",
+    "order": 10
+  },
   "pages": [
-    { "key": "overview", "name": { "en": "Overview", "ko": "개요" }, "level": "workspace" },
+    {
+      "key": "overview",
+      "name": {
+        "en": "Overview",
+        "ko": "개요"
+      },
+      "level": "workspace",
+      "wide": true
+    },
     {
       "key": "leave",
-      "name": { "en": "My leave", "ko": "내 휴가" },
+      "name": {
+        "en": "My leave",
+        "ko": "내 휴가"
+      },
       "level": "workspace",
-      "roles": ["member"]
+      "roles": ["member"],
+      "wide": true
     },
     {
       "key": "calendar",
-      "name": { "en": "Calendar", "ko": "캘린더" },
+      "name": {
+        "en": "Calendar",
+        "ko": "캘린더"
+      },
       "level": "workspace",
       "roles": ["member"],
       "wide": true
     },
     {
       "key": "approvals",
-      "name": { "en": "Approvals", "ko": "승인" },
+      "name": {
+        "en": "Approvals",
+        "ko": "결재"
+      },
       "level": "workspace",
       "roles": ["manager", "hr"],
       "wide": true
     },
     {
       "key": "people",
-      "name": { "en": "People", "ko": "구성원" },
+      "name": {
+        "en": "People",
+        "ko": "구성원"
+      },
       "level": "workspace",
       "roles": ["manager", "hr"],
       "wide": true
     },
     {
       "key": "setup",
-      "name": { "en": "Setup", "ko": "설정" },
+      "name": {
+        "en": "Setup",
+        "ko": "설정"
+      },
       "level": "workspace",
       "roles": ["hr"],
       "wide": true
@@ -243,17 +141,36 @@
   "widgets": [
     {
       "key": "balance",
-      "name": { "en": "My leave", "ko": "내 휴가" },
+      "name": {
+        "en": "My leave",
+        "ko": "내 휴가"
+      },
       "place": "home:top",
-      "size": "third",
+      "sizes": ["small", "medium", "large"],
+      "defaultSize": "medium",
       "roles": ["member"]
     },
     {
       "key": "today",
-      "name": { "en": "Out today", "ko": "오늘 휴가" },
+      "name": {
+        "en": "Who is out",
+        "ko": "휴가 중인 사람"
+      },
       "place": "home:top",
-      "size": "third",
+      "sizes": ["small", "medium", "large", "wide"],
+      "defaultSize": "medium",
       "roles": ["member"]
+    },
+    {
+      "key": "approvals",
+      "name": {
+        "en": "Approvals",
+        "ko": "결재 대기"
+      },
+      "place": "home:top",
+      "sizes": ["small", "medium", "large"],
+      "defaultSize": "small",
+      "roles": ["manager", "hr"]
     }
   ],
   "store": {

@@ -40,7 +40,9 @@ export interface Tier {
 /** A leave policy: how the days of the type `annual` come about for the people it is assigned to. */
 export interface Policy {
   readonly key: string;
-  readonly name: string;
+  /** What HR called it, one text; null for the preset's name, in the language of whoever reads. */
+  readonly name: string | null;
+  /** What HR wrote of it; empty for the preset's words. */
   readonly description: string;
   /** The preset it was written from, for the record; the fields below are what counts. */
   readonly preset: string;
@@ -77,9 +79,34 @@ export interface Policy {
 
 export type Balance = "annual" | "own" | "none";
 export type ReasonRule = "optional" | "required" | "hidden";
+/** The smallest piece of a day a kind of leave is taken in. */
+export type Unit = "day" | "half" | "quarter";
+/** How long before its first day a request is in time. */
+export type NoticeMode = "none" | "days" | "dayBefore" | "sameDay";
+/** What becomes of a request that is not in time. */
+export type LateRule = "refuse" | "mark" | "approver";
+/** When a request is approved as it is written. */
+export type AutoMode = "never" | "always" | "upTo";
 
 export const BALANCES: readonly Balance[] = ["annual", "own", "none"];
 export const REASON_RULES: readonly ReasonRule[] = ["optional", "required", "hidden"];
+export const UNITS: readonly Unit[] = ["day", "half", "quarter"];
+export const NOTICE_MODES: readonly NoticeMode[] = ["none", "days", "dayBefore", "sameDay"];
+export const LATE_RULES: readonly LateRule[] = ["refuse", "mark", "approver"];
+export const AUTO_MODES: readonly AutoMode[] = ["never", "always", "upTo"];
+
+/** The notice a kind asks: `days` for `days`, `time` (HH:MM, the workspace's) for the two others. */
+export interface Notice {
+  readonly mode: NoticeMode;
+  readonly days: number;
+  readonly time: string;
+}
+
+export interface AutoApprove {
+  readonly mode: AutoMode;
+  /** The most days approved as written, for `upTo`. */
+  readonly days: number;
+}
 
 /** A kind of leave: what a request is of. */
 export interface LeaveType {
@@ -89,9 +116,11 @@ export interface LeaveType {
   /** `annual` draws on the policy's days; `own` has a yearly allowance of its own; `none` keeps no balance. */
   readonly balance: Balance;
   readonly allowance: number;
-  readonly approval: boolean;
   readonly reason: ReasonRule;
-  readonly halfDays: boolean;
+  readonly unit: Unit;
+  readonly notice: Notice;
+  readonly late: LateRule;
+  readonly autoApprove: AutoApprove;
   /** One of the console's series colours, 1 to 6. */
   readonly color: number;
   readonly order: number;
@@ -117,17 +146,121 @@ export interface Person {
   readonly hiredOn: string | null;
   readonly leftOn: string | null;
   readonly policy: string | null;
-  readonly approverId: string | null;
+  /** The approvers named for them alone; empty for their team's, else their manager. */
+  readonly approverIds: string[];
   /** Their own working days, or null for the workspace's. */
   readonly workDays: Weekday[] | null;
+  /** The key of their team. */
   readonly team: string | null;
   readonly title: string | null;
   readonly employment: Employment;
   readonly note: string;
 }
 
-export type Half = "none" | "am" | "pm";
-export const HALVES: readonly Half[] = ["none", "am", "pm"];
+/** The piece of one day a request takes: all of it, a half, or a quarter, first to last. */
+export type Part = "none" | "am" | "pm" | "q1" | "q2" | "q3" | "q4";
+export const PARTS: readonly Part[] = ["none", "am", "pm", "q1", "q2", "q3", "q4"];
+
+/** How much of a day a part counts for. */
+export function shareOf(part: Part): number {
+  if (part === "none") {
+    return 1;
+  }
+  return part === "am" || part === "pm" ? 0.5 : 0.25;
+}
+
+/** The parts a kind of leave offers, whole days first. */
+export function partsOf(unit: Unit): readonly Part[] {
+  if (unit === "day") {
+    return ["none"];
+  }
+  return unit === "half" ? ["none", "am", "pm"] : PARTS;
+}
+
+/** How a step of a line decides: `any` closes on one answer, `all` asks one after another. */
+export type StepMode = "any" | "all";
+export const STEP_MODES: readonly StepMode[] = ["any", "all"];
+
+/**
+ * Where the approvers of a step come from, read when a request is made. `line` is the person's
+ * own approvers, else their team's, else their manager; `team` their team's alone; `manager` the
+ * directory's, and `manager2` that manager's; `hr` the holders of the role.
+ */
+export type ApproverSource = "line" | "team" | "manager" | "manager2" | "hr";
+export const APPROVER_SOURCES: readonly ApproverSource[] = [
+  "line",
+  "team",
+  "manager",
+  "manager2",
+  "hr",
+];
+
+export interface ApprovalStep {
+  readonly sources: ApproverSource[];
+  /** People named outright, beside the sources. */
+  readonly people: string[];
+  readonly mode: StepMode;
+}
+
+/** When a line other than the default one approves a request, and which. */
+export interface ApprovalRule {
+  /** What HR called it. */
+  readonly name: string;
+  /** The kinds it holds for; every kind when empty. */
+  readonly kinds: string[];
+  /** The teams it holds for; every team when empty. */
+  readonly teams: string[];
+  /** The days from which it holds; null for any number. */
+  readonly daysAtLeast: number | null;
+  /** Whether it holds for a late request alone. */
+  readonly lateOnly: boolean;
+  /** The steps of the line; none, and such a request is approved as it is written. */
+  readonly steps: ApprovalStep[];
+}
+
+export type Cancellation = "free" | "approval" | "hr";
+export type BalanceVisibility = "self" | "approver" | "everyone";
+export type CalendarVisibility = "everyone" | "team" | "hr";
+export type HolidayCalendar = "none" | "kr" | "us";
+
+export const CANCELLATIONS: readonly Cancellation[] = ["free", "approval", "hr"];
+export const BALANCE_VISIBILITIES: readonly BalanceVisibility[] = ["self", "approver", "everyone"];
+export const CALENDAR_VISIBILITIES: readonly CalendarVisibility[] = ["everyone", "team", "hr"];
+export const HOLIDAY_CALENDARS: readonly HolidayCalendar[] = ["none", "kr", "us"];
+
+/** What HR decides beyond the policies and the kinds: one record, kept with its versions. */
+export interface Config {
+  /** The default line of approvers; none, and a request is approved as it is written. */
+  readonly line: ApprovalStep[];
+  /** The exceptions, the first that holds taking the place of the default line. */
+  readonly rules: ApprovalRule[];
+  readonly cancellation: Cancellation;
+  /** How many days back a request may start; HR is not bound by it. */
+  readonly backdatingDays: number;
+  readonly balanceVisibility: BalanceVisibility;
+  readonly calendarVisibility: CalendarVisibility;
+  readonly calendarShowsType: boolean;
+  readonly workDays: Weekday[];
+  readonly holidayCalendar: HolidayCalendar;
+  /** The organization's words about leave, shown above the request form. */
+  readonly announcement: string;
+}
+
+/** A team: its people name it, and its approvers approve them unless they have their own. */
+export interface Team {
+  readonly key: string;
+  readonly name: string;
+  readonly approverIds: string[];
+}
+
+/** One step of the line a request travels, as it was when the request was made. */
+export interface RequestStep {
+  /** Who decides it; nobody named, and the decision goes where the console sends it. */
+  readonly approverIds: string[];
+  readonly mode: StepMode;
+  /** The approvals so far: whose place each fills, and who gave it, anyone of the project may. */
+  readonly approvedBy: { id: string; by: string; at: string }[];
+}
 
 export type RequestState =
   | "requested"
@@ -150,15 +283,22 @@ export interface LeaveRequest {
   readonly type: string;
   readonly from: string;
   readonly to: string;
-  readonly half: Half;
+  readonly part: Part;
   readonly days: number;
   readonly reason: string;
   readonly state: RequestState;
-  /** The decision the approval waits for, or waited for. */
+  /** Whether it came after the notice the kind asks. */
+  readonly late: boolean;
+  /** The name of the rule that chose the line; null for the default line. */
+  readonly rule: string | null;
+  /** The line it travels; empty where nobody had to approve it. */
+  readonly steps: RequestStep[];
+  /** The step it waits at. */
+  readonly step: number;
+  /** The decision the approval waits for, or waited for last. */
   readonly decisionId: string | null;
   /** The decision a cancellation waits for, where cancelling needs one. */
   readonly cancelDecisionId: string | null;
-  readonly approverId: string | null;
   readonly decidedBy: string | null;
   readonly decidedAt: string | null;
   /** The approver's note, or the words of an answer given in their own words. */
@@ -166,8 +306,6 @@ export interface LeaveRequest {
   readonly requestedBy: string;
   readonly requestedAt: string;
   readonly cancelledAt: string | null;
-  /** The labels the decision's options carried, by which the answer is read back. */
-  readonly labels: { readonly approve: string; readonly reject: string } | null;
   /** The leave period the first day falls in, as the policy counts periods. */
   readonly period: string;
 }
@@ -231,20 +369,6 @@ export interface Mark {
   readonly summary: string;
 }
 
-/** The settings of the manifest, as the server module reads them with their defaults filled in. */
-export interface Settings {
-  readonly approvalMode: "approver" | "hr" | "none";
-  readonly defaultApprover: string | null;
-  readonly cancellation: "free" | "approval" | "hr";
-  readonly backdatingDays: number;
-  readonly balanceVisibility: "self" | "approver" | "everyone";
-  readonly calendarVisibility: "everyone" | "team" | "hr";
-  readonly calendarShowsType: boolean;
-  readonly workDays: readonly Weekday[];
-  readonly holidayCalendar: "none" | "kr" | "us";
-  readonly notice: string;
-}
-
 /** A credit with what is left of it, as the settlement counts it. */
 export interface Bucket {
   readonly ref: string;
@@ -281,6 +405,23 @@ export interface PersonBrief {
   readonly name: string | null;
 }
 
+/** The decision a request waits for now: its cancellation's, else its approval's. */
+export function waitingDecision(view: {
+  readonly request: { readonly state: RequestState };
+  readonly decisionPath: string | null;
+  readonly cancelDecisionPath: string | null;
+}): string | null {
+  return view.request.state === "cancelling"
+    ? (view.cancelDecisionPath ?? view.decisionPath)
+    : (view.decisionPath ?? view.cancelDecisionPath);
+}
+
+/** A person's approvers as the plugin reads them, and where it read them. */
+export interface Approvers {
+  readonly people: readonly PersonBrief[];
+  readonly source: "own" | "team" | "manager" | "none";
+}
+
 /** The answer of the query `balance`. */
 export interface BalanceReport {
   readonly person: PersonBrief;
@@ -289,8 +430,17 @@ export interface BalanceReport {
   readonly hiredOn: string | null;
   readonly leftOn: string | null;
   readonly policy: { readonly key: string; readonly name: string; readonly summary: string } | null;
-  readonly approver: PersonBrief | null;
+  readonly approvers: Approvers;
+  readonly team: { readonly key: string; readonly name: string } | null;
   readonly types: readonly TypeBalance[];
+}
+
+/** One step of a request's line, for a page. */
+export interface StepView {
+  readonly approvers: readonly PersonBrief[];
+  readonly mode: StepMode;
+  readonly approvedBy: readonly PersonBrief[];
+  readonly state: "done" | "waiting" | "ahead";
 }
 
 export interface RequestView {
@@ -298,6 +448,11 @@ export interface RequestView {
   readonly version: number;
   readonly person: PersonBrief;
   readonly request: LeaveRequest;
+  /** Who wrote it, where that is not the person whose leave it is. */
+  readonly recordedBy: PersonBrief | null;
+  readonly line: readonly StepView[];
+  /** Whether the caller is among those it waits for now. */
+  readonly mine: boolean;
   /** The console's address of the decision the approval waits for, or waited for. */
   readonly decisionPath: string | null;
   readonly cancelDecisionPath: string | null;
@@ -305,12 +460,26 @@ export interface RequestView {
   readonly cancellable: boolean;
 }
 
+/** What a request would be, before it is made: the answer of the query `preview`. */
+export interface RequestPreview {
+  /** The refusal the command would answer, in the caller's language, or null where it would pass. */
+  readonly refusal: string | null;
+  readonly days: number;
+  readonly late: boolean;
+  /** What the kind's notice asks, in the caller's language; empty where it asks none. */
+  readonly notice: string;
+  readonly available: number | null;
+  /** True where the request would be approved as it is written. */
+  readonly automatic: boolean;
+  readonly line: readonly StepView[];
+}
+
 export interface CalendarEntry {
   readonly on: string;
   readonly person: PersonBrief;
-  /** The type's key where the settings show it, else null. */
+  /** The type's key where the configuration shows it, else null. */
   readonly type: string | null;
-  readonly half: Half;
+  readonly part: Part;
   readonly state: "requested" | "approved";
   readonly requestId: string;
 }
@@ -323,14 +492,17 @@ export interface CalendarReport {
   readonly workDays: readonly Weekday[];
   /** Whether the caller sees everyone or only their team or themselves. */
   readonly scope: "everyone" | "team" | "self" | "hr";
+  /** The people the caller approves, for a view of them alone. */
+  readonly mine: readonly string[];
 }
 
 export interface PersonRow {
   readonly person: PersonBrief;
   readonly status: "active" | "deactivated";
   readonly record: Person | null;
-  /** Who approves their requests, where the record names someone. */
-  readonly approver: PersonBrief | null;
+  readonly manager: PersonBrief | null;
+  readonly team: { readonly key: string; readonly name: string } | null;
+  readonly approvers: Approvers;
   readonly annual: {
     readonly available: number;
     readonly used: number;
@@ -340,14 +512,47 @@ export interface PersonRow {
 
 export interface PeopleReport {
   readonly people: readonly PersonRow[];
-  /** Keys of the policies, for the forms. */
+  /** The policies and the teams by key and name, for the forms. */
   readonly policies: readonly { readonly key: string; readonly name: string }[];
+  readonly teams: readonly { readonly key: string; readonly name: string }[];
   readonly scope: "all" | "team";
+}
+
+export interface TeamView {
+  readonly id: string;
+  readonly version: number;
+  readonly team: Team;
+  readonly approvers: readonly PersonBrief[];
+  readonly members: readonly PersonBrief[];
+}
+
+/** A policy with its name and its sentence in the caller's language. */
+export interface PolicyView {
+  readonly id: string;
+  readonly version: number;
+  readonly policy: Policy;
+  readonly name: string;
+  readonly about: string;
+  readonly summary: string;
+  /** How many people are on it: those who name it, and the rest for the default one. */
+  readonly people: number;
+}
+
+/** What the page of the configuration reads. */
+export interface ConfigReport {
+  readonly version: number;
+  readonly config: Config;
+  /** Whether leave was set up: at least a policy is written. */
+  readonly ready: boolean;
+  /** The people named in the lines and the rules, by id. */
+  readonly people: readonly PersonBrief[];
 }
 
 export interface EntryView {
   readonly id: string;
   readonly entry: Entry;
+  /** The line's note, in the caller's language where the plugin wrote it. */
+  readonly note: string;
 }
 
 export interface OverviewReport {
@@ -360,11 +565,13 @@ export interface OverviewReport {
   readonly waiting: readonly RequestView[];
   readonly outToday: readonly CalendarEntry[];
   readonly nextHolidays: readonly Holiday[];
-  readonly notice: string;
+  readonly announcement: string;
   readonly counts: {
     readonly enrolled: number;
     readonly waiting: number;
   } | null;
+  /** Whether leave was set up at all, for HR's first visit. */
+  readonly ready: boolean;
 }
 
 export interface PresetView {

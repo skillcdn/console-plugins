@@ -245,10 +245,7 @@ export async function syncPerson(
         ref,
         requestId: null,
         bucket: bucket.ref,
-        note:
-          policy.payoutUnused && type.key === ANNUAL
-            ? "unused at expiry; owed as pay"
-            : "unused at expiry",
+        note: policy.payoutUnused && type.key === ANNUAL ? "~payout" : "~expired",
         by,
       });
       refs.add(ref);
@@ -281,7 +278,7 @@ export async function syncPerson(
           ref,
           requestId: null,
           bucket: null,
-          note: `carried over from the period ending ${end}`,
+          note: `~carried:${end}`,
           by,
         });
         refs.add(ref);

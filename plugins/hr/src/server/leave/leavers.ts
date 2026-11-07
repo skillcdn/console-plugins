@@ -7,12 +7,10 @@
 import type { PluginContext, PluginRecord } from "@skillcdn/console/plugin";
 import { ANNUAL, type Person } from "../../shared/contracts.js";
 import { marks, people } from "../collections.js";
-import { type Clock, stamp } from "../store.js";
+import { type Clock, type RestPerson, stamp } from "../store.js";
 import { daysText, type ServerWords } from "../words.js";
 import { settle } from "./balance.js";
 import { ledgerOf } from "./engine.js";
-
-export type RestPerson = Awaited<ReturnType<PluginContext["console"]["people"]["list"]>>[number];
 
 /** Whether something was done already, by the key it was marked with. */
 export async function marked(ctx: PluginContext, key: string): Promise<boolean> {

@@ -1,18 +1,12 @@
 /* The plugin's own classes begin with pl-hr-; the console's tokens and sc-* classes give the look. */
 
-/* A page pads itself; the console's box around a widget pads the widget. */
+/* A page pads itself by the step the console's frame stands outside the page's column. */
 .pl-hr-page {
   display: grid;
   gap: var(--sc-space-5);
   padding: var(--sc-space-4);
   color: var(--sc-color-text);
   font-family: var(--sc-font-sans);
-}
-
-.pl-hr-widget {
-  color: var(--sc-color-text);
-  font-family: var(--sc-font-sans);
-  font-size: var(--sc-text-sm);
 }
 
 /* The console's grids set a display of their own, which would win over the browser's hidden;
@@ -22,22 +16,44 @@
   display: none;
 }
 
+.pl-hr-page .pl-hr-head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.pl-hr-page .pl-hr-callout {
+  margin-bottom: 0;
+}
+
 .pl-hr-stack {
   display: grid;
-  gap: var(--sc-space-4);
+  gap: var(--sc-space-5);
   min-width: 0;
+}
+
+.pl-hr-stack:empty {
+  display: none;
+}
+
+.pl-hr-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: var(--sc-space-5);
+  align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .pl-hr-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .pl-hr-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
   gap: var(--sc-space-3);
-}
-
-/* A field (a label around its control) or a bare control in a toolbar takes a column's width. */
-.pl-hr-toolbar > label {
-  flex: 0 1 16rem;
 }
 
 .pl-hr-toolbar > input {
@@ -45,47 +61,684 @@
   max-width: 24rem;
 }
 
-.pl-hr-section {
+.pl-hr-toolbar select {
+  width: auto;
+  min-width: 10rem;
+}
+
+/* A pane of a page: the console's glass, each section set apart from the next. */
+
+.pl-hr-panel {
+  display: grid;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  margin-bottom: 0;
+  padding: var(--sc-space-5);
+}
+
+.pl-hr-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-4);
+}
+
+.pl-hr-head-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  white-space: nowrap;
+}
+
+.pl-hr-head-choice .pl-hr-control {
+  width: auto;
+  min-width: 8rem;
+}
+
+.pl-hr-panel .pl-hr-setting {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 27rem);
+}
+
+.pl-hr-panel .pl-hr-setting-control {
   display: grid;
   gap: var(--sc-space-3);
   min-width: 0;
 }
 
-/* Figures at a glance */
-
-.pl-hr-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: var(--sc-space-3);
+.pl-hr-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-2) var(--sc-space-5);
 }
 
-.pl-hr-tile {
-  display: grid;
-  gap: var(--sc-space-1);
-  padding: var(--sc-space-3) var(--sc-space-4);
-  border: 1px solid var(--sc-color-border);
-  border-radius: var(--sc-radius-lg);
-  background: var(--sc-color-bg-raised);
+@media (max-width: 40rem) {
+  .pl-hr-panel .pl-hr-setting {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.pl-hr-tile-label {
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
+.pl-hr-panel-title {
+  font-size: var(--sc-text-lg);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-hr-subheading {
+  font-size: var(--sc-text-md);
   font-weight: var(--sc-weight-medium);
 }
 
-.pl-hr-tile-value {
+.pl-hr-line {
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-page .pl-hr-eyebrow {
+  margin: 0;
+}
+
+/* Choices: the console's toggle chips, the box itself out of sight. */
+
+.pl-hr-option-card input {
+  margin-top: 0.2em;
+}
+
+.pl-hr-pills {
+  min-width: 0;
+}
+
+.pl-hr-pills .pl-hr-pill {
+  position: relative;
+}
+
+.pl-hr-pills .pl-hr-pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.pl-hr-pills .pl-hr-pill:has(input:checked) {
+  border-color: var(--sc-color-accent);
+  background: var(--sc-color-accent-subtle);
+  color: var(--sc-color-accent);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-pills .pl-hr-pill:has(.pl-hr-swatch) {
+  padding-inline: var(--sc-space-2);
+}
+
+.pl-hr-pills .pl-hr-pill:has(input:focus-visible) {
+  outline: var(--sc-focus-ring);
+  outline-offset: 1px;
+}
+
+.pl-hr-option-cards {
+  display: grid;
+  gap: var(--sc-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pl-hr-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sc-space-3);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-sheet);
+  cursor: pointer;
+  transition:
+    border-color var(--sc-transition),
+    background var(--sc-transition);
+}
+
+.pl-hr-option-card:hover {
+  background: var(--sc-color-sheet-hover);
+}
+
+.pl-hr-option-card:has(input:checked) {
+  border-color: var(--sc-color-accent);
+  background: var(--sc-color-accent-subtle);
+}
+
+.pl-hr-option-card-text {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.pl-hr-option-card-label {
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-option-card-hint {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-fold {
+  border-top: var(--sc-hairline);
+}
+
+.pl-hr-fold-title {
+  padding: var(--sc-space-3) 0;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+  cursor: pointer;
+}
+
+.pl-hr-fold-body {
+  display: grid;
+  gap: var(--sc-space-4);
+  padding-bottom: var(--sc-space-4);
+}
+
+/* People */
+
+.pl-hr-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+  min-width: 0;
+}
+
+.pl-hr-who-text {
+  display: grid;
+  min-width: 0;
+  line-height: var(--sc-leading-snug);
+}
+
+.pl-hr-who-name {
+  overflow: hidden;
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-hr-who-sub {
+  overflow: hidden;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-hr-faces {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pl-hr-faces > * + * {
+  margin-inline-start: -0.375rem;
+}
+
+.pl-hr-faces .pl-hr-avatar {
+  box-shadow: 0 0 0 2px var(--sc-color-bg-raised);
+}
+
+.pl-hr-faces-more {
+  background: var(--sc-color-neutral-subtle);
+}
+
+.pl-hr-person {
+  cursor: pointer;
+  transition:
+    transform var(--sc-transition),
+    box-shadow var(--sc-transition);
+}
+
+.pl-hr-person:hover {
+  box-shadow: var(--sc-glow);
+}
+
+.pl-hr-person:focus-visible {
+  outline: var(--sc-focus-ring);
+}
+
+.pl-hr-person .pl-hr-person-facts {
+  padding-top: var(--sc-space-2);
+}
+
+.pl-hr-person-figures {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-space-1);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-person-figures strong {
+  font-size: var(--sc-text-xl);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-person-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-4);
+}
+
+.pl-hr-person-head-text {
+  display: grid;
+  flex: 1 1 14rem;
+  gap: var(--sc-space-1);
+  min-width: 0;
+}
+
+.pl-hr-back {
+  justify-self: start;
+}
+
+/* The bar of days */
+
+.pl-hr-meter {
+  gap: 2px;
+}
+
+.pl-hr-meter-used {
+  background: var(--sc-color-accent-solid);
+}
+
+.pl-hr-meter-pending {
+  background: var(--sc-color-warning);
+}
+
+.pl-hr-meter-left {
+  background: color-mix(in srgb, var(--sc-color-accent-solid) 22%, transparent);
+}
+
+.pl-hr-balance {
+  display: grid;
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-balance-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-balance-value {
+  font-size: 3rem;
+  font-weight: var(--sc-weight-bold);
+  letter-spacing: var(--sc-tracking-tight);
+  font-variant-numeric: var(--sc-numeric);
+  line-height: 1;
+}
+
+.pl-hr-balance-unit {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-2) var(--sc-space-5);
+  margin: 0;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-legend-item dt {
+  color: var(--sc-color-text-muted);
+}
+
+.pl-hr-legend-item dd {
+  margin: 0;
+  font-weight: var(--sc-weight-medium);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-legend-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--sc-radius-full);
+}
+
+.pl-hr-legend-used {
+  background: var(--sc-color-accent-solid);
+}
+
+.pl-hr-legend-pending {
+  background: var(--sc-color-warning);
+}
+
+.pl-hr-legend-expiring {
+  background: var(--sc-color-point);
+}
+
+.pl-hr-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-2) var(--sc-space-4);
+  margin: 0;
+  padding: var(--sc-space-3) 0 0;
+  border-top: var(--sc-hairline);
+  list-style: none;
+}
+
+.pl-hr-kinds-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+  font-size: var(--sc-text-sm);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+/* The kinds of leave, a card each, their figures lining up */
+
+.pl-hr-kinds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: var(--sc-space-4);
+}
+
+.pl-hr-kind {
+  display: grid;
+  align-content: start;
+  gap: var(--sc-space-3);
+  margin: 0;
+  padding: var(--sc-space-5);
+}
+
+.pl-hr-kind-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-kind-period,
+.pl-hr-kind-note {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-type::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--sc-radius-full);
+  background: var(--pl-hr-series);
+}
+
+.pl-hr-swatch {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--sc-radius-full);
+  background: var(--pl-hr-series);
+}
+
+/* Lists of a pane: a row each, hairlines between */
+
+.pl-hr-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-hr-rows-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2) var(--sc-space-3);
+  padding: var(--sc-space-2) 0;
+  border-top: var(--sc-hairline);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-rows-item:first-child {
+  border-top: 0;
+}
+
+.pl-hr-rows-item > .pl-hr-who {
+  flex: 1 1 10rem;
+}
+
+.pl-hr-rows-main {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.pl-hr-rows-day {
+  flex: none;
+  min-width: 4.5rem;
+  font-weight: var(--sc-weight-medium);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-rows-week {
+  flex: none;
+  min-width: 1.5rem;
+}
+
+.pl-hr-rows-side {
+  flex: none;
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-rows-more {
+  padding-top: var(--sc-space-2);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-announcement {
+  font-size: var(--sc-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The request form, and what the request would come to */
+
+.pl-hr-request {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
+  gap: var(--sc-space-5);
+  align-items: start;
+}
+
+@media (max-width: 48rem) {
+  .pl-hr-request {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pl-hr-quote {
+  display: grid;
+  gap: var(--sc-space-2);
+  padding: var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-sheet);
+}
+
+.pl-hr-quote .pl-hr-callout {
+  padding: var(--sc-space-3);
+}
+
+.pl-hr-quote-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-quote-days {
   font-size: var(--sc-text-2xl);
   font-weight: var(--sc-weight-bold);
   font-variant-numeric: var(--sc-numeric);
 }
 
-.pl-hr-tile-sub {
-  color: var(--sc-color-text-faint);
+.pl-hr-quote-unit,
+.pl-hr-quote-line {
   font-size: var(--sc-text-sm);
 }
 
-/* Tables: scrolling within their box where they are wider than the frame. */
+/* A line of approvers, step after step */
+
+.pl-hr-line-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-1) var(--sc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-hr-line-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+  max-width: 100%;
+  padding: 0.125rem var(--sc-space-2) 0.125rem 0.125rem;
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-sheet);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-line-step + .pl-hr-line-step {
+  position: relative;
+}
+
+.pl-hr-line-step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-hr-line-step-done {
+  border-color: var(--sc-color-success);
+  background: var(--sc-color-success-subtle);
+}
+
+.pl-hr-line-step-waiting {
+  border-color: var(--sc-color-warning);
+  background: var(--sc-color-warning-subtle);
+}
+
+.pl-hr-line-step-ahead {
+  color: var(--sc-color-text-muted);
+}
+
+/* Requests */
+
+.pl-hr-requests {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-hr-request-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-4);
+  padding: var(--sc-space-3) 0;
+  border-top: var(--sc-hairline);
+}
+
+.pl-hr-request-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.pl-hr-request-row:last-child {
+  padding-bottom: 0;
+}
+
+.pl-hr-request-main {
+  display: grid;
+  flex: 1 1 18rem;
+  gap: var(--sc-space-1);
+  min-width: 0;
+}
+
+.pl-hr-request-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-request-span {
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-request-days {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-request-note {
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pl-hr-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-inline-form .pl-hr-control {
+  width: 12rem;
+  min-height: 2rem;
+  padding-block: 0;
+}
+
+/* My terms */
+
+.pl-hr-terms-people {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-terms-hint {
+  display: block;
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-terms dd {
+  font-size: var(--sc-text-sm);
+}
+
+/* Tables */
 
 .pl-hr-scroll {
   overflow-x: auto;
@@ -99,7 +752,7 @@
 
 .pl-hr-table th {
   padding: var(--sc-space-2) var(--sc-space-3);
-  border-bottom: 1px solid var(--sc-color-border);
+  border-bottom: var(--sc-border);
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
   font-weight: var(--sc-weight-medium);
@@ -109,8 +762,12 @@
 
 .pl-hr-table td {
   padding: var(--sc-space-2) var(--sc-space-3);
-  border-bottom: 1px solid var(--sc-color-border);
+  border-bottom: var(--sc-hairline);
   vertical-align: top;
+}
+
+.pl-hr-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .pl-hr-numeric {
@@ -119,166 +776,350 @@
   white-space: nowrap;
 }
 
-.pl-hr-row-clickable {
-  cursor: pointer;
+/* The calendar: the console's own, with the plugin's chips in its cells */
+
+.pl-hr-month {
+  min-width: 42rem;
 }
 
-.pl-hr-row-open td {
-  background: var(--sc-color-accent-subtle);
+/* On a phone a month is faces alone, the seven days fitting the width. */
+@media (max-width: 40rem) {
+  .pl-hr-month {
+    min-width: 0;
+    border-spacing: 2px;
+  }
+
+  .pl-hr-month .pl-hr-month-cell {
+    height: 4.5rem;
+    padding: 2px;
+  }
+
+  .pl-hr-chip {
+    padding: 0;
+    border-inline-start-width: 2px;
+  }
+
+  .pl-hr-chip-name,
+  .pl-hr-chip-part,
+  .pl-hr-holiday {
+    display: none;
+  }
 }
 
-.pl-hr-row-clickable:hover td {
+.pl-hr-month-cell {
+  overflow: hidden;
+}
+
+.pl-hr-month-off {
+  background: color-mix(in srgb, var(--sc-color-bg-inset) 60%, transparent);
+}
+
+.pl-hr-day-off {
+  color: var(--sc-color-text-faint);
+}
+
+.pl-hr-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+  margin-top: 2px;
+  padding: 1px var(--sc-space-1);
+  overflow: hidden;
+  border-radius: var(--sc-radius-sm);
+  border-inline-start: 3px solid var(--pl-hr-series);
+  background: color-mix(in srgb, var(--pl-hr-series) 12%, transparent);
+  font-size: var(--sc-text-xs);
+  white-space: nowrap;
+}
+
+.pl-hr-chip .pl-hr-avatar {
+  width: 1rem;
+  height: 1rem;
+  font-size: 0.5rem;
+}
+
+.pl-hr-chip-requested {
+  outline: 1px dashed color-mix(in srgb, var(--pl-hr-series) 60%, transparent);
+  outline-offset: -1px;
+  background: transparent;
+}
+
+.pl-hr-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-hr-chip-part {
+  flex: none;
+  color: var(--sc-color-text-muted);
+}
+
+.pl-hr-chip-more {
+  margin-top: 2px;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-holiday {
+  overflow: hidden;
+  color: var(--sc-color-danger);
+  font-size: var(--sc-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-hr-legend-sample {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.625rem;
+  border-radius: 2px;
+}
+
+.pl-hr-legend-approved {
+  border-inline-start: 3px solid var(--sc-color-accent);
+  background: color-mix(in srgb, var(--sc-color-accent) 12%, transparent);
+}
+
+.pl-hr-legend-requested {
+  border: 1px dashed var(--sc-color-accent);
+}
+
+.pl-hr-legend-holiday {
+  background: var(--sc-color-danger-subtle);
+}
+
+.pl-hr-legend-off {
   background: var(--sc-color-bg-inset);
 }
 
-/* Facts: a label over a value, several in a row. */
+/* Setup */
 
-.pl-hr-facts {
+.pl-hr-question {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--sc-space-2) var(--sc-space-4);
-  margin: 0;
-  font-size: var(--sc-text-sm);
-}
-
-.pl-hr-facts dt {
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
-}
-
-.pl-hr-facts dd {
-  margin: var(--sc-space-1) 0 0;
-  overflow-wrap: anywhere;
-}
-
-.pl-hr-summary {
-  display: block;
-  font-size: var(--sc-text-xs);
-}
-
-/* Cards: one per kind of leave, per preset. */
-
-.pl-hr-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   gap: var(--sc-space-3);
+  padding-top: var(--sc-space-4);
+  border-top: var(--sc-hairline);
 }
 
-.pl-hr-cards-wide {
-  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
-}
-
-.pl-hr-card {
-  display: grid;
-  align-content: start;
-  gap: var(--sc-space-3);
-  min-width: 0;
-  padding: var(--sc-space-4);
-  border: 1px solid var(--sc-color-border);
-  border-radius: var(--sc-radius-lg);
-  background: var(--sc-color-bg-raised);
-}
-
-.pl-hr-card-name {
-  margin: 0;
-  font-size: var(--sc-text-md);
-  font-weight: var(--sc-weight-bold);
-}
-
-.pl-hr-card-available {
+.pl-hr-question-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--sc-space-2);
-  margin: 0;
-}
-
-.pl-hr-card-figure {
-  font-size: var(--sc-text-2xl);
-  font-weight: var(--sc-weight-bold);
-  font-variant-numeric: var(--sc-numeric);
-}
-
-.pl-hr-card-unit {
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-sm);
-}
-
-.pl-hr-card-period,
-.pl-hr-card-about {
-  margin: 0;
-  font-size: var(--sc-text-sm);
-}
-
-.pl-hr-card-label {
-  margin: 0;
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
-}
-
-/* Lists of people, of holidays */
-
-.pl-hr-list {
-  display: grid;
-  gap: var(--sc-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--sc-text-sm);
-}
-
-.pl-hr-list-item {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--sc-space-2);
 }
 
-.pl-hr-day {
-  color: var(--sc-color-text-muted);
-  font-variant-numeric: var(--sc-numeric);
+.pl-hr-question-number {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-accent-subtle);
+  color: var(--sc-color-accent);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-bold);
 }
 
-.pl-hr-person {
-  display: inline-flex;
+.pl-hr-question-title {
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-steps,
+.pl-hr-rule-list,
+.pl-hr-type-cards,
+.pl-hr-team-rows {
+  display: grid;
+  gap: var(--sc-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-hr-line-editor {
+  display: grid;
+  justify-items: start;
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-line-editor .pl-hr-steps {
+  width: 100%;
+}
+
+.pl-hr-step-card {
+  display: grid;
+  gap: var(--sc-space-3);
+  padding: var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-sheet);
+}
+
+.pl-hr-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pl-hr-step-number {
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-hr-rule,
+.pl-hr-team-row {
+  display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sc-space-1) var(--sc-space-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-4);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-sheet);
 }
 
-.pl-hr-person-login {
-  color: var(--sc-color-text-muted);
-  font-family: var(--sc-font-mono);
+.pl-hr-rule-text,
+.pl-hr-team-text {
+  display: grid;
+  flex: 1 1 16rem;
+  gap: 0.125rem;
+  min-width: 0;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-rule-name,
+.pl-hr-team-name {
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-rule-when,
+.pl-hr-team-sub {
   font-size: var(--sc-text-xs);
 }
 
-.pl-hr-names {
+.pl-hr-rule-actions,
+.pl-hr-team-members {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-team-members {
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-type-cards {
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+}
+
+.pl-hr-type-card {
   display: grid;
-  gap: 2px;
+  align-content: start;
+  gap: var(--sc-space-2);
+  padding: var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-sheet);
 }
 
-/* A kind of leave carries one of the console's series colours, as a dot or a swatch. */
-
-.pl-hr-type::before {
-  content: "";
-  width: 0.5em;
-  height: 0.5em;
-  border-radius: 50%;
-  background: var(--pl-hr-series, var(--sc-color-accent));
+.pl-hr-type-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-2);
 }
 
-.pl-hr-swatch {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border-radius: var(--sc-radius-sm);
-  background: var(--pl-hr-series, var(--sc-color-accent));
-  vertical-align: middle;
+.pl-hr-type-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-medium);
 }
 
-/* What a form says of itself, under it. */
+.pl-hr-type-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-type-about {
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-type-rules {
+  display: grid;
+  gap: var(--sc-space-1);
+  margin: 0;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-type-rules > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-type-rules dt {
+  color: var(--sc-color-text-muted);
+}
+
+.pl-hr-type-rules dd {
+  margin: 0;
+  text-align: end;
+}
+
+.pl-hr-chooser {
+  display: grid;
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-tiers {
+  display: grid;
+  justify-items: start;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-tier-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: var(--sc-space-2) var(--sc-space-5);
+  width: 100%;
+}
+
+.pl-hr-tier {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+}
+
+.pl-hr-tier .pl-hr-control {
+  width: 5rem;
+}
+
+.pl-hr-tier-word {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-sm);
+  white-space: nowrap;
+}
+
+.pl-hr-year-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-year {
+  min-width: 3.5rem;
+  font-weight: var(--sc-weight-medium);
+  text-align: center;
+  font-variant-numeric: var(--sc-numeric);
+}
+
+/* Lines under forms */
 
 .pl-hr-status {
-  margin: 0;
+  min-height: 1.25rem;
   font-size: var(--sc-text-sm);
 }
 
@@ -290,285 +1131,188 @@
   color: var(--sc-color-success);
 }
 
-/* The organization's notice and what people wrote: text as it was written, wrapped. */
+/* Widgets: they fill the cells the console gives them, and lay out for the size they are told. */
 
-.pl-hr-notice {
-  margin: 0;
-  padding: var(--sc-space-3) var(--sc-space-4);
-  border: 1px solid var(--sc-color-border);
-  border-radius: var(--sc-radius-md);
-  background: var(--sc-color-bg-inset);
-  font-size: var(--sc-text-sm);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.pl-hr-prose {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.pl-hr-commands {
-  display: grid;
-  justify-items: start;
-  gap: var(--sc-space-1);
-  margin-top: var(--sc-space-2);
-}
-
-.pl-hr-code,
-.pl-hr-key {
-  font-family: var(--sc-font-mono);
-  font-size: var(--sc-text-xs);
-}
-
-.pl-hr-code {
-  display: inline-block;
-  padding: var(--sc-space-1) var(--sc-space-2);
-  border-radius: var(--sc-radius-sm);
-  background: var(--sc-color-bg-inset);
-}
-
-/* Small forms in place: cancelling a request, a row of checkboxes. */
-
-.pl-hr-inline {
-  display: inline-flex;
-  margin-left: var(--sc-space-2);
-}
-
-.pl-hr-inline-form {
+.pl-hr-widget {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: var(--sc-space-2);
+  height: 100vh;
+  overflow: hidden;
+  color: var(--sc-color-text);
+  font-family: var(--sc-font-sans);
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-widget .pl-hr-meter {
+  flex: none;
+}
+
+.pl-hr-widget-foot {
+  display: grid;
+  gap: var(--sc-space-2);
+  margin-top: auto;
+}
+
+.pl-hr-widget-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--sc-space-2);
 }
 
-.pl-hr-inline-form input {
-  width: auto;
-  min-width: 10rem;
-}
-
-.pl-hr-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sc-space-1);
-  font-size: var(--sc-text-sm);
-}
-
-.pl-hr-checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sc-space-3);
-}
-
-/* The panel of a person's record, under the table. */
-
-.pl-hr-panel {
-  display: grid;
-  gap: var(--sc-space-4);
-  padding: var(--sc-space-4);
-  border: 1px solid var(--sc-color-border);
-  border-radius: var(--sc-radius-lg);
-  background: var(--sc-color-bg-raised);
-}
-
-.pl-hr-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sc-space-3);
-}
-
-.pl-hr-panel-title,
-.pl-hr-block-title {
-  margin: 0;
-  font-size: var(--sc-text-md);
-  font-weight: var(--sc-weight-bold);
-}
-
-.pl-hr-block {
-  display: grid;
-  gap: var(--sc-space-3);
-  padding-top: var(--sc-space-3);
-  border-top: 1px solid var(--sc-color-border);
-}
-
-/* Widgets */
-
-.pl-hr-widget-number {
+.pl-hr-widget-figure {
   display: flex;
   align-items: baseline;
-  gap: var(--sc-space-2);
-  margin: 0;
+  gap: var(--sc-space-1);
+  min-width: 0;
 }
 
 .pl-hr-widget-value {
-  font-size: var(--sc-text-2xl);
+  font-size: clamp(2.25rem, 24vh, 3.5rem);
   font-weight: var(--sc-weight-bold);
+  letter-spacing: var(--sc-tracking-tight);
   font-variant-numeric: var(--sc-numeric);
+  line-height: 1.1;
 }
 
 .pl-hr-widget-unit {
   color: var(--sc-color-text-muted);
-}
-
-.pl-hr-widget-line {
-  margin: var(--sc-space-1) 0 0;
   font-size: var(--sc-text-sm);
 }
 
-/* The calendar: a month as seven columns. */
+.pl-hr-widget-line {
+  font-size: var(--sc-text-xs);
+}
 
-.pl-hr-calendar-head {
+.pl-hr-widget-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sc-space-2);
+  margin: 0;
+}
+
+.pl-hr-widget-facts dt {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-widget-facts dd {
+  margin: 0;
+  font-weight: var(--sc-weight-medium);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-widget-rows {
+  display: grid;
+  gap: var(--sc-space-1);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-hr-widget-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--sc-space-2);
+  min-width: 0;
+  font-size: var(--sc-text-xs);
 }
 
-.pl-hr-calendar-month {
-  margin: 0;
-  font-size: var(--sc-text-lg);
+.pl-hr-widget-row > .pl-hr-who {
+  flex: 1;
 }
 
-.pl-hr-calendar-nav {
-  display: flex;
+.pl-hr-widget-medium .pl-hr-widget-rows,
+.pl-hr-widget-large .pl-hr-widget-rows {
   gap: var(--sc-space-2);
 }
 
-.pl-hr-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 1px;
+.pl-hr-widget-medium .pl-hr-widget-row,
+.pl-hr-widget-large .pl-hr-widget-row {
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-widget-row-main {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--sc-color-border);
-  border-radius: var(--sc-radius-lg);
-  background: var(--sc-color-border);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.pl-hr-calendar-weekday {
-  padding: var(--sc-space-2);
-  background: var(--sc-color-bg-raised);
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
-  font-weight: var(--sc-weight-medium);
-  text-align: center;
-}
-
-.pl-hr-calendar-weekday-off {
-  color: var(--sc-color-text-faint);
-}
-
-.pl-hr-calendar-cell {
-  display: grid;
-  align-content: start;
-  gap: var(--sc-space-1);
-  min-width: 0;
-  min-height: 6rem;
-  padding: var(--sc-space-2);
-  background: var(--sc-color-bg-raised);
-  font-size: var(--sc-text-xs);
-}
-
-.pl-hr-calendar-blank,
-.pl-hr-calendar-off {
-  background: var(--sc-color-bg-inset);
-}
-
-.pl-hr-calendar-day {
+.pl-hr-widget-row-side {
+  flex: none;
   font-variant-numeric: var(--sc-numeric);
-  font-weight: var(--sc-weight-medium);
 }
 
-.pl-hr-calendar-off .pl-hr-calendar-day {
-  color: var(--sc-color-text-faint);
-}
-
-.pl-hr-calendar-today .pl-hr-calendar-day {
-  display: inline-grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--sc-radius-full);
-  background: var(--sc-color-accent);
-  color: var(--sc-color-accent-contrast);
-}
-
-.pl-hr-holiday {
-  color: var(--sc-color-danger);
-  font-weight: var(--sc-weight-medium);
-  overflow-wrap: anywhere;
-}
-
-/* An entry of the calendar: approved solid, waiting dashed and muted. */
-
-.pl-hr-chip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sc-space-1);
-  min-width: 0;
-  padding: var(--sc-space-1) var(--sc-space-2);
-  border: 1px solid transparent;
-  border-left: 3px solid var(--pl-hr-series, var(--sc-color-accent));
-  border-radius: var(--sc-radius-sm);
-  background: var(--sc-color-bg-inset);
-}
-
-.pl-hr-chip-requested {
-  border-style: dashed;
-  border-color: var(--sc-color-border-strong);
-  border-left-style: dashed;
-  background: transparent;
-  color: var(--sc-color-text-muted);
-}
-
-.pl-hr-chip-name {
-  font-weight: var(--sc-weight-medium);
-  overflow-wrap: anywhere;
-}
-
-.pl-hr-chip-half {
-  color: var(--sc-color-text-muted);
-}
-
-.pl-hr-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sc-space-3);
+.pl-hr-widget-more {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
 }
 
-.pl-hr-legend-item {
-  display: inline-flex;
+.pl-hr-widget-open {
+  display: flex;
+  flex: 1;
   align-items: center;
+  gap: var(--sc-space-2);
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pl-hr-widget .pl-hr-widget-action {
+  flex: none;
+}
+
+.pl-hr-widget .pl-hr-eyebrow {
+  margin-top: var(--sc-space-1);
+}
+
+.pl-hr-week-strip {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   gap: var(--sc-space-1);
+  height: 100%;
 }
 
-.pl-hr-legend-sample {
-  display: inline-block;
-  width: 1rem;
-  height: 0.75rem;
-  border-radius: var(--sc-radius-sm);
+.pl-hr-week-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-2);
+  padding: var(--sc-space-2);
+  border: var(--sc-hairline);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-sheet);
 }
 
-.pl-hr-legend-approved {
-  border-left: 3px solid var(--sc-color-accent);
-  background: var(--sc-color-bg-inset);
+.pl-hr-week-day-today {
+  outline: 1px solid var(--sc-color-accent);
+  outline-offset: -1px;
 }
 
-.pl-hr-legend-requested {
-  border: 1px dashed var(--sc-color-border-strong);
-  border-left: 3px dashed var(--sc-color-border-strong);
-}
-
-.pl-hr-legend-holiday {
-  border: 1px solid var(--sc-color-danger);
+.pl-hr-week-day-off {
   background: var(--sc-color-danger-subtle);
 }
 
-.pl-hr-legend-off {
-  border: 1px solid var(--sc-color-border);
-  background: var(--sc-color-bg-inset);
+.pl-hr-week-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-week-label strong {
+  color: var(--sc-color-text);
+  font-size: var(--sc-text-sm);
+  font-variant-numeric: var(--sc-numeric);
 }

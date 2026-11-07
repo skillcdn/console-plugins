@@ -5,6 +5,7 @@
 // lawyer, so what a preset says is written out in its `about`, and the fields are what counts.
 // A fork adds a preset here, and a test in rules.test.ts for what it promises.
 import type { Policy, PresetView, Tier } from "../../shared/contracts.js";
+import { nameIn } from "../words.js";
 
 export type PolicyDraft = PresetView["policy"];
 
@@ -71,8 +72,8 @@ export const PRESETS: readonly PresetView[] = [
     key: "kr-fiscal-year",
     name: { en: "Korea, by fiscal year", ko: "한국, 회계연도 기준" },
     about: {
-      en: "The common practice: periods run January 1 to December 31 for everyone; the first year's monthly days as the statute says; on the first January 1 after hire, 15 days prorated by the days served, rounded up to the half day; from then on the tier of the year the anniversary falls in. Unused days expire at year end and are owed as pay. A deployment that wants 15 days on the first January 1 overrides --first-period full; one that wants the hire-date basis at all takes kr-statutory. At termination the statute's own count holds, which HR settles by adjustment.",
-      ko: "실무에서 흔한 방식: 모두 1월 1일부터 12월 31일까지. 첫해 월차는 법대로, 입사 후 첫 1월 1일에 재직일수에 비례한 15일(0.5일 단위 올림), 그다음부터는 입사 기념일이 속한 해의 가산 단계. 미사용 연차는 연말에 소멸하고 수당으로 정산. 첫 1월 1일에 15일을 다 주려면 --first-period full, 입사일 기준이면 kr-statutory. 퇴직 시에는 법정 기준(입사일)으로 재산정하며 부족분은 인사 담당이 조정으로 정산.",
+      en: "The common practice: periods run January 1 to December 31 for everyone; the first year's monthly days as the statute says; on the first January 1 after hire, 15 days prorated by the days served, rounded up to the half day; from then on the tier of the year the anniversary falls in. Unused days expire at year end and are owed as pay. To give the 15 days in full on the first January 1, set the first period to full; for the hire-date basis, start from the statutory policy. At termination the statute's own count holds, which HR settles by adjustment.",
+      ko: "실무에서 흔한 방식: 모두 1월 1일부터 12월 31일까지. 첫해 월차는 법대로, 입사 후 첫 1월 1일에 재직일수에 비례한 15일(0.5일 단위 올림), 그다음부터는 입사 기념일이 속한 해의 가산 단계. 미사용 연차는 연말에 소멸하고 수당으로 정산. 첫 1월 1일에 15일을 다 주려면 첫 기간을 전부 부여로 바꾸고, 입사일 기준이면 법정 규정에서 시작하세요. 퇴직 시에는 법정 기준(입사일)으로 재산정하며 부족분은 인사 담당이 조정으로 정산.",
     },
     policy: {
       ...base,
@@ -116,8 +117,8 @@ export const PRESETS: readonly PresetView[] = [
     key: "us-frontloaded",
     name: { en: "US, front-loaded each year", ko: "미국, 연초 일괄 부여" },
     about: {
-      en: "The year's PTO given on January 1 (prorated at hire), by tenure (10, 15 from the third year, 20 from the sixth); up to 5 unused days carry over and must be used by March 31; the rest lapses. Not for states that forbid use-it-or-lose-it, where us-accrual's carry-over and cap are the lawful shape.",
-      ko: "매년 1월 1일에 그해 PTO를 일괄 부여(입사 시 비례). 근속에 따라 10일, 3년차부터 15일, 6년차부터 20일. 미사용 5일까지 이월하되 3월 31일까지 사용, 나머지는 소멸. 소멸을 금지하는 주에서는 us-accrual의 이월·상한이 적법한 형태.",
+      en: "The year's PTO given on January 1 (prorated at hire), by tenure (10, 15 from the third year, 20 from the sixth); up to 5 unused days carry over and must be used by March 31; the rest lapses. Not for states that forbid use-it-or-lose-it, where the accrual policy's carry-over and cap are the lawful shape.",
+      ko: "매년 1월 1일에 그해 PTO를 일괄 부여(입사 시 비례). 근속에 따라 10일, 3년차부터 15일, 6년차부터 20일. 미사용 5일까지 이월하되 3월 31일까지 사용, 나머지는 소멸. 소멸을 금지하는 주에서는 급여 주기별 적립 규정의 이월·상한이 적법한 형태.",
     },
     policy: {
       ...base,
@@ -140,8 +141,8 @@ export const PRESETS: readonly PresetView[] = [
     key: "fixed",
     name: { en: "A fixed number of days a year", ko: "연간 고정 일수" },
     about: {
-      en: "15 days every January 1 for everyone, prorated in the year of hire; unused days lapse at year end. The simplest policy, to be changed with --tiers for another number.",
-      ko: "모두에게 매년 1월 1일 15일, 입사 연도는 비례. 미사용 일수는 연말에 소멸. 가장 단순한 규정으로, 일수는 --tiers로 바꿉니다.",
+      en: "15 days every January 1 for everyone, prorated in the year of hire; unused days lapse at year end. The simplest policy; change the days for another number.",
+      ko: "모두에게 매년 1월 1일 15일, 입사 연도는 비례. 미사용 일수는 연말에 소멸. 가장 단순한 규정으로, 일수는 근속 연수별 일수에서 바꿉니다.",
     },
     policy: { ...base, preset: "fixed" },
   },
@@ -149,8 +150,8 @@ export const PRESETS: readonly PresetView[] = [
     key: "manual",
     name: { en: "By hand", ko: "수동" },
     about: {
-      en: "Nothing is given by the plugin: HR credits each person's days with adjust, with the expiry each credit carries, and a task reminds HR at every period start. For organizations whose rules fit no preset, or who keep the count elsewhere.",
-      ko: "플러그인이 주는 것이 없음: 인사 담당이 adjust로 각자의 일수를 만료일과 함께 넣고, 매 기간 시작마다 태스크로 알림을 받습니다. 어느 프리셋에도 맞지 않거나 일수를 다른 곳에서 세는 조직용.",
+      en: "Nothing is given by the plugin: HR adjusts each person's balance, with the expiry each credit carries, and a task reminds HR at every period start. For organizations whose rules fit no preset, or who keep the count elsewhere.",
+      ko: "플러그인이 주는 것이 없음: 인사 담당이 잔여 조정으로 각자의 일수를 만료일과 함께 넣고, 매 기간 시작마다 태스크로 알림을 받습니다. 어느 프리셋에도 맞지 않거나 일수를 다른 곳에서 세는 조직용.",
     },
     policy: {
       ...base,
@@ -161,6 +162,25 @@ export const PRESETS: readonly PresetView[] = [
     },
   },
 ];
+
+/** The name a policy goes by in a language: what HR called it, else its preset's, else its key. */
+export function policyName(policy: Policy, language: string): string {
+  return policy.name ?? presetName(policy.preset, language) ?? policy.key;
+}
+
+/** What is said of a policy in a language: what HR wrote, else its preset's words. */
+export function policyAbout(policy: Policy, language: string): string {
+  if (policy.description.length > 0) {
+    return policy.description;
+  }
+  const about = PRESETS.find((preset) => preset.key === policy.preset)?.about;
+  return about === undefined ? "" : nameIn(about, language);
+}
+
+function presetName(key: string, language: string): string | null {
+  const preset = PRESETS.find((candidate) => candidate.key === key);
+  return preset === undefined ? null : nameIn(preset.name, language);
+}
 
 export function presetOf(key: string): PresetView | undefined {
   return PRESETS.find((preset) => preset.key === key);

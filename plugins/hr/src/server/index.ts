@@ -13,12 +13,14 @@ import { queries } from "./leave/queries.js";
 
 export {
   collections,
+  config,
   holidays,
   ledger,
   marks,
   people,
   policies,
   requests,
+  teams,
   types,
 } from "./collections.js";
 export {
@@ -26,6 +28,7 @@ export {
   adjust,
   cancel,
   commands,
+  configure,
   enroll,
   generateHolidays,
   holiday,
@@ -33,6 +36,7 @@ export {
   policy,
   request,
   setup,
+  team,
   type,
 } from "./leave/commands.js";
 export {
@@ -45,6 +49,7 @@ export { daily, jobs, runDaily } from "./leave/jobs.js";
 export {
   balance,
   calendar,
+  configQuery,
   exportQuery,
   holidaysQuery,
   ledgerQuery,
@@ -52,8 +57,10 @@ export {
   peopleQuery,
   policiesQuery,
   presetsQuery,
+  preview,
   queries,
   requestsQuery,
+  teamsQuery,
   typesQuery,
 } from "./leave/queries.js";
 

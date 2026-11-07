@@ -8,14 +8,22 @@ import type { JobDefinition, PluginContext } from "@skillcdn/console/plugin";
 import { ANNUAL, type Person, type Policy } from "../../shared/contracts.js";
 import { addDays, dayIn, daysBetween, monthOf, yearOf } from "../../shared/days.js";
 import { people } from "../collections.js";
-import { settingsOf } from "../settings.js";
-import { allTypes, balancedTypes, clockOf, listAll, policyFor } from "../store.js";
+import { configOf } from "../config.js";
+import {
+  allTypes,
+  balancedTypes,
+  clockOf,
+  languageOfHr,
+  listAll,
+  policyFor,
+  type RestPerson,
+} from "../store.js";
 import { daysText, serverWords } from "../words.js";
 import { settle } from "./balance.js";
 import { writeHolidays } from "./commands.js";
 import { ledgerOf, syncPerson } from "./engine.js";
 import { builtInHolidays } from "./holidays.js";
-import { mark, marked, nameOf, type RestPerson, taskOnce, turnOffLeaver } from "./leavers.js";
+import { mark, marked, nameOf, taskOnce, turnOffLeaver } from "./leavers.js";
 import { periodOf } from "./rules.js";
 
 /** Days within which a reminder's day is still acted on, so that a job that missed a day catches up. */
@@ -37,9 +45,8 @@ export interface DailyOutcome {
 
 export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
   const clock = await clockOf(ctx);
-  const settings = settingsOf(ctx);
-  const language = clock.languages[0] ?? "en";
-  const words = serverWords(language);
+  const config = await configOf(ctx);
+  const words = serverWords(await languageOfHr(ctx, clock));
   const outcome: DailyOutcome = {
     people: 0,
     written: 0,
@@ -111,20 +118,20 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
       words.manualTaskBody(periodStart, rows),
     );
   }
-  if (settings.holidayCalendar !== "none") {
+  if (config.holidayCalendar !== "none") {
     const year = yearOf(clock.today);
     const years = monthOf(clock.today) >= 10 ? [year, year + 1] : [year];
     for (const candidate of years) {
-      const key = `holidays:${settings.holidayCalendar}:${candidate}`;
+      const key = `holidays:${config.holidayCalendar}:${candidate}`;
       if (
         (await marked(ctx, key)) ||
-        builtInHolidays(settings.holidayCalendar, candidate) === undefined
+        builtInHolidays(config.holidayCalendar, candidate) === undefined
       ) {
         continue;
       }
       try {
-        outcome.holidays += await writeHolidays(ctx, settings.holidayCalendar, candidate);
-        await mark(ctx, key, clock, `${settings.holidayCalendar} ${candidate}`);
+        outcome.holidays += await writeHolidays(ctx, config.holidayCalendar, candidate);
+        await mark(ctx, key, clock, `${config.holidayCalendar} ${candidate}`);
       } catch (error) {
         ctx.log.warn("the holidays could not be written", {
           year: candidate,

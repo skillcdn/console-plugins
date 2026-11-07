@@ -8,9 +8,10 @@ import {
   type LeaveType,
   type Person,
   type Policy,
+  type Team,
 } from "../shared/contracts.js";
-import { dayIn } from "../shared/days.js";
-import { holidays, people, policies, types } from "./collections.js";
+import { dayIn, timeIn } from "../shared/days.js";
+import { holidays, people, policies, teams, types } from "./collections.js";
 
 const PAGE = 200;
 /** How many pages one read walks at most: 100,000 records, the plugin's whole quota. */
@@ -40,8 +41,25 @@ export async function listAll<T>(
   return all;
 }
 
+export type RestPerson = Awaited<ReturnType<PluginContext["console"]["people"]["list"]>>[number];
+
+/** The directory by id: the people the caller may see, everyone for a plugin that reads all. */
+export type Directory = ReadonlyMap<string, RestPerson>;
+
+/** The directory, read once; empty where the console refuses the read. */
+export async function directoryOf(ctx: PluginContext): Promise<Directory> {
+  try {
+    const list = await ctx.console.people.list();
+    return new Map(list.map((person) => [person.id, person]));
+  } catch {
+    return new Map();
+  }
+}
+
 export interface Clock {
   readonly today: string;
+  /** The hour and the minute in the workspace's time zone, `HH:MM`. */
+  readonly time: string;
   readonly timeZone: string;
   readonly languages: readonly string[];
   readonly now: Date;
@@ -53,6 +71,7 @@ export async function clockOf(ctx: PluginContext): Promise<Clock> {
   const now = ctx.now();
   return {
     today: dayIn(now, workspace.timeZone),
+    time: timeIn(now, workspace.timeZone),
     timeZone: workspace.timeZone,
     languages: workspace.languages,
     now,
@@ -101,6 +120,56 @@ export async function typeByKey(
 export async function allTypes(ctx: PluginContext): Promise<PluginRecord<LeaveType>[]> {
   const all = await listAll<LeaveType>(ctx.records(types));
   return all.sort((a, b) => a.data.order - b.data.order || (a.data.key < b.data.key ? -1 : 1));
+}
+
+export async function teamByKey(
+  ctx: PluginContext,
+  key: string,
+): Promise<PluginRecord<Team> | null> {
+  const page = await ctx.records(teams).list({ where: { key }, limit: 1 });
+  return page.items[0] ?? null;
+}
+
+export async function allTeams(ctx: PluginContext): Promise<PluginRecord<Team>[]> {
+  const all = await listAll<Team>(ctx.records(teams));
+  return all.sort((a, b) => a.data.name.localeCompare(b.data.name));
+}
+
+/**
+ * The language to write to these people in: the first of them whose language the console knows,
+ * else the caller's where a person calls, else the first the console speaks. A plugin writes one
+ * text, in the language of whoever it is for (the console's ADR-0065).
+ */
+export async function languageFor(
+  ctx: PluginContext,
+  clock: Clock,
+  ids: readonly string[],
+): Promise<string> {
+  for (const id of ids) {
+    try {
+      const person = await ctx.console.people.get(id);
+      if (typeof person?.language === "string" && person.language.length > 0) {
+        return person.language;
+      }
+    } catch {
+      break;
+    }
+  }
+  return ctx.caller.kind === "person" ? ctx.language : (clock.languages[0] ?? "en");
+}
+
+/** The people who hold the role `hr`, by id; none where the console cannot say. */
+export async function hrIdsOf(ctx: PluginContext): Promise<string[]> {
+  try {
+    return (await ctx.console.people.granted("hr")).map((person) => person.id);
+  } catch {
+    return [];
+  }
+}
+
+/** The language to write to HR in: the first of those who hold the role. */
+export async function languageOfHr(ctx: PluginContext, clock: Clock): Promise<string> {
+  return languageFor(ctx, clock, await hrIdsOf(ctx));
 }
 
 /** The types whose days are kept as a balance: annual, and those with an allowance of their own. */

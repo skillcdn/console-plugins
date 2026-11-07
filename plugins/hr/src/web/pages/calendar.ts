@@ -1,7 +1,7 @@
-// The calendar: a month of who is out, as the visibility settings let the person see, with the
-// holidays and the non-working days of the workspace. Each entry is a person's name with the
-// kind of leave where the settings show it; a reason is never here. The month is turned with the
-// buttons; the span asked of the console is always one month, within what it allows.
+// The calendar: a month of who is out, as HR's configuration lets the person see, with the holidays
+// and the non-working days of the workspace, in the console's own calendar and starting the week
+// as the workspace does. Each entry is a face and a name, the kind's colour where the configuration
+// shows it; a reason is never here. An approver may keep it to the people they approve.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import type { CalendarEntry, CalendarReport, Holiday, LeaveType } from "../../shared/contracts.js";
 import {
@@ -12,38 +12,46 @@ import {
   eachDay,
   monthOf,
   WEEKDAYS,
+  type Weekday,
   weekdayOf,
   yearOf,
 } from "../../shared/days.js";
 import {
+  avatar,
   badge,
   button,
   el,
   errorBlock,
   type Formatters,
+  firstDayOf,
   formattersFor,
   loadTypes,
   muted,
   nameIn,
   page,
+  pageHead,
+  panel,
   personLabel,
-  section,
   sequenced,
   seriesOf,
   stack,
   todayDay,
-  typeBadge,
   watch,
 } from "../ui.js";
 import type { Words } from "../words.js";
 
 interface View {
+  readonly frame: PluginFrame;
   readonly words: Words;
   readonly format: Formatters;
   readonly language: string;
   readonly types: ReadonlyMap<string, LeaveType>;
   readonly today: string;
+  readonly week: readonly Weekday[];
 }
+
+/** Entries a cell shows before it says how many more. */
+const CELL_ENTRIES = 3;
 
 function monthEnd(first: string): string {
   const year = yearOf(first);
@@ -65,66 +73,82 @@ function byDay<T extends { readonly on: string }>(items: readonly T[]): Map<stri
 }
 
 function chip(entry: CalendarEntry, view: View): HTMLDivElement {
-  const { words, language, types } = view;
+  const { frame, words, language, types } = view;
   const node = el("div", `chip${entry.state === "requested" ? " chip-requested" : ""}`);
   const type = entry.type === null ? undefined : types.get(entry.type);
   node.style.setProperty(
     "--pl-hr-series",
     type === undefined ? "var(--sc-color-accent)" : `var(--sc-series-${seriesOf(type.color)})`,
   );
-  node.append(el("span", "chip-name", personLabel(entry.person)));
-  if (entry.half !== "none") {
-    node.append(el("span", "chip-half", words.halfShort[entry.half]));
-  }
-  if (entry.type !== null) {
-    node.append(typeBadge(type, entry.type, language));
+  node.title =
+    type === undefined
+      ? personLabel(entry.person)
+      : `${personLabel(entry.person)}, ${nameIn(type.name, language)}`;
+  node.append(avatar(frame, entry.person), el("span", "chip-name", personLabel(entry.person)));
+  if (entry.part !== "none") {
+    node.append(el("span", "chip-part", words.partShort[entry.part]));
   }
   return node;
 }
 
-function grid(report: CalendarReport, view: View): HTMLDivElement {
-  const { words, language, today } = view;
-  const node = el("div", "calendar-grid");
+function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: View): HTMLElement {
+  const { words, today, week } = view;
+  const node = el("table", "sc-calendar-grid month");
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
   const workDays = new Set(report.workDays);
-  for (const weekday of WEEKDAYS) {
-    node.append(
-      el(
-        "div",
-        `calendar-weekday${workDays.has(weekday) ? "" : " calendar-weekday-off"}`,
-        words.weekday[weekday],
-      ),
-    );
+  for (const weekday of week) {
+    headRow.append(el("th", workDays.has(weekday) ? "" : "day-off", words.weekday[weekday]));
   }
+  head.append(headRow);
+  const body = document.createElement("tbody");
   const holidays = byDay(report.holidays);
-  const entries = byDay(report.entries);
-  const leading = WEEKDAYS.indexOf(weekdayOf(report.from));
-  for (let index = 0; index < leading; index += 1) {
-    node.append(el("div", "calendar-cell calendar-blank"));
+  const entriesByDay = byDay(entries);
+  let line = document.createElement("tr");
+  for (let index = 0; index < week.indexOf(weekdayOf(report.from)); index += 1) {
+    line.append(el("td", "sc-calendar-cell sc-calendar-cell-outside month-cell"));
   }
   for (const day of eachDay(report.from, report.to)) {
     const dayHolidays = holidays.get(day) ?? [];
     const off = !workDays.has(weekdayOf(day)) || dayHolidays.length > 0;
     const cell = el(
-      "div",
-      `calendar-cell${day === today ? " calendar-today" : ""}${off ? " calendar-off" : ""}`,
+      "td",
+      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today" : ""}${off ? " month-off" : ""}`,
     );
-    cell.append(el("span", "calendar-day", String(dateOf(day))));
+    cell.append(el("span", "sc-calendar-day", String(dateOf(day))));
     for (const holiday of dayHolidays) {
-      cell.append(el("div", "holiday", nameIn(holiday.name, language)));
+      cell.append(el("div", "holiday", nameIn(holiday.name, view.language)));
     }
-    for (const entry of entries.get(day) ?? []) {
+    const shown = entriesByDay.get(day) ?? [];
+    for (const entry of shown.slice(0, CELL_ENTRIES)) {
       cell.append(chip(entry, view));
     }
-    node.append(cell);
+    if (shown.length > CELL_ENTRIES) {
+      cell.append(el("div", "chip-more", words.andMore(String(shown.length - CELL_ENTRIES))));
+    }
+    line.append(cell);
+    if (weekdayOf(day) === week[week.length - 1]) {
+      body.append(line);
+      line = document.createElement("tr");
+    }
   }
+  if (line.childElementCount > 0) {
+    while (line.childElementCount < week.length) {
+      line.append(el("td", "sc-calendar-cell sc-calendar-cell-outside month-cell"));
+    }
+    body.append(line);
+  }
+  node.append(head, body);
   return node;
 }
 
-function legend(words: Words): HTMLDivElement {
-  const node = el("div", "legend");
+function legend(words: Words): HTMLElement {
+  const node = el("dl", "sc-calendar-legend");
   const item = (sample: string, label: string) => {
-    const wrapper = el("span", "legend-item");
-    wrapper.append(el("span", `legend-sample ${sample}`), el("span", "", label));
+    const wrapper = el("div", "");
+    const term = el("dt", "");
+    term.append(el("span", `legend-sample ${sample}`));
+    wrapper.append(term, el("dd", "", label));
     return wrapper;
   };
   node.append(
@@ -141,17 +165,23 @@ function holidayList(holidays: readonly Holiday[], view: View): HTMLElement {
   if (holidays.length === 0) {
     return muted(words.noHolidaysThisMonth);
   }
-  const list = el("ul", "list");
+  const list = el("ul", "rows");
   for (const holiday of holidays) {
-    const item = el("li", "list-item");
+    const item = el("li", "rows-item");
     item.append(
-      el("span", "day", format.day(holiday.on)),
-      el("span", "", nameIn(holiday.name, language)),
+      el("span", "rows-day", format.monthDay(holiday.on)),
+      el("span", "rows-main", nameIn(holiday.name, language)),
       badge(words.holidayKind[holiday.kind], "neutral"),
     );
     list.append(item);
   }
   return list;
+}
+
+/** The days of a week, from the day it begins on: 1 for Monday to 7 for Sunday. */
+export function weekFrom(first: number): Weekday[] {
+  const start = Math.min(6, Math.max(0, first - 1));
+  return [...WEEKDAYS.slice(start), ...WEEKDAYS.slice(0, start)];
 }
 
 export async function renderCalendar(
@@ -160,25 +190,26 @@ export async function renderCalendar(
   words: Words,
 ): Promise<void> {
   const language = frame.context.language;
-  const today = todayDay();
+  const today = todayDay(frame);
   const view: View = {
+    frame,
     words,
     language,
     format: formattersFor(language, words),
     types: await loadTypes(frame),
     today,
+    week: weekFrom(firstDayOf(frame)),
   };
   const thisMonth = dayOf(yearOf(today), monthOf(today), 1);
   let month = thisMonth;
+  let onlyMine = false;
+  let report: CalendarReport | null = null;
 
-  const title = el("h2", "calendar-month");
-  const scopeLine = el("p", "sc-muted");
+  const title = el("h2", "sc-calendar-month");
   const body = stack();
-  const move = (step: number) => {
-    month = addMonths(month, step);
-    void refresh();
-  };
-  const nav = el("div", "calendar-nav");
+  const scope = muted("");
+  const mineHolder = el("div", "sc-subtabs");
+  const nav = el("div", "sc-calendar-nav");
   nav.append(
     button(words.previousMonth, () => move(-1), "secondary", true),
     button(
@@ -192,30 +223,63 @@ export async function renderCalendar(
     ),
     button(words.nextMonth, () => move(1), "secondary", true),
   );
-  const head = el("div", "calendar-head");
+  const head = el("div", "sc-calendar-head");
   head.append(title, nav);
   const node = page();
-  node.append(head, scopeLine, body);
+  node.append(pageHead(words.calendarTitle, ""), mineHolder, panel(null, head, scope, body));
   root.replaceChildren(node);
   frame.setTitle(words.calendarTitle);
+
+  function move(step: number): void {
+    month = addMonths(month, step);
+    void refresh();
+  }
+
+  function draw(): void {
+    if (report === null) {
+      return;
+    }
+    const current = report;
+    scope.textContent = words.scope[current.scope];
+    const mine = new Set(current.mine);
+    const entries = onlyMine
+      ? current.entries.filter((entry) => mine.has(entry.person.id))
+      : current.entries;
+    if (current.mine.length > 0) {
+      const tab = (label: string, value: boolean) => {
+        const item = el("button", value === onlyMine ? "sc-tab sc-tab-current" : "sc-tab", label);
+        item.type = "button";
+        item.addEventListener("click", () => {
+          onlyMine = value;
+          draw();
+        });
+        return item;
+      };
+      mineHolder.replaceChildren(tab(words.calendarEveryone, false), tab(words.calendarMine, true));
+    } else {
+      mineHolder.replaceChildren();
+    }
+    body.replaceChildren(
+      el("div", "scroll"),
+      legend(words),
+      el("h3", "subheading", words.holidaysOfMonth),
+      holidayList(current.holidays, view),
+    );
+    body.firstElementChild?.append(grid(current, entries, view));
+  }
 
   const refresh = sequenced(async (fresh) => {
     const from = month;
     title.textContent = view.format.month(from);
     try {
-      const report = (await frame.query("calendar", {
+      const answer = (await frame.query("calendar", {
         from,
         to: monthEnd(from),
       })) as CalendarReport;
-      if (!fresh()) {
-        return;
+      if (fresh()) {
+        report = answer;
+        draw();
       }
-      scopeLine.textContent = words.scope[report.scope];
-      body.replaceChildren(
-        grid(report, view),
-        legend(words),
-        section(words.holidaysOfMonth, holidayList(report.holidays, view)),
-      );
     } catch (error) {
       if (fresh()) {
         body.replaceChildren(errorBlock(error, words));

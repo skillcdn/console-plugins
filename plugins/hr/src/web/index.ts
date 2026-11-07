@@ -4,13 +4,12 @@
 // page or widget the frame shows and hands the root to its renderer under pages/.
 import { connect, type PluginFrame } from "@skillcdn/console/plugin/web";
 import { renderApprovals } from "./pages/approvals.js";
-import { renderBalanceWidget } from "./pages/balance-widget.js";
 import { renderCalendar } from "./pages/calendar.js";
 import { renderLeave } from "./pages/leave.js";
 import { renderOverview } from "./pages/overview.js";
 import { renderPeople } from "./pages/people.js";
 import { renderSetup } from "./pages/setup.js";
-import { renderTodayWidget } from "./pages/today-widget.js";
+import { renderApprovalsWidget, renderBalanceWidget, renderTodayWidget } from "./pages/widgets.js";
 import { errorBlock } from "./ui.js";
 import { type Words, wordsFor } from "./words.js";
 
@@ -20,6 +19,8 @@ async function render(root: HTMLElement, frame: PluginFrame, words: Words): Prom
       return renderBalanceWidget(root, frame, words);
     case "today":
       return renderTodayWidget(root, frame, words);
+    case "approvals":
+      return renderApprovalsWidget(root, frame, words);
     default:
       break;
   }

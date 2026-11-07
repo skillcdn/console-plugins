@@ -4,19 +4,29 @@
 import { defineCollection, z } from "@skillcdn/console/plugin";
 import {
   ACCRUAL_MODES,
+  APPROVER_SOURCES,
+  AUTO_MODES,
+  BALANCE_VISIBILITIES,
   BALANCES,
+  CALENDAR_VISIBILITIES,
+  CANCELLATIONS,
   CARRY_OVERS,
   COUNT_DAYS,
   EARNINGS,
   EMPLOYMENTS,
   ENTRY_KINDS,
   FIRST_PERIODS,
-  HALVES,
+  HOLIDAY_CALENDARS,
+  LATE_RULES,
   MONTHLY_UNTILS,
+  NOTICE_MODES,
+  PARTS,
   REASON_RULES,
   REQUEST_STATES,
   ROUNDINGS,
+  STEP_MODES,
   TENURE_ATS,
+  UNITS,
   YEAR_BASES,
 } from "../shared/contracts.js";
 import { isDay, WEEKDAYS } from "../shared/days.js";
@@ -31,13 +41,39 @@ const id = z.string().min(1).max(64);
 export const slug = z
   .string()
   .regex(/^[a-z][a-z0-9-]{0,31}$/, "is a lowercase word of up to 32 letters, digits and dashes");
-/** Words for people by language tag: `en` always, up to ten languages, each a line. */
+/** Words for people by language tag: one language at least, up to ten, each a line. */
 export const names = z
   .record(z.string().regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/), z.string().min(1).max(80))
-  .refine((map) => typeof map.en === "string", "needs an English text under en")
+  .refine((map) => Object.keys(map).length >= 1, "needs a name")
   .refine((map) => Object.keys(map).length <= 10, "has more than ten languages");
 const line = (max: number) => z.string().max(max);
 const days = z.number().finite().min(-1000).max(1000);
+const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "is a time as HH:MM");
+
+/** One step of a line, as HR writes it: someone is named, by a source or outright. */
+export const step = z
+  .object({
+    sources: z.array(wordsOf(APPROVER_SOURCES)).max(5),
+    people: z.array(id).max(10),
+    mode: wordsOf(STEP_MODES),
+  })
+  .refine((value) => value.sources.length + value.people.length > 0, "names nobody");
+
+/** The default line, or a rule's: up to five steps, none for leave approved as written. */
+export const steps = z.array(step).max(5);
+
+/** An exception to the default line. */
+export const rule = z.object({
+  name: z.string().min(1).max(80),
+  kinds: z.array(slug).max(32),
+  teams: z.array(slug).max(32),
+  daysAtLeast: z.nullable(z.number().finite().min(0).max(366)),
+  lateOnly: z.boolean(),
+  steps,
+});
+
+/** The exceptions, the first that holds taking the place of the default line. */
+export const rules = z.array(rule).max(20);
 
 export const people = defineCollection("people", {
   schema: z.object({
@@ -48,14 +84,14 @@ export const people = defineCollection("people", {
     hiredOn: z.nullable(day),
     leftOn: z.nullable(day),
     policy: z.nullable(slug),
-    approverId: z.nullable(id),
+    approverIds: z.array(id).max(10),
     workDays: z.nullable(z.array(wordsOf(WEEKDAYS)).min(1).max(7)),
-    team: z.nullable(line(80)),
+    team: z.nullable(slug),
     title: z.nullable(line(80)),
     employment: wordsOf(EMPLOYMENTS),
     note: line(2000),
   }),
-  indexes: ["personId", "leave", "policy", "approverId", "team", "leftOn", "hiredOn"],
+  indexes: ["personId", "leave", "policy", "team", "leftOn", "hiredOn"],
   search: ["login", "name", "team", "title"],
   owner: "personId",
   read: ["hr"],
@@ -65,7 +101,7 @@ export const people = defineCollection("people", {
 export const policies = defineCollection("policies", {
   schema: z.object({
     key: slug,
-    name: z.string().min(1).max(80),
+    name: z.nullable(z.string().min(1).max(80)),
     description: line(2000),
     preset: slug,
     basis: wordsOf(YEAR_BASES),
@@ -110,9 +146,18 @@ export const types = defineCollection("types", {
     paid: z.boolean(),
     balance: wordsOf(BALANCES),
     allowance: z.number().finite().min(0).max(366),
-    approval: z.boolean(),
     reason: wordsOf(REASON_RULES),
-    halfDays: z.boolean(),
+    unit: wordsOf(UNITS),
+    notice: z.object({
+      mode: wordsOf(NOTICE_MODES),
+      days: z.number().int().min(0).max(366),
+      time,
+    }),
+    late: wordsOf(LATE_RULES),
+    autoApprove: z.object({
+      mode: wordsOf(AUTO_MODES),
+      days: z.number().finite().min(0).max(366),
+    }),
     color: z.number().int().min(1).max(6),
     order: z.number().int().min(0).max(1000),
     enabled: z.boolean(),
@@ -127,20 +172,30 @@ export const requests = defineCollection("requests", {
     type: slug,
     from: day,
     to: day,
-    half: wordsOf(HALVES),
+    part: wordsOf(PARTS),
     days: z.number().finite().min(0).max(366),
     reason: line(2000),
     state: wordsOf(REQUEST_STATES),
+    late: z.boolean(),
+    rule: z.nullable(line(80)),
+    steps: z
+      .array(
+        z.object({
+          approverIds: z.array(id).max(30),
+          mode: wordsOf(STEP_MODES),
+          approvedBy: z.array(z.object({ id, by: id, at: line(40) })).max(30),
+        }),
+      )
+      .max(5),
+    step: z.number().int().min(0).max(5),
     decisionId: z.nullable(id),
     cancelDecisionId: z.nullable(id),
-    approverId: z.nullable(id),
     decidedBy: z.nullable(id),
     decidedAt: z.nullable(line(40)),
     note: z.nullable(line(2000)),
     requestedBy: id,
     requestedAt: line(40),
     cancelledAt: z.nullable(line(40)),
-    labels: z.nullable(z.object({ approve: line(80), reject: line(80) })),
     period: day,
   }),
   indexes: ["personId", "state", "from", "to", "type", "decisionId", "cancelDecisionId", "period"],
@@ -184,6 +239,32 @@ export const holidays = defineCollection("holidays", {
   read: ["member"],
 });
 
+export const teams = defineCollection("teams", {
+  schema: z.object({
+    key: slug,
+    name: z.string().min(1).max(80),
+    approverIds: z.array(id).max(10),
+  }),
+  indexes: ["key"],
+  read: ["manager", "hr"],
+});
+
+export const config = defineCollection("config", {
+  schema: z.object({
+    line: steps,
+    rules,
+    cancellation: wordsOf(CANCELLATIONS),
+    backdatingDays: z.number().int().min(0).max(365),
+    balanceVisibility: wordsOf(BALANCE_VISIBILITIES),
+    calendarVisibility: wordsOf(CALENDAR_VISIBILITIES),
+    calendarShowsType: z.boolean(),
+    workDays: z.array(wordsOf(WEEKDAYS)).min(1).max(7),
+    holidayCalendar: wordsOf(HOLIDAY_CALENDARS),
+    announcement: line(20_000),
+  }),
+  read: ["hr"],
+});
+
 export const marks = defineCollection("marks", {
   schema: z.object({
     key: line(120),
@@ -195,4 +276,14 @@ export const marks = defineCollection("marks", {
   history: false,
 });
 
-export const collections = [people, policies, types, requests, ledger, holidays, marks];
+export const collections = [
+  people,
+  policies,
+  types,
+  teams,
+  config,
+  requests,
+  ledger,
+  holidays,
+  marks,
+];

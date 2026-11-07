@@ -1,6 +1,6 @@
 ---
 name: hr-administration
-description: "Administering leave through the HR plugin, for HR: set leave up for a country, enroll people and turn their leave on, keep the policies and the kinds of leave, write holidays, adjust balances, record leave on behalf, run the accrual, offboard a leaver, export the year. Use when HR asks to set leave up, to add or change a person, to change the rules, to fix a balance, or to settle someone who leaves: console plugin hr setup, enroll, policy, type, holiday, generate-holidays, adjust, accrue, offboard, people, policies, presets, export."
+description: "Administering leave through the HR plugin, for HR: set leave up for a country, enroll people, keep the teams, the line of approvers, the policies and the kinds of leave, write holidays, adjust balances, record leave on behalf, run the accrual, offboard a leaver, export the year. Use when HR asks to set leave up, to add or change a person, to change who approves or the rules, to fix a balance, or to settle someone who leaves: console plugin hr setup, configure, team, enroll, policy, type, holiday, generate-holidays, adjust, accrue, offboard, people, policies, presets, export."
 license: MIT
 metadata:
   author: skillcdn
@@ -8,7 +8,7 @@ skillcdn:
   translations:
     ko:
       title: HR 플러그인으로 휴가 관리하기
-      description: "인사 담당을 위해 HR 플러그인으로 휴가를 관리합니다: 나라별 초기 설정, 구성원 등록과 휴가 켜기, 규정과 휴가 종류 관리, 공휴일 기록, 잔여 조정, 대신 휴가 기록, 발생 처리 실행, 퇴직 처리, 연간 내보내기. 휴가를 설정해 달라, 구성원을 추가·변경해 달라, 규칙을 바꿔 달라, 잔여를 고쳐 달라, 퇴직자를 정산해 달라고 할 때 쓰세요: console plugin hr setup, enroll, policy, type, holiday, generate-holidays, adjust, accrue, offboard, people, policies, presets, export."
+      description: "인사 담당을 위해 HR 플러그인으로 휴가를 관리합니다: 나라별 초기 설정, 구성원 등록, 팀과 결재선, 규정과 휴가 종류 관리, 공휴일 기록, 잔여 조정, 대신 휴가 등록, 발생 처리 실행, 퇴직 처리, 연간 내보내기. 휴가를 설정해 달라, 구성원을 추가·변경해 달라, 결재선이나 규칙을 바꿔 달라, 잔여를 고쳐 달라, 퇴직자를 정산해 달라고 할 때 쓰세요: console plugin hr setup, configure, team, enroll, policy, type, holiday, generate-holidays, adjust, accrue, offboard, people, policies, presets, export."
 ---
 # Administering leave through HR
 
@@ -21,23 +21,41 @@ HR's agent holds the role `hr` through the person it works for. What it does is 
 | Set leave up in one go: the kinds of leave, a default policy from the country's preset, this year's and next year's holidays | `console plugin hr setup kr\|us [--basis anniversary\|fiscal]` |
 | Read the presets and every field each sets | `console plugin hr presets` |
 | Write or change a policy, from a preset and the fields given; `--default` makes it everyone's without one | `console plugin hr policy <key> [--preset <preset>] [--first-period prorated\|full\|none] [--tiers 1:15,3:16,...] [--carry-over none\|all\|upTo --carry-over-days <n>] [--accrual upfront\|monthly\|biweekly\|manual] ... [--default]` |
-| Write or change a kind of leave, with names by language | `console plugin hr type <key> --name en=<words> --name ko=<words> [--balance annual\|own\|none] [--allowance <n>] [--approval on\|off] [--reason optional\|required\|hidden] [--half on\|off]` |
+| Write or change a kind of leave, with names by language | `console plugin hr type <key> --name en=<words> --name ko=<words> [--balance annual\|own\|none] [--allowance <n>] [--reason optional\|required\|hidden] [--unit day\|half\|quarter]` |
+| Say how far ahead a kind is requested and what happens past that | `console plugin hr type <key> --notice none\|days\|dayBefore\|sameDay [--notice-days <n>] [--notice-time <HH:MM>] --late refuse\|mark\|approver` |
+| Say when a kind needs nobody's approval | `console plugin hr type <key> --auto never\|always\|upTo [--auto-days <n>]` |
 | Write a year's public holidays from a built-in calendar | `console plugin hr generate-holidays <year> [--calendar kr\|us]` |
 | Write a holiday of the organization's own, or remove a day's | `console plugin hr holiday <day> --name en=<words> --name ko=<words> [--kind company\|public]`, `console plugin hr holiday <day> --remove` |
 
-The settings an administrator keeps on the plugin's settings page or with `console plugin hr settings --set` are not the policy: who approves (`approvalMode`, `defaultApprover`), how approved leave is cancelled (`cancellation`), how far back a request may start (`backdatingDays`), who sees balances and the calendar (`balanceVisibility`, `calendarVisibility`, `calendarShowsType`), the workspace's working days (`workDays`), the calendar the job writes holidays from (`holidayCalendar`), and the notice shown on the leave page (`notice`).
+What is not a policy is the configuration, HR's own, on the Setup page or with `configure`: how approved leave is cancelled, how far back a request may start, who sees balances and the calendar, the working days, the calendar the job writes holidays from, and the announcement on the leave page.
+
+| Do | Command |
+|---|---|
+| Read the configuration | `console plugin hr config` |
+| Change what is given of it | `console plugin hr configure [--cancellation free\|approval\|hr] [--backdating-days <n>] [--balance-visibility self\|approver\|everyone] [--calendar-visibility everyone\|team\|hr] [--calendar-shows-type on\|off] [--work-days mon,tue,...] [--holiday-calendar none\|kr\|us] [--announcement <words>]` |
+
+## Who approves
+
+A request travels a line: the steps of the default line, or of the first exception that holds for it. A step names its people by `sources` (`line`: the person's own approvers, else their team's, else their manager in the directory; `team`; `manager`; `manager2`, the manager's manager; `hr`) or outright by `people` (ids), and its `mode` is `any`, one answer closing it, or `all`, one after another. Nobody approves their own leave, a person approves once in a line, and a step left with nobody is passed over; a line left with nobody goes to HR.
+
+| Do | Command |
+|---|---|
+| Set the default line, as JSON; `[]` approves everything as it is written | `console plugin hr configure --line '[{"sources":["line"],"people":[],"mode":"any"},{"sources":["hr"],"people":[],"mode":"any"}]'` |
+| Set the exceptions, the first that holds winning; `kinds` and `teams` empty mean all | `console plugin hr configure --rules '[{"name":"Long leave","kinds":[],"teams":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]'` |
+| Write a team and its approvers | `console plugin hr team <key> --name <words> --approvers <login>,<login>` |
+| Read the teams, remove one nobody is on | `console plugin hr teams`, `console plugin hr team <key> --remove` |
 
 ## People
 
 | Do | Command |
 |---|---|
-| Every member with their record, status and annual balance | `console plugin hr people [--team <words>]` |
-| Enroll a person: their hire day, their policy, their approver; `--leave on` turns leave on and writes the days owed so far | `console plugin hr enroll <login> --leave on --hired-on <day> [--policy <key>] [--approver <login>] [--work-days mon,tue,...] [--team <words>] [--title <words>]` |
-| Turn a person's leave off, or change a field; `--clear` empties one | `console plugin hr enroll <login> --leave off`, `console plugin hr enroll <login> --clear approver` |
+| Every member with their record, approvers, status and annual balance | `console plugin hr people [--team <key>]` |
+| Enroll a person: their hire day, their policy, their team; `--leave on` turns leave on and writes the days owed so far; `--approvers` names approvers of their own, who come before their team's and their manager | `console plugin hr enroll <login> --leave on --hired-on <day> [--policy <key>] [--team <key>] [--approvers <login>,<login>] [--work-days mon,tue,...] [--title <words>]` |
+| Turn a person's leave off, or change a field; `--clear` empties one | `console plugin hr enroll <login> --leave off`, `console plugin hr enroll <login> --clear approvers` |
 | Write the day a person leaves: nothing accrues after it | `console plugin hr offboard <login> [--on <day>]` |
 | One person's balance, or their ledger | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
 
-An approver must be able to work in the plugin's board project, since a decision is addressed within it: a person named as approver who is not a member there makes the request fail with `approver_unavailable`, and the fix is on the project's members page.
+Everyone who approves must be able to work in the plugin's board project, since a decision is addressed within it, and needs the role `manager` to see their people and record leave for them. Where the console refuses the approvers named, the decision goes on to HR, and a task says whom to add to the project's members.
 
 ## Balances
 
@@ -45,7 +63,7 @@ An approver must be able to work in the plugin's board project, since a decision
 |---|---|
 | Give or take days, with a note; a credit expires at the period's end unless `--expires` says when | `console plugin hr adjust <login> --days <n> --note <why> [--type <key>] [--kind adjust\|grant\|payout] [--expires <day>] [--on <day>]` |
 | Write what the policies owe by today, for one person or everyone: what the daily job does | `console plugin hr accrue [--person <login>]` |
-| Record leave for a person, approved at once | `console plugin hr request <from> [<to>] --person <login> --approved [--type <key>] [--reason <words>]` |
+| Record leave for a person, approved at once; without `--approved` it travels the person's line | `console plugin hr request <from> [<to>] --person <login> --approved [--type <key>] [--reason <words>]` |
 | Cancel any request, approved or not | `console plugin hr cancel <id> [--reason <words>]` |
 | Everyone's requests, or those waiting | `console plugin hr requests --scope all [--state requested]` |
 | The year's ledger or requests as CSV, for payroll | `console plugin hr export <year> [--what ledger\|requests]` |

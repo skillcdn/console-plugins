@@ -1,7 +1,17 @@
 // The kinds of leave a workspace starts with, written by `setup` or when the plugin is enabled;
 // HR renames, changes or disables them afterwards, and adds its own. Annual leave is always one
 // of them, since the policies give their days to it.
-import type { LeaveType } from "../../shared/contracts.js";
+import type { LeaveType, Notice } from "../../shared/contracts.js";
+
+const NO_NOTICE: Notice = { mode: "none", days: 0, time: "18:00" };
+const ASK_ALWAYS = { mode: "never", days: 0 } as const;
+
+/** What a kind asks unless HR says otherwise: no notice, late requests marked, a decision always. */
+export const TYPE_RULES = {
+  notice: NO_NOTICE,
+  late: "mark",
+  autoApprove: ASK_ALWAYS,
+} as const;
 
 export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {
   const us = country === "us";
@@ -12,9 +22,9 @@ export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {
       paid: true,
       balance: "annual",
       allowance: 0,
-      approval: true,
       reason: "optional",
-      halfDays: true,
+      unit: "half",
+      ...TYPE_RULES,
       color: 1,
       order: 10,
       enabled: true,
@@ -25,9 +35,9 @@ export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {
       paid: true,
       balance: us ? "own" : "none",
       allowance: us ? 5 : 0,
-      approval: true,
       reason: "required",
-      halfDays: true,
+      unit: "half",
+      ...TYPE_RULES,
       color: 2,
       order: 20,
       enabled: true,
@@ -38,9 +48,9 @@ export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {
       paid: false,
       balance: "none",
       allowance: 0,
-      approval: true,
       reason: "required",
-      halfDays: false,
+      unit: "day",
+      ...TYPE_RULES,
       color: 3,
       order: 30,
       enabled: true,
@@ -53,9 +63,9 @@ export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {
       paid: true,
       balance: "none",
       allowance: 0,
-      approval: true,
       reason: "required",
-      halfDays: false,
+      unit: "day",
+      ...TYPE_RULES,
       color: 4,
       order: 40,
       enabled: true,
@@ -66,9 +76,9 @@ export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {
       paid: true,
       balance: "own",
       allowance: 0,
-      approval: true,
       reason: "optional",
-      halfDays: true,
+      unit: "half",
+      ...TYPE_RULES,
       color: 5,
       order: 50,
       enabled: true,

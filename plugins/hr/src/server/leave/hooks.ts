@@ -1,16 +1,27 @@
 // What the console tells the plugin, and what the plugin does about it, once. A decision it
-// raised was answered: the request moves on. Someone was deactivated in the console: their leave
+// raised was answered: the request goes to the next approver of its line, or is settled. Someone
+// was deactivated in the console: their leave
 // is off, and HR settles. Someone came back: HR says whether their leave is on again. Delivery is
 // at least once, so each hook reads the record's state before acting and leaves one that has
 // moved as it is. The plugin never answers a decision itself.
 import type { PluginContext, PluginHookEvent, PluginRecord } from "@skillcdn/console/plugin";
 import type { LeaveRequest, Person } from "../../shared/contracts.js";
 import { dayIn } from "../../shared/days.js";
-import { ledger, people, requests } from "../collections.js";
-import { type Clock, clockOf, listAll, stamp } from "../store.js";
+import { marks, people, requests } from "../collections.js";
+import {
+  type Clock,
+  clockOf,
+  languageFor,
+  languageOfHr,
+  listAll,
+  type RestPerson,
+  stamp,
+} from "../store.js";
 import { OPTION_KEYS, serverWords } from "../words.js";
-import { reverseUse } from "./commands.js";
-import { askAboutReturner, nameOf, type RestPerson, turnOffLeaver } from "./leavers.js";
+import { approvedAt, nextOf } from "./approval.js";
+import { reverseUse, writeUse } from "./commands.js";
+import { askApproval } from "./decisions.js";
+import { askAboutReturner, mark, nameOf, turnOffLeaver } from "./leavers.js";
 
 type RestDecision = NonNullable<Awaited<ReturnType<PluginContext["console"]["decisions"]["get"]>>>;
 
@@ -49,15 +60,10 @@ export interface Answer {
 
 /**
  * What the answer chose, read by the key the plugin gave the option: from the event, where the
- * console sends it (`optionKey`), else from the decision's own option. A decision raised before
- * options carried keys is read by the labels stored on the request. Anything else is words of
+ * console sends it (`optionKey`), else from the decision's own option. Anything else is words of
  * the decider's own. Nothing while the decision still waits.
  */
-export function readAnswer(
-  event: PluginHookEvent,
-  decision: RestDecision | null,
-  labels: { approve: string; reject: string } | null,
-): Answer | null {
+export function readAnswer(event: PluginHookEvent, decision: RestDecision | null): Answer | null {
   const answer = decision?.answer ?? null;
   const chosen =
     answer === null ? undefined : decision?.options.find((option) => option.id === answer.option);
@@ -68,15 +74,10 @@ export function readAnswer(
   }
   const key = eventKey ?? chosen?.key ?? null;
   const label = chosen?.label ?? eventLabel ?? "";
-  const own = chosen?.own === true;
   let verdict: Answer["verdict"] = "own";
   if (key === OPTION_KEYS.approve) {
     verdict = "approve";
   } else if (key === OPTION_KEYS.reject) {
-    verdict = "reject";
-  } else if (key === null && !own && labels !== null && label === labels.approve) {
-    verdict = "approve";
-  } else if (key === null && !own && labels !== null && label === labels.reject) {
     verdict = "reject";
   }
   return {
@@ -86,33 +87,6 @@ export function readAnswer(
     at: answer?.at ?? event.at,
     note: answer?.note ?? null,
   };
-}
-
-async function writeUse(
-  ctx: PluginContext,
-  request: PluginRecord<LeaveRequest>,
-  by: string,
-): Promise<void> {
-  const existing = await ctx
-    .records(ledger)
-    .list({ where: { ref: `use:${request.id}` }, limit: 1 });
-  if (existing.items.length > 0) {
-    return;
-  }
-  await ctx.records(ledger).create({
-    personId: request.data.personId,
-    type: request.data.type,
-    kind: "use",
-    days: -request.data.days,
-    on: request.data.from,
-    period: request.data.period,
-    expiresOn: null,
-    ref: `use:${request.id}`,
-    requestId: request.id,
-    bucket: null,
-    note: `${request.data.from}${request.data.to === request.data.from ? "" : ` ~ ${request.data.to}`}`,
-    by,
-  });
 }
 
 /** The request a decision was raised for: its approval, else its cancellation. */
@@ -128,6 +102,32 @@ async function requestOfDecision(
     .records(requests)
     .list({ where: { cancelDecisionId: decisionId }, limit: 1 });
   return byCancel.items[0];
+}
+
+/**
+ * The next approver's decision, once: a delivery repeated after the decision was raised but before
+ * the request was written finds it by the mark, and raises no second one.
+ */
+async function goOn(
+  ctx: PluginContext,
+  clock: Clock,
+  found: PluginRecord<LeaveRequest>,
+  answered: string,
+  steps: LeaveRequest["steps"],
+  next: { readonly step: number; readonly deciders: readonly string[] },
+): Promise<void> {
+  const key = `next:${answered}`;
+  const raised = await ctx.records(marks).list({ where: { key }, limit: 1 });
+  let decisionId = raised.items[0]?.data.summary;
+  if (decisionId === undefined) {
+    const advanced = { ...found, data: { ...found.data, steps, step: next.step } };
+    decisionId = await askApproval(ctx, clock, advanced, next.deciders);
+    await mark(ctx, key, clock, decisionId);
+  }
+  await ctx
+    .records(requests)
+    .update(found.id, { steps, step: next.step, decisionId }, { baseVersion: found.version });
+  await ctx.events.emit("leave-advanced", { requestId: found.id, personId: found.data.personId });
 }
 
 export async function onDecisionAnswered(
@@ -153,7 +153,7 @@ export async function onDecisionAnswered(
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  const answer = readAnswer(event, decision, found.data.labels);
+  const answer = readAnswer(event, decision);
   if (answer === null) {
     return;
   }
@@ -161,12 +161,43 @@ export async function onDecisionAnswered(
   const by = answer.by ?? "console";
   const note = answer.note;
   if (found.data.state === "requested" && found.data.decisionId === decisionId) {
+    const current = found.data.steps[found.data.step];
+    // Nobody approves their own leave. The decision is answered and cannot be asked again, so
+    // the request goes back to the person, unless nobody else could have answered it.
+    if (
+      answer.verdict === "approve" &&
+      answer.by === found.data.personId &&
+      (current?.approverIds.length ?? 0) > 0
+    ) {
+      const language = await languageFor(ctx, clock, [found.data.personId]);
+      await ctx.records(requests).update(
+        found.id,
+        {
+          state: "returned",
+          decidedBy: answer.by,
+          decidedAt: answer.at,
+          note: serverWords(language).ownAnswer,
+        },
+        { baseVersion: found.version },
+      );
+      await ctx.events.emit("leave-returned", {
+        requestId: found.id,
+        personId: found.data.personId,
+      });
+      return;
+    }
     if (answer.verdict === "approve") {
+      const steps = approvedAt(found.data.steps, found.data.step, by, answer.at);
+      const next = nextOf(steps);
+      if (next !== null) {
+        await goOn(ctx, clock, found, decisionId, steps, next);
+        return;
+      }
       const updated = await ctx
         .records(requests)
         .update(
           found.id,
-          { state: "approved", decidedBy: answer.by, decidedAt: answer.at, note },
+          { state: "approved", steps, decidedBy: answer.by, decidedAt: answer.at, note },
           { baseVersion: found.version },
         );
       await writeUse(ctx, updated, by);
@@ -270,7 +301,7 @@ export async function onPersonDeactivated(
     known !== undefined && known.deactivatedAt !== null
       ? dayOfInstant(known.deactivatedAt, clock)
       : dayOfInstant(event.at, clock);
-  const words = serverWords(clock.languages[0] ?? "en");
+  const words = serverWords(await languageOfHr(ctx, clock));
   await turnOffLeaver(ctx, record, leftOn, clock, words, nameOf(record.data, known));
 }
 
@@ -289,7 +320,7 @@ export async function onPersonReactivated(
   }
   const clock = await clockOf(ctx);
   const known = await directoryPerson(ctx, login);
-  const words = serverWords(clock.languages[0] ?? "en");
+  const words = serverWords(await languageOfHr(ctx, clock));
   await askAboutReturner(ctx, record, clock, words, nameOf(record.data, known));
 }
 
