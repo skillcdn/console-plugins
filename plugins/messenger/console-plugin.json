@@ -1,0 +1,85 @@
+{
+  "key": "messenger",
+  "name": {
+    "en": "Messenger",
+    "ko": "Messenger"
+  },
+  "description": {
+    "en": "Greetings kept as records: who greeted whom, and the latest of them.",
+    "ko": "Greetings kept as records: who greeted whom, and the latest of them."
+  },
+  "agentNote": {
+    "en": "Keeps greetings as records; greet someone with the command greet, read the latest with the query latest.",
+    "ko": "Keeps greetings as records; greet someone with the command greet, read the latest with the query latest."
+  },
+  "pluginApi": 1,
+  "console": ">=0.4.6 <0.5.0",
+  "server": "dist/server/index.js",
+  "web": "dist/web",
+  "skills": "skills",
+  "capabilities": [],
+  "roles": {
+    "greeter": {
+      "name": {
+        "en": "Greeter",
+        "ko": "Greeter"
+      },
+      "description": {
+        "en": "Greets people, and reads the greetings.",
+        "ko": "Greets people, and reads the greetings."
+      }
+    }
+  },
+  "defaultRole": "greeter",
+  "board": {
+    "needs": "none"
+  },
+  "settings": [
+    {
+      "key": "greeting",
+      "type": "text",
+      "name": {
+        "en": "Greeting",
+        "ko": "Greeting"
+      },
+      "description": {
+        "en": "The word a greeting starts with when the command is given none.",
+        "ko": "The word a greeting starts with when the command is given none."
+      },
+      "default": "Hello",
+      "max": 40
+    }
+  ],
+  "menu": {
+    "group": "operations"
+  },
+  "pages": [
+    {
+      "key": "greetings",
+      "name": {
+        "en": "Greetings",
+        "ko": "Greetings"
+      },
+      "level": "workspace",
+      "roles": ["greeter"]
+    }
+  ],
+  "widgets": [
+    {
+      "key": "latest",
+      "name": {
+        "en": "Latest greeting",
+        "ko": "Latest greeting"
+      },
+      "place": "home:top",
+      "sizes": ["small", "medium"],
+      "defaultSize": "small",
+      "roles": ["greeter"]
+    }
+  ],
+  "dataVersion": 1,
+  "store": {
+    "homepage": "https://github.com/skillcdn/console-plugins/tree/HEAD/plugins/messenger",
+    "repository": "https://github.com/skillcdn/console-plugins"
+  }
+}

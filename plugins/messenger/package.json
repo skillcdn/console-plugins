@@ -1,0 +1,45 @@
+{
+  "name": "@skillcdn/console-plugin-messenger",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Messenger, a plugin of the SkillCDN Console: every message a plugin has for people, carried to the messengers an organization uses and back, Slack first; for HR, a leave form in the chat and the approval threaded with whoever decides.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://github.com/skillcdn/console-plugins/tree/main/plugins/messenger#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skillcdn/console-plugins.git",
+    "directory": "plugins/messenger"
+  },
+  "bugs": "https://github.com/skillcdn/console-plugins/issues",
+  "keywords": [
+    "skillcdn",
+    "console",
+    "console-plugin",
+    "messenger",
+    "slack",
+    "notifications"
+  ],
+  "files": [
+    "dist",
+    "skills",
+    "SKILLCDN.md",
+    "console-plugin.json"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "check": "console-plugin check",
+    "clean": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\"",
+    "prepack": "node ../../scripts/pack-files.mjs copy",
+    "postpack": "node ../../scripts/pack-files.mjs remove"
+  },
+  "devDependencies": {
+    "@skillcdn/console": "catalog:",
+    "@types/node": "catalog:",
+    "esbuild": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
