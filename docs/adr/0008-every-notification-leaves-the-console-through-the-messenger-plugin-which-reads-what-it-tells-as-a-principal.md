@@ -1,0 +1,25 @@
+# ADR-0008: Every notification leaves the console through one plugin, `messenger`, which reads what it tells as a principal in the plugin that knows it
+
+- Status: Accepted
+- Date: 2026-11-08
+- Depends on the console's side, proposed in the console's repository and adopted here by version: a role granted to a plugin and a call made for a person, a secret sealed from an answer a plugin receives. Until the console has them, `messenger` is a design.
+
+## Context
+
+`hr` tells people things on the board alone: a decision to whoever approves, a task to HR. The first thing asked of it beyond the board was a line in a chat channel when leave is taken, in the name of the person taking it; then the request itself from the chat, a shortcut opening a form, the approval answered where the manager reads, every step visible to both; and the same for what `crm` and `finance` will have to say, to more than one messenger. Three ways were open: every plugin speaks to the messengers itself; the producers put everything a message needs into their events and one plugin forwards them; or one plugin carries the messages and reads, in each producer, what it needs. Two facts of the console weighed: every holder of a role of a plugin may read that plugin's events, so an event that carries a reason or a balance tells it to everyone; and a plugin calling another's `api` from a hook or a job runs today with every role of the callee, which is the whole of what the console knows of one plugin acting in another.
+
+## Decision
+
+1. **One plugin, `messenger`, is the way out of the console and the way back in.** It carries every message a plugin has for people to the messengers the organization uses, each messenger an adapter inside it (Slack first), and carries what people do there, a form filled, a button pressed, back to the plugin it concerns. No other plugin here speaks to a messenger, holds a messenger's secret or knows its shapes.
+2. **A producer tells `messenger` nothing it does not tell itself.** It emits the events it emits for its own frames, ids and kinds, and offers through its `api` what it offers anyone with a role. `messenger` reads the rest as a principal, holding the role an administrator granted it in the producer, and acts for a person, a request made, a decision answered, through the console's call for a person, which records the plugin acting for them and lets it do what both may do and no more. Which kinds go where, in which language and under whose name are `messenger`'s routes, not the producer's.
+3. **What is known of a producer lives in `messenger`,** one module per producer (`integrations/hr`: the form, the message, the thread), written against the producer's events and `api`, which the producer's README documents as a contract and versions as one. A new messenger is an adapter; a new producer is a module; neither touches the other.
+4. **What happens in a messenger returns through the console, and what is shown follows from the producer.** A button pressed answers the decision for the person who pressed it; the thread, the channel and the console then follow from the producer's events alike, so that an approval given on the board and one given in the chat leave the same trail. `messenger` writes nothing to a messenger while answering an incoming request; its hooks and its job do, so that a slow messenger never holds a person's click past the seconds a messenger allows.
+
+## Consequences
+
+- `messenger` is the second plugin, before `crm`: every plugin after it tells people through it, and none grows a notifier of its own.
+- `messenger` is a plugin of this repository though it is not an area of the organization's work: the one plugin that is what every area shares (AGENTS.md, rule 5).
+- A producer gains a duty: its events and the `api` `messenger` reads are a contract, documented and kept. `hr` documents its leave events and opens a query for one request first.
+- A plugin's event stays thin, and nothing a role holder may not read travels in one.
+- `messenger` waits on the console: the role granted to a plugin and the call for a person, the secret sealed from an answer, a work email in the directory, the console's own address; and it is better with a hook event's id, a collection that forgets, a dispatcher that keeps one plugin's failures from another's, and the lifecycle events of a plugin reaching the plugins that call it.
+- Rejected: events that carry everything a message needs (they tell every role holder of the producer what a message says, and every producer learns the shapes of messaging); a shared package for the shape of a notification (a package before the second use, around the same fat event); a messenger in each plugin (an adapter per plugin per messenger, a secret in each, a channel that reads differently per plugin); the console as the notifier (the board is where people decide; what they are told elsewhere moves at a plugin's pace).
