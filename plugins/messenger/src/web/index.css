@@ -1,51 +1,324 @@
-/* The plugin's own classes begin with pl-messenger-; the console's tokens and sc-* classes are there to use. */
+/* The plugin's own classes begin with pl-messenger-; the console's tokens and sc-* classes give the look. */
+
+/* A page pads itself by the step the console's frame stands outside the page's column. */
 .pl-messenger-page {
   display: grid;
-  gap: var(--sc-space-4);
+  gap: var(--sc-space-5);
   padding: var(--sc-space-4);
   color: var(--sc-color-text);
   font-family: var(--sc-font-sans);
 }
 
-.pl-messenger-form {
-  display: flex;
-  gap: var(--sc-space-2);
-  align-items: center;
+/* The console's grids set a display of their own, which would win over the browser's hidden. */
+.pl-messenger-page [hidden] {
+  display: none;
 }
 
-.pl-messenger-list {
+.pl-messenger-page .pl-messenger-head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.pl-messenger-page .pl-messenger-callout {
+  margin-bottom: 0;
+}
+
+.pl-messenger-stack {
   display: grid;
-  gap: var(--sc-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: var(--sc-space-5);
+  min-width: 0;
 }
 
-.pl-messenger-greeting {
+.pl-messenger-toolbar {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--sc-space-3);
-  padding: var(--sc-space-2) var(--sc-space-3);
-  border: 1px solid var(--sc-color-border);
-  border-radius: var(--sc-radius-md);
-  background: var(--sc-color-bg-raised);
 }
 
-.pl-messenger-by {
+.pl-messenger-toolbar select {
+  width: auto;
+  min-width: 10rem;
+}
+
+/* A pane of a page: the console's glass, each section set apart from the next. */
+
+.pl-messenger-panel {
+  display: grid;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  margin-bottom: 0;
+  padding: var(--sc-space-5);
+}
+
+.pl-messenger-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-4);
+}
+
+.pl-messenger-panel-title {
+  font-size: var(--sc-text-lg);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-messenger-subheading {
+  margin-top: var(--sc-space-2);
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-messenger-line {
+  font-size: var(--sc-text-sm);
+}
+
+.pl-messenger-label {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-sm);
 }
 
-/* The console's box around a widget pads it; the widget pads nothing of its own. */
-.pl-messenger-widget {
-  color: var(--sc-color-text);
-  font-family: var(--sc-font-sans);
+.pl-messenger-mono {
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-text-sm);
+  overflow-wrap: anywhere;
 }
 
-.pl-messenger-empty {
-  color: var(--sc-color-text-faint);
+.pl-messenger-rule {
+  width: 100%;
+  margin: var(--sc-space-2) 0;
+  border: 0;
+  border-top: var(--sc-hairline);
 }
 
-.pl-messenger-error {
-  color: var(--sc-color-danger);
+/* The steps of the connection, each with whether it is done. */
+
+.pl-messenger-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: pl-messenger-step;
+}
+
+.pl-messenger-step {
+  display: grid;
+  gap: var(--sc-space-2);
+  padding: var(--sc-space-4) 0 var(--sc-space-4) 2.25rem;
+  border-top: var(--sc-hairline);
+  position: relative;
+  counter-increment: pl-messenger-step;
+}
+
+.pl-messenger-step:first-child {
+  border-top: 0;
+  padding-top: var(--sc-space-1);
+}
+
+.pl-messenger-step::before {
+  content: counter(pl-messenger-step);
+  position: absolute;
+  left: 0;
+  top: var(--sc-space-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--sc-color-neutral-subtle);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-bold);
+}
+
+.pl-messenger-step:first-child::before {
+  top: var(--sc-space-1);
+}
+
+.pl-messenger-step-done::before {
+  background: var(--sc-color-success-subtle);
+  color: var(--sc-color-success);
+}
+
+.pl-messenger-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2) var(--sc-space-3);
+}
+
+.pl-messenger-step-title {
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-messenger-step-body {
+  display: grid;
+  gap: var(--sc-space-2);
+  min-width: 0;
+  max-width: 44rem;
+}
+
+/* Choices: the console's toggle chips, the box itself out of sight. */
+
+.pl-messenger-option-card input {
+  margin-top: 0.2em;
+}
+
+.pl-messenger-pills {
+  min-width: 0;
+}
+
+.pl-messenger-pills .pl-messenger-pill {
+  position: relative;
+}
+
+.pl-messenger-pills .pl-messenger-pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.pl-messenger-pills .pl-messenger-pill:has(input:checked) {
+  border-color: var(--sc-color-accent);
+  background: var(--sc-color-accent-subtle);
+  color: var(--sc-color-accent);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-messenger-pills .pl-messenger-pill:has(input:focus-visible) {
+  outline: var(--sc-focus-ring);
+  outline-offset: 1px;
+}
+
+.pl-messenger-option-cards {
+  display: grid;
+  gap: var(--sc-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pl-messenger-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sc-space-3);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-sheet);
+  cursor: pointer;
+  transition:
+    border-color var(--sc-transition),
+    background var(--sc-transition);
+}
+
+.pl-messenger-option-card:hover {
+  background: var(--sc-color-sheet-hover);
+}
+
+.pl-messenger-option-card:has(input:checked) {
+  border-color: var(--sc-color-accent);
+  background: var(--sc-color-accent-subtle);
+}
+
+.pl-messenger-option-card-text {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.pl-messenger-option-card-label {
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-messenger-option-card-hint {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+/* People */
+
+.pl-messenger-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+  min-width: 0;
+}
+
+.pl-messenger-who-text {
+  display: grid;
+  min-width: 0;
+  line-height: var(--sc-leading-snug);
+}
+
+.pl-messenger-who-name {
+  overflow: hidden;
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-messenger-who-sub {
+  overflow: hidden;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tables */
+
+.pl-messenger-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.pl-messenger-table {
+  width: 100%;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-messenger-table th {
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border-bottom: var(--sc-border);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-medium);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pl-messenger-table td {
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border-bottom: var(--sc-hairline);
+  vertical-align: top;
+}
+
+.pl-messenger-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Lines under forms */
+
+.pl-messenger-status {
+  min-height: 1.25rem;
+  font-size: var(--sc-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.pl-messenger-status:empty {
+  display: none;
+}
+
+.pl-messenger-ok {
+  color: var(--sc-color-success);
 }

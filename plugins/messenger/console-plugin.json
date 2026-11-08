@@ -2,84 +2,194 @@
   "key": "messenger",
   "name": {
     "en": "Messenger",
-    "ko": "Messenger"
+    "ko": "메신저"
   },
   "description": {
-    "en": "Greetings kept as records: who greeted whom, and the latest of them.",
-    "ko": "Greetings kept as records: who greeted whom, and the latest of them."
+    "en": "Tells people in Slack what the console's plugins have for them, and brings back what they do there: for HR, a leave form in the chat and each approval threaded with whoever decides.",
+    "ko": "콘솔의 플러그인이 사람들에게 전할 것을 Slack으로 보내고, 거기서 한 일을 콘솔로 가져옵니다. HR은 채팅에서 휴가를 신청하고, 결재는 결재자와 함께 스레드로 이어집니다."
   },
   "agentNote": {
-    "en": "Keeps greetings as records; greet someone with the command greet, read the latest with the query latest.",
-    "ko": "Keeps greetings as records; greet someone with the command greet, read the latest with the query latest."
+    "en": "Connects the workspace's Slack, matches people to their accounts and routes plugin events to channels; for whoever keeps the messenger.",
+    "ko": "워크스페이스의 Slack을 연결하고, 사람을 Slack 계정과 맞추고, 플러그인 알림을 채널로 보냅니다. 메신저 담당이 씁니다."
   },
   "pluginApi": 1,
   "console": ">=0.4.6 <0.5.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",
-  "capabilities": [],
+  "capabilities": [
+    "people:read",
+    "people:read:all",
+    "people:read:email",
+    "people:act",
+    "events:console",
+    "events:plugins",
+    "jobs",
+    "endpoints",
+    "outbound:slack.com",
+    "outbound:hooks.slack.com"
+  ],
+  "optionalCapabilities": ["plugins:hr"],
   "roles": {
-    "greeter": {
+    "messenger": {
       "name": {
-        "en": "Greeter",
-        "ko": "Greeter"
+        "en": "Messenger",
+        "ko": "메신저 담당"
       },
       "description": {
-        "en": "Greets people, and reads the greetings.",
-        "ko": "Greets people, and reads the greetings."
+        "en": "Connects Slack, says which events go to which channel, and sees who is matched to an account and what was sent.",
+        "ko": "Slack을 연결하고, 어떤 알림을 어느 채널로 보낼지 정하며, 계정과 연결된 사람과 보낸 기록을 봅니다."
       }
     }
   },
-  "defaultRole": "greeter",
+  "grants": {
+    "hr": {
+      "roles": ["hr"],
+      "why": {
+        "en": "To read a leave request whole, its line and its reason, when HR says it was made or decided, and write its thread for the person and whoever decides.",
+        "ko": "HR이 휴가 신청이나 결재를 알릴 때 신청 전체(결재선, 사유)를 읽어, 신청자와 결재자의 스레드를 씁니다."
+      }
+    }
+  },
   "board": {
     "needs": "none"
   },
-  "settings": [
+  "settingGroups": [
     {
-      "key": "greeting",
-      "type": "text",
+      "key": "slack",
       "name": {
-        "en": "Greeting",
-        "ko": "Greeting"
+        "en": "Slack",
+        "ko": "Slack 연결"
       },
       "description": {
-        "en": "The word a greeting starts with when the command is given none.",
-        "ko": "The word a greeting starts with when the command is given none."
+        "en": "Paste the app configuration token and its refresh token; the console seals the rest from Slack's answers.",
+        "ko": "앱 설정 토큰과 갱신 토큰을 붙여 넣으세요. 나머지는 콘솔이 Slack의 응답에서 봉인합니다."
+      }
+    }
+  ],
+  "settings": [
+    {
+      "key": "slackConfigToken",
+      "type": "secret",
+      "group": "slack",
+      "hosts": ["slack.com"],
+      "name": {
+        "en": "App configuration token",
+        "ko": "앱 설정 토큰"
       },
-      "default": "Hello",
-      "max": 40
+      "description": {
+        "en": "From api.slack.com/apps, Your App Configuration Tokens: the access token. The plugin makes the app with it, and renews it every few hours.",
+        "ko": "api.slack.com/apps의 Your App Configuration Tokens에서 Access Token. 플러그인이 이것으로 앱을 만들고 몇 시간마다 갱신합니다."
+      }
+    },
+    {
+      "key": "slackConfigRefreshToken",
+      "type": "secret",
+      "group": "slack",
+      "hosts": ["slack.com"],
+      "name": {
+        "en": "Configuration refresh token",
+        "ko": "설정 갱신 토큰"
+      },
+      "description": {
+        "en": "The refresh token shown beside the configuration token; renewed with it.",
+        "ko": "설정 토큰 옆에 있는 Refresh Token. 설정 토큰과 함께 갱신됩니다."
+      }
+    },
+    {
+      "key": "slackClientSecret",
+      "type": "secret",
+      "group": "slack",
+      "hosts": ["slack.com"],
+      "name": {
+        "en": "Client secret",
+        "ko": "클라이언트 시크릿"
+      },
+      "description": {
+        "en": "Sealed by the console when the plugin makes the app: nothing to paste.",
+        "ko": "플러그인이 앱을 만들 때 콘솔이 봉인합니다. 붙여 넣을 것이 없습니다."
+      }
+    },
+    {
+      "key": "slackSigningSecret",
+      "type": "secret",
+      "group": "slack",
+      "hosts": ["slack.com"],
+      "use": "verify",
+      "name": {
+        "en": "Signing secret",
+        "ko": "서명 시크릿"
+      },
+      "description": {
+        "en": "Verifies that what comes in was sent by Slack. Sealed by the console when the plugin makes the app; it signs nothing.",
+        "ko": "들어오는 요청을 Slack이 보냈는지 확인합니다. 플러그인이 앱을 만들 때 콘솔이 봉인하며, 서명에는 쓰지 않습니다."
+      }
+    },
+    {
+      "key": "slackBotToken",
+      "type": "secret",
+      "group": "slack",
+      "hosts": ["slack.com"],
+      "name": {
+        "en": "Bot token",
+        "ko": "봇 토큰"
+      },
+      "description": {
+        "en": "Sealed by the console when the app is installed in the workspace: nothing to paste.",
+        "ko": "앱을 워크스페이스에 설치할 때 콘솔이 봉인합니다. 붙여 넣을 것이 없습니다."
+      }
     }
   ],
   "menu": {
-    "group": "operations"
+    "group": "operations",
+    "order": 50
   },
   "pages": [
     {
-      "key": "greetings",
+      "key": "connection",
       "name": {
-        "en": "Greetings",
-        "ko": "Greetings"
+        "en": "Connection",
+        "ko": "연결"
       },
       "level": "workspace",
-      "roles": ["greeter"]
-    }
-  ],
-  "widgets": [
+      "roles": ["messenger"],
+      "wide": true
+    },
     {
-      "key": "latest",
+      "key": "routes",
       "name": {
-        "en": "Latest greeting",
-        "ko": "Latest greeting"
+        "en": "Routes",
+        "ko": "채널 알림"
       },
-      "place": "home:top",
-      "sizes": ["small", "medium"],
-      "defaultSize": "small",
-      "roles": ["greeter"]
+      "level": "workspace",
+      "roles": ["messenger"],
+      "wide": true
+    },
+    {
+      "key": "people",
+      "name": {
+        "en": "People",
+        "ko": "계정 연결"
+      },
+      "level": "workspace",
+      "roles": ["messenger"],
+      "wide": true
+    },
+    {
+      "key": "activity",
+      "name": {
+        "en": "Activity",
+        "ko": "전송 기록"
+      },
+      "level": "workspace",
+      "roles": ["messenger"],
+      "wide": true
     }
   ],
   "dataVersion": 1,
   "store": {
-    "homepage": "https://github.com/skillcdn/console-plugins/tree/HEAD/plugins/messenger",
-    "repository": "https://github.com/skillcdn/console-plugins"
+    "homepage": "https://github.com/skillcdn/console-plugins/tree/main/plugins/messenger#readme",
+    "repository": "https://github.com/skillcdn/console-plugins",
+    "keywords": ["messenger", "slack", "notifications", "leave", "approvals"]
   }
 }
