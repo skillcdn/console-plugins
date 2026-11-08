@@ -22,6 +22,7 @@ import {
   type Config,
   EARNINGS,
   EMPLOYMENTS,
+  type Entry,
   FIRST_PERIODS,
   HOLIDAY_CALENDARS,
   type Holiday,
@@ -75,6 +76,7 @@ import {
   types,
 } from "../collections.js";
 import { configOf, writeConfig } from "../config.js";
+import { emit } from "../events.js";
 import {
   allTypes,
   balancedTypes,
@@ -92,11 +94,13 @@ import {
 } from "../store.js";
 import { daysText, nameIn, type ServerWords, serverWords } from "../words.js";
 import { approvedAs, approvedAsWritten, lineFor, nextOf, ruleFor } from "./approval.js";
-import { askApproval, askCancellation } from "./decisions.js";
-import { balanceOf, syncPerson } from "./engine.js";
+import { counts, type Line, reversalsOf } from "./balance.js";
+import { askApproval, askCancellation, type Raised } from "./decisions.js";
+import { balanceOf, creditsOwed, ledgerOf, lineOf, syncPerson } from "./engine.js";
 import { builtInHolidays, KR_YEARS } from "./holidays.js";
 import { type PolicyDraft, PRESETS, presetOf } from "./presets.js";
-import { countLeaveDays, expiryOf, isInTime, periodOf } from "./rules.js";
+import { daysOf, lineReadback, policyReadback, setupReadback, writtenOf } from "./readback.js";
+import { countLeaveDays, expiryOf, isInTime, isPolicyRef, periodOf } from "./rules.js";
 import { DEFAULT_TYPES, TYPE_RULES } from "./types.js";
 
 const PRESET_KEYS = PRESETS.map((preset) => preset.key) as [string, ...string[]];
@@ -429,19 +433,21 @@ export const request = defineCommand({
         step: next?.step ?? 0,
         decisionId: null,
         cancelDecisionId: null,
+        asked: [],
         // Whoever wrote it decided it, where it was written for someone; else nobody was asked.
         decidedBy: next === null && forOther ? actor.id : null,
         decidedAt: next === null ? at : null,
         note: null,
         requestedBy: actor.id,
         requestedAt: at,
+        requestedVia: actor.via,
         cancelledAt: null,
         period: prepared.period,
       },
       { owner: target.id },
     );
     if (forOther) {
-      await ctx.events.emit("leave-recorded", {
+      await emit(ctx, "leave-recorded", {
         requestId: created.id,
         personId: target.id,
         by: actor.id,
@@ -449,25 +455,27 @@ export const request = defineCommand({
     }
     if (next === null) {
       await writeUse(ctx, created, actor.id);
-      await ctx.events.emit("leave-approved", { requestId: created.id, personId: target.id });
+      await emit(ctx, "leave-approved", { requestId: created.id, personId: target.id });
       return {
         text: forOther ? words.recorded(who, created.id) : words.approved(created.id),
         data: created,
       };
     }
-    let decisionId: string;
+    let raised: Raised;
     try {
-      decisionId = await askApproval(ctx, clock, created, next.deciders);
+      raised = await askApproval(ctx, clock, created, next.deciders);
     } catch (error) {
       await ctx.records(requests).archive(created.id);
       throw error;
     }
-    const updated = await ctx.records(requests).update(created.id, { decisionId });
-    await ctx.events.emit("leave-requested", { requestId: created.id, personId: target.id });
+    const updated = await ctx
+      .records(requests)
+      .update(created.id, { decisionId: raised.id, asked: raised.asked });
+    await emit(ctx, "leave-requested", { requestId: created.id, personId: target.id });
     return {
       text: forOther ? words.recordedWaiting(who, created.id) : words.requested(created.id),
       data: updated,
-      waiting: decisionId,
+      waiting: raised.id,
     };
   },
 });
@@ -506,7 +514,7 @@ export const cancel = defineCommand({
         },
         { baseVersion: found.version },
       );
-      await ctx.events.emit("leave-cancelled", {
+      await emit(ctx, "leave-cancelled", {
         requestId: found.id,
         personId: found.data.personId,
       });
@@ -537,17 +545,19 @@ export const cancel = defineCommand({
       default:
         break;
     }
-    const decisionId = await askCancellation(ctx, clock, found, actor.name ?? actor.login, reason);
+    const raised = await askCancellation(ctx, clock, found, actor.name ?? actor.login, reason);
     const updated = await ctx.records(requests).update(
       found.id,
       {
         state: "cancelling",
-        cancelDecisionId: decisionId,
+        cancelDecisionId: raised.id,
+        asked: raised.asked,
         ...(reason.length > 0 ? { note: reason } : {}),
       },
       { baseVersion: found.version },
     );
-    return { text: words.cancellationRequested(found.id), data: updated, waiting: decisionId };
+    await emit(ctx, "leave-cancelling", { requestId: found.id, personId: found.data.personId });
+    return { text: words.cancellationRequested(found.id), data: updated, waiting: raised.id };
   },
 });
 
@@ -626,7 +636,7 @@ export const adjust = defineCommand({
       note: args.note.trim(),
       by: actor.id,
     });
-    await ctx.events.emit("balance-adjusted", {
+    await emit(ctx, "balance-adjusted", {
       personId: record.data.personId,
       entryId: created.id,
     });
@@ -765,17 +775,35 @@ export const enroll = defineCommand({
         ? await ctx.records(people).create(next, { owner: args.person.id })
         : await ctx.records(people).update(existing.id, next, { baseVersion: existing.version });
     let written = 0;
+    const said = [words.enrolled(args.person.name ?? args.person.login, saved.data.leave)];
     if (saved.data.leave) {
       const policy = await policyFor(ctx, saved.data);
       if (policy !== null) {
         const balanced = balancedTypes(await allTypes(ctx)).map((type) => type.data);
-        written = (await syncPerson(ctx, saved.data, policy.data, balanced, clock.today, actor.id))
-          .written;
+        const outcome = await syncPerson(
+          ctx,
+          saved.data,
+          policy.data,
+          balanced,
+          clock.today,
+          actor.id,
+        );
+        written = outcome.written;
+        const lines = writtenOf(outcome.entries);
+        said.push(words.readback.written(lines, daysOf(words)));
+        const annual = balanced.find((type) => type.key === ANNUAL);
+        if (annual !== undefined) {
+          const now = await balanceOf(ctx, saved.data, policy.data, annual, clock.today);
+          said.push(words.readback.available(daysText(now.available, words), clock.today));
+        }
+        if (lines.monthly > 0) {
+          said.push(words.readback.monthlyFrom(policy.data.key, args.person.login));
+        }
       }
     }
-    await ctx.events.emit("person-changed", { personId: saved.data.personId });
+    await emit(ctx, "person-changed", { personId: saved.data.personId });
     return {
-      text: words.enrolled(args.person.name ?? args.person.login, saved.data.leave),
+      text: said.join(" "),
       data: { record: saved, written },
     };
   },
@@ -808,7 +836,7 @@ export const offboard = defineCommand({
         { leftOn, leave: leftOn < clock.today ? false : existing.data.leave },
         { baseVersion: existing.version },
       );
-    await ctx.events.emit("person-changed", { personId: saved.data.personId });
+    await emit(ctx, "person-changed", { personId: saved.data.personId });
     return { text: words.offboarded(args.person.name ?? args.person.login, leftOn), data: saved };
   },
 });
@@ -1029,8 +1057,11 @@ export const policy = defineCommand({
       }
       await unsetDefaultPolicies(ctx, saved.id);
     }
-    await ctx.events.emit("policy-changed", { key: saved.data.key });
-    return { text: words.policySaved(saved.data.key), data: saved };
+    await emit(ctx, "policy-changed", { key: saved.data.key });
+    return {
+      text: `${words.policySaved(saved.data.key)} ${policyReadback(saved.data, words)}`,
+      data: saved,
+    };
   },
 });
 
@@ -1102,7 +1133,7 @@ export const type = defineCommand({
     }),
     late: arg.enum(LATE_RULES as unknown as [string, ...string[]], {
       about:
-        "a request past the notice: refuse, mark it for whoever decides, or manager (only a manager or HR writes it)",
+        "a request past the notice: refuse; mark, taken and marked late, then as --auto says; manager, recorded by a manager or HR alone",
       optional: true,
     }),
     auto: arg.enum(AUTO_MODES as unknown as [string, ...string[]], {
@@ -1198,8 +1229,12 @@ export const type = defineCommand({
       existing === null
         ? await ctx.records(types).create(next)
         : await ctx.records(types).update(existing.id, next, { baseVersion: existing.version });
-    await ctx.events.emit("type-changed", { key: saved.data.key });
-    return { text: words.typeSaved(saved.data.key), data: saved };
+    await emit(ctx, "type-changed", { key: saved.data.key });
+    const clock = await clockOf(ctx);
+    return {
+      text: `${words.typeSaved(saved.data.key)} ${words.readback.type(saved.data, clock.timeZone)}`,
+      data: saved,
+    };
   },
 });
 
@@ -1228,7 +1263,7 @@ export const holiday = defineCommand({
       for (const record of existing) {
         await ctx.records(holidays).archive(record.id);
       }
-      await ctx.events.emit("holidays-changed", { year: yearOf(args.day) });
+      await emit(ctx, "holidays-changed", { year: yearOf(args.day) });
       return { text: words.holidayRemoved(args.day), data: { removed: existing.length } };
     }
     const manual = existing.find((record) => record.data.source === "manual");
@@ -1247,7 +1282,7 @@ export const holiday = defineCommand({
       manual === undefined
         ? await ctx.records(holidays).create(next)
         : await ctx.records(holidays).update(manual.id, next);
-    await ctx.events.emit("holidays-changed", { year: next.year });
+    await emit(ctx, "holidays-changed", { year: next.year });
     return { text: words.holidaySaved(args.day), data: saved };
   },
 });
@@ -1301,7 +1336,7 @@ export const generateHolidays = defineCommand({
       throw new PluginError("no_calendar", words.refused.noCalendar);
     }
     const written = await writeHolidays(ctx, calendar, args.year);
-    await ctx.events.emit("holidays-changed", { year: args.year });
+    await emit(ctx, "holidays-changed", { year: args.year });
     return { text: words.holidaysWritten(written, args.year, calendar), data: { written } };
   },
 });
@@ -1374,11 +1409,22 @@ export const setup = defineCommand({
         holidaysWritten += await writeHolidays(ctx, args.country, candidate);
       }
     }
-    await ctx.events.emit("policy-changed", { key: presetKey });
+    await emit(ctx, "policy-changed", { key: presetKey });
+    const annual = await typeByKey(ctx, ANNUAL);
+    const readback = await setupReadback(
+      ctx,
+      clock,
+      policyRecord.data,
+      annual?.data ?? null,
+      await configOf(ctx),
+      words,
+    );
     return {
-      text:
-        words.setupDone(typesWritten, presetKey, holidaysWritten) +
-        (clock.timeZone === "UTC" ? ` ${words.zoneIsUtc}` : ""),
+      text: [
+        words.setupDone(typesWritten, presetKey, holidaysWritten),
+        readback,
+        ...(clock.timeZoneSet ? [] : [words.zoneIsUtc]),
+      ].join("\n"),
       data: { types: typesWritten, policy: policyRecord, holidays: holidaysWritten },
     };
   },
@@ -1490,8 +1536,11 @@ export const configure = defineCommand({
       patch.holidayCalendar = args["holiday-calendar"] as Config["holidayCalendar"];
     }
     const saved = await writeConfig(ctx, patch);
-    await ctx.events.emit("config-changed", { fields: Object.keys(patch) });
-    return { text: words.configSaved, data: saved };
+    await emit(ctx, "config-changed", { fields: Object.keys(patch) });
+    return {
+      text: `${words.configSaved} ${await lineReadback(ctx, saved.data, words)}`,
+      data: saved,
+    };
   },
 });
 
@@ -1518,6 +1567,159 @@ async function checkNames(
   }
 }
 
+/** A line written with `adjust`: its ref is the kind and a random id, never the policy's. */
+export function isHandRef(ref: string): boolean {
+  return /^(?:adjust|grant|payout):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+    ref,
+  );
+}
+
+/** The line that reverses another: the opposite days, naming it, so that both count for nothing. */
+function reversalOf(line: Line, note: string, by: string): Entry {
+  return {
+    personId: line.personId,
+    type: line.type,
+    kind: "reverse",
+    days: roundDays(0 - line.days),
+    on: line.on,
+    period: line.period,
+    expiresOn: null,
+    ref: `reverse:${line.id}`,
+    requestId: null,
+    bucket: line.id,
+    note,
+    by,
+  };
+}
+
+export const recount = defineCommand({
+  about:
+    "HR: brings a person's lines to the policy as it stands, reversing what it no longer owes.",
+  args: {
+    person: arg.person({ about: "whose lines", positional: true }),
+  },
+  roles: [ROLE_HR],
+  async run(ctx, args) {
+    const actor = actorOf(ctx);
+    requireHr(actor);
+    const words = serverWords(ctx.language);
+    const no = words.refused;
+    const clock = await clockOf(ctx);
+    const record = await personRecord(ctx, args.person.id);
+    if (record === null) {
+      throw new PluginError("not_enrolled", no.noRecord);
+    }
+    if (!record.data.leave || record.data.hiredOn === null) {
+      throw new PluginError("not_enrolled", no.notEnrolled);
+    }
+    const policy = await policyFor(ctx, record.data);
+    if (policy === null) {
+      throw new PluginError("no_policy", no.noPolicy);
+    }
+    const balanced = balancedTypes(await allTypes(ctx)).map((type) => type.data);
+    const reversed: Line[] = [];
+    for (const type of balanced) {
+      const owed = new Map(
+        creditsOwed(policy.data, record.data, type, clock.today).map((credit) => [
+          credit.ref,
+          credit,
+        ]),
+      );
+      const { lines } = await ledgerOf(ctx, record.data.personId, type.key);
+      const reversals = reversalsOf(lines);
+      const live = lines.filter((line) => counts(line, reversals));
+      // The policy's own lines it no longer owes, or a grant it now owes otherwise, which the sync
+      // writes again; an accrual stays, since a cap may have made it less than the policy says.
+      const stale = live.filter((line) => {
+        if (!isPolicyRef(line.ref)) {
+          return false;
+        }
+        const credit = owed.get(line.ref);
+        return credit === undefined || (line.kind === "grant" && credit.days !== line.days);
+      });
+      const refs = new Set(stale.map((line) => line.ref));
+      const closing = live.filter(
+        (line) =>
+          (line.kind === "expire" || line.kind === "payout") &&
+          line.bucket !== null &&
+          refs.has(line.bucket),
+      );
+      for (const line of [...stale, ...closing]) {
+        await ctx.records(ledger).create(reversalOf(line, "~recount", actor.id));
+        reversed.push(line);
+      }
+    }
+    const outcome = await syncPerson(
+      ctx,
+      record.data,
+      policy.data,
+      balanced,
+      clock.today,
+      actor.id,
+    );
+    const said = [
+      words.recounted(args.person.name ?? args.person.login, policy.data.key),
+      words.readback.reversed(writtenOf(reversed), daysOf(words)),
+      words.readback.written(writtenOf(outcome.entries), daysOf(words)),
+    ];
+    const annual = balanced.find((type) => type.key === ANNUAL);
+    if (annual !== undefined) {
+      const now = await balanceOf(ctx, record.data, policy.data, annual, clock.today);
+      said.push(words.readback.available(daysText(now.available, words), clock.today));
+    }
+    await emit(ctx, "person-changed", { personId: record.data.personId });
+    return {
+      text: said.join(" "),
+      data: { reversed: reversed.length, written: outcome.written },
+    };
+  },
+});
+
+export const reverse = defineCommand({
+  about: "HR: reverses a line written with adjust, by its id from ledger, with a note.",
+  args: {
+    line: arg.record("ledger", { about: "the line, by its id", positional: true }),
+    note: arg.text({ about: "why, for the record", max: 500 }),
+  },
+  roles: [ROLE_HR],
+  async run(ctx, args) {
+    const actor = actorOf(ctx);
+    requireHr(actor);
+    const words = serverWords(ctx.language);
+    const no = words.refused;
+    const found = await ctx.records(ledger).get(args.line);
+    if (found === null) {
+      throw new PluginError("not_found", no.noSuchLine);
+    }
+    if (!isHandRef(found.data.ref)) {
+      throw new PluginError("not_reversible", no.notReversible);
+    }
+    const done = await ctx
+      .records(ledger)
+      .list({ where: { ref: `reverse:${found.id}` }, limit: 1 });
+    if (done.items.length > 0) {
+      throw new PluginError("already_reversed", no.alreadyReversed);
+    }
+    const created = await ctx
+      .records(ledger)
+      .create(reversalOf(lineOf(found), args.note.trim(), actor.id));
+    await emit(ctx, "balance-adjusted", {
+      personId: found.data.personId,
+      entryId: created.id,
+    });
+    const typeRecord = await typeByKey(ctx, found.data.type);
+    const record = await personRecord(ctx, found.data.personId);
+    return {
+      text: words.reversedLine(
+        daysText(found.data.days, words),
+        typeRecord === null ? found.data.type : nameIn(typeRecord.data.name, ctx.language),
+        record?.data.name ?? record?.data.login ?? found.data.personId,
+      ),
+      data: created,
+    };
+  },
+});
+
 export const commands = {
   request,
   cancel,
@@ -1531,6 +1733,8 @@ export const commands = {
   holiday,
   "generate-holidays": generateHolidays,
   setup,
+  recount,
+  reverse,
 };
 
 /** Whether a day is one the calendar has: for callers that build days from parts. */

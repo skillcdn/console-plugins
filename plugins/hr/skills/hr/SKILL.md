@@ -24,6 +24,7 @@ The plugin keeps the workspace's leave as records of the console. You act as the
 | What a request would come to: its days, the balance, who approves, the refusal it would meet | `console plugin hr preview <from> [<to>] [--type <key>] [--part <part>]` |
 | Request leave: a day or a span. `--type` from `types`, `annual` unless said; `--part` `am`, `pm` or `q1` to `q4` where the kind allows; `--reason` where it asks | `console plugin hr request <from> [<to>] [--type <key>] [--part <part>] [--reason <words>]` |
 | The person's requests, newest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>]` |
+| One request in full: where it stands on its line, whom it waits for now | `console plugin hr request-view <id>` |
 | Cancel a request of theirs: one waiting at once, one approved as HR has it | `console plugin hr cancel <id> [--reason <words>]` |
 | Who is out, up to three months at a time | `console plugin hr calendar [--from <day>] [--to <day>]` |
 | The kinds of leave; the holidays of a year | `console plugin hr types`, `console plugin hr holidays [--year <n>]` |

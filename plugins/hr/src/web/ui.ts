@@ -740,20 +740,32 @@ export function lineSteps(
   frame: PluginFrame,
   steps: readonly StepView[],
   words: Words,
+  asked: readonly PersonBrief[] = [],
 ): HTMLElement {
   const node = el("ol", "line-steps");
   for (const step of steps) {
     const item = el("li", `line-step line-step-${step.state}`);
-    item.append(faces(frame, step.deciders, 3));
-    const names = step.deciders.map(personLabel);
+    // The step waiting shows whom the decision went to, where the console sent it on up.
+    const sentOn =
+      step.state === "waiting" && asked.length > 0 && !samePeople(asked, step.deciders);
+    const shown = sentOn ? asked : step.deciders;
+    item.append(faces(frame, shown, 3));
+    const names = shown.map(personLabel);
     const label =
       names.length <= 2
-        ? names.join(step.mode === "all" ? " → " : ", ")
+        ? names.join(step.mode === "all" && !sentOn ? " → " : ", ")
         : words.peopleCount(String(names.length));
-    item.append(el("span", "line-step-name", names.length === 0 ? words.anyHolder : label));
+    const text = names.length === 0 ? words.anyHolder : sentOn ? words.sentOnTo(label) : label;
+    item.append(el("span", "line-step-name", text));
     node.append(item);
   }
   return node;
+}
+
+/** Whether two lists name the same people, in any order. */
+function samePeople(a: readonly PersonBrief[], b: readonly PersonBrief[]): boolean {
+  const ids = new Set(a.map((person) => person.id));
+  return a.length === b.length && b.every((person) => ids.has(person.id));
 }
 
 /** A name for people by language, English when the language has none, the first name there is otherwise. */

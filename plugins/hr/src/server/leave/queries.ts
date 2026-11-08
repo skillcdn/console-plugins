@@ -78,8 +78,8 @@ import {
 } from "../store.js";
 import { noteIn, serverWords } from "../words.js";
 import { approvedAs, nextOf, waitingIn } from "./approval.js";
-import { settle } from "./balance.js";
-import { prepareRequest } from "./commands.js";
+import { counts, reversalsOf, settle } from "./balance.js";
+import { isHandRef, prepareRequest } from "./commands.js";
 import { ledgerOf, lineOf, typeBalanceOf } from "./engine.js";
 import { PRESETS, policyAbout, policyName } from "./presets.js";
 import { isCounted } from "./rules.js";
@@ -112,8 +112,18 @@ function decisionPath(ctx: PluginContext, decisionId: string | null): string | n
     : `/projects/${board.key}/decisions/${decisionId}`;
 }
 
+/** Whether someone stands in a request's line: a step asks them, a decision went to them, or they approved. */
+function inLine(request: LeaveRequest, id: string): boolean {
+  return (
+    request.asked.includes(id) ||
+    request.steps.some(
+      (step) => step.deciderIds.includes(id) || step.approvedBy.some((entry) => entry.by === id),
+    )
+  );
+}
+
 function cancellable(actor: Actor, request: LeaveRequest, config: Config, today: string): boolean {
-  if (actor.isConsole) {
+  if (!actor.isPerson) {
     return false;
   }
   const own = request.personId === actor.id;
@@ -173,17 +183,18 @@ function viewOf(
   // What a person wrote is for them, those above them, whoever their line asks and HR: a
   // configuration that opens balances to more people opens the dates, not the reasons.
   const close =
-    actor.hr ||
-    data.personId === actor.id ||
-    reach.has(data.personId) ||
-    data.steps.some((step) => step.deciderIds.includes(actor.id));
+    actor.hr || data.personId === actor.id || reach.has(data.personId) || inLine(data, actor.id);
   const current = data.steps[data.step];
-  const asked =
+  const waits = open || data.state === "cancelling";
+  // Whom the console addressed the live decision to, which is whom its step asks unless the console
+  // refused them and the decision went on up; a record from before it was kept reads the step.
+  const fallback =
     data.state === "cancelling"
       ? (data.steps[0]?.deciderIds ?? [])
       : current
         ? waitingIn(current)
         : [];
+  const asked = waits ? (data.asked.length > 0 ? data.asked : fallback) : [];
   return {
     id: record.id,
     person,
@@ -201,13 +212,15 @@ function viewOf(
       decisionId: data.decisionId,
       cancelDecisionId: data.cancelDecisionId,
       requestedAt: data.requestedAt,
+      requestedVia: data.requestedVia,
       decidedAt: data.decidedAt,
     },
     recordedBy:
       data.requestedBy === data.personId ? null : briefOf(data.requestedBy, directoryMap, null),
     decidedBy: data.decidedBy === null ? null : briefOf(data.decidedBy, directoryMap, null),
     line: stepViews(data.steps, directoryMap, open),
-    mine: (open || data.state === "cancelling") && asked.includes(actor.id),
+    asked: asked.map((id) => briefOf(id, directoryMap, null)),
+    mine: asked.includes(actor.id),
     decisionPath: decisionPath(ctx, data.decisionId),
     cancelDecisionPath: decisionPath(ctx, data.cancelDecisionId),
     cancellable: cancellable(actor, data, config, today),
@@ -391,6 +404,55 @@ export const requestsQuery = defineQuery({
     );
     const kept = scope === "waiting" ? views.filter((view) => view.mine) : views;
     return kept.slice(0, args.limit ?? LINES);
+  },
+});
+
+/**
+ * One request as the caller may read it: the person's own, their people's, one in a line that
+ * names the caller, one whose person's requests the configuration opens to them, and every one
+ * for HR. Any other is answered as if there were none, so that its existence says nothing.
+ */
+export async function requestViewOf(ctx: PluginContext, id: string): Promise<RequestView> {
+  const actor = actorOf(ctx);
+  const no = serverWords(ctx.language).refused;
+  const found = await ctx.records(requests).get(id);
+  if (found === null) {
+    throw new PluginError("not_found", no.noSuchRequest);
+  }
+  const config = await configOf(ctx);
+  const clock = await clockOf(ctx);
+  const directoryMap = await directoryOf(ctx);
+  const reach = reachOf(actor, directoryMap);
+  const { data } = found;
+  const visible =
+    actor.hr ||
+    (actor.isPerson &&
+      (data.personId === actor.id ||
+        inLine(data, actor.id) ||
+        maySeeRequests(actor, data.personId, reach, config)));
+  if (!visible) {
+    throw new PluginError("not_found", no.noSuchRequest);
+  }
+  return viewOf(
+    ctx,
+    actor,
+    found,
+    briefOf(data.personId, directoryMap, null, actor),
+    config,
+    clock.today,
+    directoryMap,
+    reach,
+  );
+}
+
+export const requestView = defineQuery({
+  about: "One request in full: where it stands, whom it waits for, what you may read of it.",
+  args: {
+    id: arg.record("requests", { about: "the request", positional: true }),
+  },
+  roles: [ROLE_MEMBER, ROLE_HR],
+  async run(ctx, args): Promise<RequestView> {
+    return requestViewOf(ctx, args.id);
   },
 });
 
@@ -684,20 +746,25 @@ export const ledgerQuery = defineQuery({
     });
     // A line that closes a credit counts for what it took, so that the lines come to the balance;
     // one that took nothing changed nothing, and would push what did happen out of the first lines.
-    const { closed } = settle(items.map(lineOf));
-    return items
-      .filter((item) => closed.get(item.id) !== 0)
+    const lines = items.map(lineOf);
+    const { closed } = settle(lines);
+    const reversals = reversalsOf(lines);
+    return lines
+      .filter((line) => closed.get(line.id) !== 0)
       .slice(0, args.limit ?? LINES)
-      .map((item) => {
-        const took = closed.get(item.id);
+      .map((line) => {
+        const took = closed.get(line.id);
+        const reversed = line.kind !== "reverse" && !counts(line, reversals);
         return {
-          id: item.id,
-          on: item.data.on,
-          kind: item.data.kind,
-          days: took === undefined ? item.data.days : 0 - took,
-          expiresOn: item.data.expiresOn,
-          note: noteIn(item.data.note, words),
-          requestId: item.data.requestId,
+          id: line.id,
+          on: line.on,
+          kind: line.kind,
+          days: took === undefined ? line.days : 0 - took,
+          expiresOn: line.expiresOn,
+          note: noteIn(line.note, words),
+          requestId: line.requestId,
+          reversed,
+          reversible: actor.hr && !reversed && isHandRef(line.ref),
         };
       });
   },
@@ -1008,6 +1075,7 @@ export const queries = {
   balance,
   preview,
   requests: requestsQuery,
+  "request-view": requestView,
   calendar,
   people: peopleQuery,
   policies: policiesQuery,

@@ -254,8 +254,11 @@ export function requestsList(
         el("p", "request-note", words.recordedBy(item.recordedBy.name ?? item.recordedBy.login)),
       );
     }
+    if (item.request.requestedVia !== null) {
+      main.append(el("p", "request-note", words.requestedVia(item.request.requestedVia)));
+    }
     if (item.request.state === "requested" && item.line.length > 0) {
-      main.append(lineSteps(frame, item.line, words));
+      main.append(lineSteps(frame, item.line, words, item.asked));
     }
     if ((item.request.note ?? "").length > 0) {
       main.append(el("p", "request-note prose", item.request.note ?? ""));
@@ -284,15 +287,19 @@ export function ledgerTable(entries: readonly EntryView[], view: LeaveView): HTM
     return empty(words.ledgerEmpty);
   }
   const headers = [words.bucketOn, words.bucketKind, words.daysHeader, words.expiresOn, words.note];
-  const rows = entries.map((entry) =>
-    row([
+  const rows = entries.map((entry) => {
+    const note = el("span", "prose", entry.note);
+    const said = entry.reversed
+      ? [note, el("span", "sc-muted", ` · ${words.reversedMark}`)]
+      : [note];
+    return row([
       format.day(entry.on),
       words.kind[entry.kind],
       num(format.signed(entry.days)),
       entry.expiresOn === null ? DASH : format.day(entry.expiresOn),
-      cell(el("span", "prose", entry.note)),
-    ]),
-  );
+      cell(...said),
+    ]);
+  });
   const recent = table(headers, rows.slice(0, RECENT_LINES));
   if (rows.length <= RECENT_LINES) {
     return recent;

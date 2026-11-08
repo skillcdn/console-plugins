@@ -1,7 +1,7 @@
 // The server module against the console's test context: records in memory, the console answering
 // what the test provides (people, a board, decisions, tasks) and refusing the rest. One test per
 // row of the design in README.md: what a command does, what it refuses, what it tells people.
-import type { PluginCaller, PluginContext } from "@skillcdn/console/plugin";
+import { defineCollection, type PluginCaller, type PluginContext } from "@skillcdn/console/plugin";
 import { createTestContext, type TestContext } from "@skillcdn/console/plugin/testing";
 import { beforeEach, describe, expect, it } from "vitest";
 import type {
@@ -20,6 +20,7 @@ import type {
 import {
   accrue,
   adjust,
+  api,
   balance,
   calendar,
   cancel,
@@ -41,12 +42,17 @@ import {
   policy,
   presetsQuery,
   preview,
+  recount,
   request,
+  requests,
   requestsQuery,
+  requestView,
+  reverse,
   runDaily,
   setup,
   type,
   typesQuery,
+  upgrades,
 } from "./index.js";
 
 type RestPerson = Awaited<ReturnType<PluginContext["console"]["people"]["list"]>>[number];
@@ -934,6 +940,8 @@ describe("balances and visibility", () => {
       "note",
       "on",
       "requestId",
+      "reversed",
+      "reversible",
     ]);
   });
 
@@ -2143,5 +2151,363 @@ describe("the workspace's time zone", () => {
     const ctx = contextWith(board());
     const result = await setup.run(ctx, { country: "kr" });
     expect(result.text).not.toContain("--time-zone");
+  });
+});
+
+describe("whom a decision went to", () => {
+  it("is kept where the console sends the decision on up, and the request is theirs to find", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {}, chain());
+    theBoard.refuse.add(personOf(MANAGER).id);
+    await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(stored(ctx).asked).toEqual([personOf(BOB).id]);
+    expect(stored(ctx).steps[0]?.deciderIds).toEqual([personOf(MANAGER).id]);
+    const bobs = (await requestsQuery.run(ctx.as(BOB), { scope: "waiting" })) as RequestView[];
+    expect(bobs.map((view) => view.mine)).toEqual([true]);
+    expect(bobs[0]?.asked.map((person) => person.login)).toEqual(["bob"]);
+    expect(await requestsQuery.run(ctx.as(MANAGER), { scope: "waiting" })).toEqual([]);
+  });
+
+  it("follows the line to its next step, and to a cancellation", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {
+      cancellation: "approval",
+      line: lineWith([
+        { sources: ["manager"], people: [], mode: "any" },
+        { sources: ["hr"], people: [], mode: "any" },
+      ]),
+    });
+    const asked = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(stored(ctx).asked).toEqual([personOf(MANAGER).id]);
+    theBoard.answer(asked.waiting ?? "", "approve", MANAGER);
+    await answered(ctx, asked.waiting ?? "");
+    expect(stored(ctx).asked).toEqual([personOf(HR).id]);
+    theBoard.answer(stored(ctx).decisionId ?? "", "approve", HR);
+    await answered(ctx, stored(ctx).decisionId ?? "");
+    expect(stored(ctx).state).toBe("approved");
+    await cancel.run(ctx.as(ALICE), { id: ctx.all("requests")[0]?.id ?? "" });
+    expect(stored(ctx)).toMatchObject({ state: "cancelling", asked: [personOf(MANAGER).id] });
+    expect(ctx.emitted.map((event) => event.kind)).toContain("leave-cancelling");
+  });
+});
+
+describe("one request in full", () => {
+  it("answers its person, those above them, its line and HR, with the reason", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    await request.run(ctx.as(ALICE), { from: "2026-11-10", reason: "family" });
+    const id = ctx.all("requests")[0]?.id ?? "";
+    for (const who of [ALICE, MANAGER, HR]) {
+      const view = (await requestView.run(ctx.as(who), { id })) as RequestView;
+      expect(view).toMatchObject({ id, request: { reason: "family", requestedVia: null } });
+      expect(view.asked.map((person) => person.login)).toEqual(["minho"]);
+    }
+  });
+
+  it("answers anyone else as if there were none, and the dates alone where balances are open", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    await request.run(ctx.as(ALICE), { from: "2026-11-10", reason: "family" });
+    const id = ctx.all("requests")[0]?.id ?? "";
+    await expect(requestView.run(ctx.as(BOB), { id })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(requestView.run(ctx.as(BOB), { id: "requests-999999" })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await configure.run(ctx, { "balance-visibility": "everyone" });
+    const seen = (await requestView.run(ctx.as(BOB), { id })) as RequestView;
+    expect(seen.request).toMatchObject({ from: "2026-11-10", reason: "" });
+  });
+});
+
+describe("the api other plugins call", () => {
+  it("requests, previews, reads and cancels as the commands and the queries do, for the caller", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    const kinds = (await api.types.run(ctx.as(ALICE), {})) as { key: string }[];
+    expect(kinds.map((kind) => kind.key)).toContain("annual");
+    const previewed = (await api.preview.run(ctx.as(ALICE), {
+      from: "2026-11-10",
+    })) as RequestPreview;
+    expect(previewed).toMatchObject({ refusal: null, days: 1 });
+    const made = (await api.request.run(ctx.as(ALICE), {
+      from: "2026-11-10",
+      reason: "rest",
+      approved: true,
+    })) as { text: string; request: RequestView; waiting: string | null };
+    expect(made.waiting).toBe(stored(ctx).decisionId);
+    expect(made.request).toMatchObject({
+      person: { login: "alice" },
+      request: { state: "requested", reason: "rest" },
+      mine: false,
+    });
+    expect(made.text).toContain(made.request.id);
+    const report = (await api.balance.run(ctx.as(MANAGER), {
+      personId: personOf(ALICE).id,
+    })) as BalanceReport;
+    expect(report.person.login).toBe("alice");
+    const cancelled = (await api.cancel.run(ctx.as(ALICE), { id: made.request.id })) as {
+      request: RequestView;
+    };
+    expect(cancelled.request.request.state).toBe("cancelled");
+  });
+
+  it("refuses what the commands and the queries refuse, and what only a person does to the console", async () => {
+    const ctx = await korea(board());
+    await expect(
+      api.balance.run(ctx.as(BOB), { personId: personOf(ALICE).id }),
+    ).rejects.toMatchObject({ code: "not_visible" });
+    await expect(
+      api.balance.run(ctx.as(ALICE), { personId: "00000000-0000-7000-8000-0000000000ff" }),
+    ).rejects.toMatchObject({ code: "unknown_person" });
+    await expect(api.request.run(ctx.as(CONSOLE), { from: "2026-11-10" })).rejects.toMatchObject({
+      code: "person_only",
+    });
+    await expect(
+      api.types.run(ctx.as(caller("00000000-0000-7000-8000-0000000000aa", "zed", [])), {}),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(api.request.run(ctx.as(ALICE), { from: "2026-02-30" })).rejects.toThrow();
+    await expect(
+      api.request.run(ctx.as(ALICE), { from: "2026-11-10", reason: "x".repeat(2001) }),
+    ).rejects.toThrow();
+    expect(ctx.all("requests")).toHaveLength(0);
+  });
+});
+
+describe("the upgrade of the records", () => {
+  it("writes whom a waiting decision went to, as the console holds it, and no plugin, once", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    const old = defineCollection("requests", {
+      schema: requests.schema.omit({ asked: true, requestedVia: true }),
+    });
+    const made = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    const {
+      asked: _asked,
+      requestedVia: _via,
+      ...before
+    } = (made.data as { data: LeaveRequest }).data;
+    const waiting = await ctx.records(old).create(before, { owner: before.personId });
+    await ctx
+      .records(old)
+      .create(
+        { ...before, state: "rejected", from: "2026-11-12", to: "2026-11-12" },
+        { owner: before.personId },
+      );
+    for (const upgrade of upgrades) {
+      await upgrade.run(ctx.as(CONSOLE));
+      await upgrade.run(ctx.as(CONSOLE));
+    }
+    const records = ctx.all("requests").map((record) => record.data as unknown as LeaveRequest);
+    expect(records.every((data) => data.requestedVia === null)).toBe(true);
+    const upgraded = ctx.all("requests").find((record) => record.id === waiting.id);
+    expect(upgraded?.data).toMatchObject({ asked: [personOf(MANAGER).id] });
+    expect(records.find((data) => data.state === "rejected")?.asked).toEqual([]);
+  });
+});
+
+describe("what a setting command reads back", () => {
+  it("lists what the preset chose for the organization to compare, the zone and the line among it", async () => {
+    const ctx = contextWith(board());
+    const said = (await setup.run(ctx, { country: "kr", basis: "fiscal" })).text;
+    expect(said).toContain("What the preset chose");
+    expect(said).toContain("A year from 1/1");
+    expect(said).toContain("someone hired within a period gets days prorated");
+    expect(said).toContain("First year: a day for each month completed, 11 at most");
+    expect(said).toContain("Requested any time; every request goes to the line.");
+    expect(said).toContain("Approval: 1. the person's manager.");
+    expect(said).toContain("Time zone: Asia/Seoul.");
+    expect(said).toContain("before enrolling anyone");
+    const utc = (await setup.run(contextWith(board(), everyone(), "UTC"), { country: "kr" })).text;
+    expect(utc).toContain("Time zone: none is set, so UTC.");
+  });
+
+  it("says a policy's first year and what is left at the period's end", async () => {
+    const ctx = contextWith(board());
+    await setup.run(ctx, { country: "kr", basis: "fiscal" });
+    const said = (await policy.run(ctx, { key: "kr-fiscal-year", monthly: "off" })).text;
+    expect(said).toContain("Policy kr-fiscal-year saved.");
+    expect(said).toContain("First year: no monthly days.");
+    expect(said).toContain("unused days are paid out");
+  });
+
+  it("says how a kind is taken, approval of a late request included", async () => {
+    const ctx = contextWith(board());
+    await setup.run(ctx, { country: "kr" });
+    const always = await type.run(ctx, {
+      key: "annual",
+      notice: "sameDay",
+      "notice-time": "09:00",
+      late: "mark",
+      auto: "always",
+    });
+    expect(always.text).toContain(
+      "Requested by 09:00 the same day, Asia/Seoul time; approved as written, nobody asked; a later one is approved as written too, and marked late.",
+    );
+    const upTo = await type.run(ctx, { key: "annual", auto: "upTo", "auto-days": 30 });
+    expect(upTo.text).toContain("approved as written in time up to 30 days");
+    expect(upTo.text).toContain("a later one goes to the line, marked late");
+    const refused = await type.run(ctx, { key: "annual", late: "refuse" });
+    expect(refused.text).toContain("a later request is refused");
+  });
+
+  it("says what enrolling wrote, what is available, and where monthly days came from", async () => {
+    const ctx = contextWith(board());
+    await setup.run(ctx, { country: "kr" });
+    const said = (
+      await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" })
+    ).text;
+    expect(said).toContain("Written: 15 days granted, 11 days of first-year monthly days");
+    expect(said).toContain("11 days paid out");
+    expect(said).toContain("Available on 2026-11-06: 15 days.");
+    expect(said).toContain("policy kr-statutory --monthly off, then recount alice");
+    await policy.run(ctx, { key: "kr-statutory", monthly: "off" });
+    const bob = (
+      await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2025-03-15" })
+    ).text;
+    expect(bob).toContain("Written: 15 days granted.");
+    expect(bob).not.toContain("monthly");
+  });
+
+  it("says the line in words, its exceptions too", async () => {
+    const ctx = contextWith(board());
+    await setup.run(ctx, { country: "kr" });
+    const said = await configure.run(ctx, {
+      line: lineWith([
+        { sources: ["manager"], people: [], mode: "any" },
+        { sources: ["hr"], people: [], mode: "any" },
+      ]),
+      rules: JSON.stringify([
+        {
+          name: "Long leave",
+          kinds: [],
+          daysAtLeast: 5,
+          lateOnly: false,
+          steps: [{ sources: ["manager", "manager"], people: [personOf(BOB).id], mode: "all" }],
+        },
+      ]),
+    });
+    expect(said.text).toContain("Approval: 1. the person's manager; 2. HR, any one of them.");
+    expect(said.text).toContain(
+      "Except Long leave (every kind, 5 days or more): 1. the person's manager and the manager above and BOB, each in turn.",
+    );
+    const none = await configure.run(ctx, { line: "[]" });
+    expect(none.text).toContain("Approval: nobody");
+  });
+
+  it("reads back in the caller's language", async () => {
+    const ctx = contextWith(board());
+    const korean = caller(personOf(HR).id, "hana", ["hr", "member"], false, "ko");
+    const said = (await setup.run(ctx.as(korean), { country: "kr" })).text;
+    expect(said).toContain("프리셋이 고른 값입니다");
+    expect(said).toContain("결재선: 1. 매니저.");
+    expect(said).toContain("시간대: Asia/Seoul.");
+  });
+});
+
+describe("a person's lines after the policy changed", () => {
+  async function enrolledWithMonthly() {
+    const ctx = contextWith(board());
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" });
+    return ctx;
+  }
+
+  it("takes back what the policy no longer owes, and what closed it, once", async () => {
+    const ctx = await enrolledWithMonthly();
+    const before = await annualOf(ctx, ALICE);
+    await policy.run(ctx, { key: "kr-statutory", monthly: "off" });
+    const said = (await recount.run(ctx, { person: personOf(ALICE) })).text;
+    expect(said).toContain("ALICE: recounted by the policy kr-statutory.");
+    expect(said).toContain(
+      "Reversed, as the policy no longer owes them: 11 days of first-year monthly days, 11 days paid out.",
+    );
+    expect(said).toContain("Nothing written to the ledger.");
+    const after = await annualOf(ctx, ALICE);
+    expect(after.available).toBe(before.available);
+    const reversals = ctx.all("ledger").filter((line) => line.data.kind === "reverse");
+    expect(reversals).toHaveLength(22);
+    expect(reversals.every((line) => line.data.note === "~recount")).toBe(true);
+    const again = (await recount.run(ctx, { person: personOf(ALICE) })).text;
+    expect(again).toContain("Nothing to reverse");
+    expect(ctx.all("ledger").filter((line) => line.data.kind === "reverse")).toHaveLength(22);
+    expect(ctx.emitted.map((event) => event.kind)).toContain("person-changed");
+  });
+
+  it("writes a grant again where the policy now owes another number of days", async () => {
+    const ctx = await enrolledWithMonthly();
+    const before = await annualOf(ctx, ALICE);
+    await policy.run(ctx, { key: "kr-statutory", tiers: "1:16,3:17" });
+    const said = (await recount.run(ctx, { person: personOf(ALICE) })).text;
+    expect(said).toContain("15 days granted");
+    expect(said).toContain("Written: 16 days granted.");
+    expect((await annualOf(ctx, ALICE)).available).toBe(before.available + 1);
+    await accrue.run(ctx, { person: personOf(ALICE) });
+    expect((await annualOf(ctx, ALICE)).available).toBe(before.available + 1);
+  });
+
+  it("is HR's alone, for someone enrolled", async () => {
+    const ctx = await enrolledWithMonthly();
+    await expect(recount.run(ctx.as(ALICE), { person: personOf(ALICE) })).rejects.toMatchObject({
+      code: "hr_only",
+    });
+    await expect(recount.run(ctx, { person: personOf(BOB) })).rejects.toMatchObject({
+      code: "not_enrolled",
+    });
+  });
+});
+
+describe("a line reversed by hand", () => {
+  it("undoes a line written with adjust, once, with HR's note, and the ledger says so", async () => {
+    const ctx = await korea(board());
+    const before = await annualOf(ctx, ALICE);
+    const written = await adjust.run(ctx, {
+      person: personOf(ALICE),
+      days: -1,
+      note: "offset a monthly day",
+    });
+    const id = (written.data as { id: string }).id;
+    const lines = (await ledgerQuery.run(ctx, { person: personOf(ALICE) })) as EntryView[];
+    expect(lines.find((line) => line.id === id)).toMatchObject({
+      reversed: false,
+      reversible: true,
+    });
+    const said = await reverse.run(ctx, { line: id, note: "the policy changed instead" });
+    expect(said.text).toContain("Reversed a line of -1 day");
+    expect((await annualOf(ctx, ALICE)).available).toBe(before.available);
+    const after = (await ledgerQuery.run(ctx, { person: personOf(ALICE) })) as EntryView[];
+    expect(after.find((line) => line.id === id)).toMatchObject({
+      reversed: true,
+      reversible: false,
+    });
+    expect(after.find((line) => line.kind === "reverse")?.note).toBe("the policy changed instead");
+    await expect(reverse.run(ctx, { line: id, note: "again" })).rejects.toMatchObject({
+      code: "already_reversed",
+    });
+    expect(ctx.emitted.filter((event) => event.kind === "balance-adjusted")).toHaveLength(2);
+  });
+
+  it("refuses the policy's lines, a request's, one that does not exist, and anyone but HR", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    const grant = ctx.all("ledger").find((line) => line.data.kind === "grant");
+    await expect(reverse.run(ctx, { line: grant?.id ?? "", note: "no" })).rejects.toMatchObject({
+      code: "not_reversible",
+    });
+    await request.run(ctx, { from: "2026-11-10", person: personOf(ALICE), approved: true });
+    const use = ctx.all("ledger").find((line) => line.data.kind === "use");
+    await expect(reverse.run(ctx, { line: use?.id ?? "", note: "no" })).rejects.toMatchObject({
+      code: "not_reversible",
+    });
+    await expect(reverse.run(ctx, { line: "ledger-999999", note: "no" })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    const hand = await adjust.run(ctx, { person: personOf(ALICE), days: 1, note: "a gift" });
+    await expect(
+      reverse.run(ctx.as(ALICE), { line: (hand.data as { id: string }).id, note: "mine" }),
+    ).rejects.toMatchObject({ code: "hr_only" });
+    const own = (await ledgerQuery.run(ctx.as(ALICE), {})) as EntryView[];
+    expect(own.every((line) => !line.reversible)).toBe(true);
   });
 });

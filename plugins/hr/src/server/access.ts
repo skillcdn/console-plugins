@@ -19,8 +19,12 @@ export interface Actor {
   /** The language to refuse them in. */
   readonly language: string;
   readonly isConsole: boolean;
+  /** Whether a person acts: themselves, through their agent, or through a plugin acting for them. */
+  readonly isPerson: boolean;
   readonly hr: boolean;
   readonly admin: boolean;
+  /** The plugin the call came through, for its person, by key; null where the person called. */
+  readonly via: string | null;
 }
 
 export function actorOf(ctx: PluginContext): Actor {
@@ -32,8 +36,10 @@ export function actorOf(ctx: PluginContext): Actor {
       name: null,
       language: ctx.language,
       isConsole: true,
+      isPerson: false,
       hr: true,
       admin: true,
+      via: null,
     };
   }
   const { person } = ctx.caller;
@@ -43,8 +49,10 @@ export function actorOf(ctx: PluginContext): Actor {
     name: person.name,
     language: ctx.language,
     isConsole: false,
+    isPerson: true,
     hr: person.admin || roles.includes(ROLE_HR),
     admin: person.admin,
+    via: null,
   };
 }
 
@@ -55,9 +63,9 @@ export function requireHr(actor: Actor): void {
   }
 }
 
-/** Refuses a job's or a hook's caller where a person is needed. */
+/** Refuses a job's, a hook's or a plugin's own caller where a person is needed. */
 export function requirePerson(actor: Actor): void {
-  if (actor.isConsole) {
+  if (!actor.isPerson) {
     throw new PluginError("person_only", serverWords(actor.language).refused.personOnly);
   }
 }
@@ -95,7 +103,7 @@ export function standingOf(personId: string, directory: Directory): Standing {
  */
 export function reachOf(actor: Actor, directory: Directory): ReadonlySet<string> {
   const reach = new Set<string>();
-  if (actor.isConsole) {
+  if (!actor.isPerson) {
     return reach;
   }
   const reports = new Map<string, string[]>();

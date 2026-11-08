@@ -1,8 +1,10 @@
 // The server module of HR: what the console runs in a thread of its own, reaching the console
 // through `ctx` alone. Leave is its first area of work: the collections, the commands and the
 // queries of leave, the hooks that hear a decision answered and people leaving or coming back,
-// and the daily job. Announcements stand beside it. Everything imported here is bundled into
-// dist/server/index.js by the build; the pieces are exported by name for the tests.
+// and the daily job. Announcements stand beside it. What other plugins may call and hear is the
+// api and the events, the plugin's contract with them (README.md, "The contract"). Everything
+// imported here is bundled into dist/server/index.js by the build; the pieces are exported by name
+// for the tests.
 import { definePlugin } from "@skillcdn/console/plugin";
 import {
   announcement,
@@ -11,10 +13,12 @@ import {
   announcementView,
 } from "./announcements.js";
 import { collections } from "./collections.js";
+import { api } from "./leave/api.js";
 import { commands } from "./leave/commands.js";
 import { hooks } from "./leave/hooks.js";
 import { jobs } from "./leave/jobs.js";
 import { queries } from "./leave/queries.js";
+import { upgrades } from "./upgrades.js";
 
 export {
   announcement,
@@ -35,6 +39,8 @@ export {
   requests,
   types,
 } from "./collections.js";
+export { EVENTS, type EventKind } from "./events.js";
+export { api } from "./leave/api.js";
 export {
   accrue,
   adjust,
@@ -46,7 +52,9 @@ export {
   holiday,
   offboard,
   policy,
+  recount,
   request,
+  reverse,
   setup,
   type,
 } from "./leave/commands.js";
@@ -71,8 +79,10 @@ export {
   preview,
   queries,
   requestsQuery,
+  requestView,
   typesQuery,
 } from "./leave/queries.js";
+export { upgrades } from "./upgrades.js";
 
 export default definePlugin({
   collections,
@@ -88,4 +98,6 @@ export default definePlugin({
   },
   on: hooks,
   jobs,
+  upgrades,
+  api,
 });

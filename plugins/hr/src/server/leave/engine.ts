@@ -20,9 +20,11 @@ import { listAll } from "../store.js";
 import {
   availableOn,
   closedWithin,
+  counts,
   expiringAfter,
   type Line,
   type ProjectedCredit,
+  reversalsOf,
   type Settlement,
   settle,
   sumOf,
@@ -165,6 +167,8 @@ export interface SyncOutcome {
   readonly written: number;
   readonly carried: number;
   readonly expired: number;
+  /** The lines written, for the answer that says what they were. */
+  readonly entries: readonly Entry[];
 }
 
 /**
@@ -181,18 +185,25 @@ export async function syncPerson(
   by: string,
 ): Promise<SyncOutcome> {
   if (!record.leave || record.hiredOn === null) {
-    return { written: 0, carried: 0, expired: 0 };
+    return { written: 0, carried: 0, expired: 0, entries: [] };
   }
   let written = 0;
   let carried = 0;
   let expired = 0;
+  const entries: Entry[] = [];
+  const write = async (entry: Entry) => {
+    entries.push(entry);
+    return ctx.records(ledger).create(entry);
+  };
   for (const type of types) {
     const owed = creditsOwed(policy, record, type, today);
     if (owed.length === 0 && type.key !== ANNUAL) {
       continue;
     }
     let { lines } = await ledgerOf(ctx, record.personId, type.key);
-    const refs = new Set(lines.map((line) => line.ref));
+    // A line reversed is not written: a credit the policy owes again is written anew.
+    const reversals = reversalsOf(lines);
+    const refs = new Set(lines.filter((line) => counts(line, reversals)).map((line) => line.ref));
     for (const credit of owed) {
       if (refs.has(credit.ref)) {
         continue;
@@ -205,7 +216,7 @@ export async function syncPerson(
           continue;
         }
       }
-      const created = await ctx.records(ledger).create({
+      const created = await write({
         personId: record.personId,
         type: type.key,
         kind: credit.kind,
@@ -238,7 +249,7 @@ export async function syncPerson(
       if (refs.has(ref)) {
         continue;
       }
-      await ctx.records(ledger).create({
+      await write({
         personId: record.personId,
         type: type.key,
         kind: policy.payoutUnused && type.key === ANNUAL ? "payout" : "expire",
@@ -271,7 +282,7 @@ export async function syncPerson(
         if (refs.has(ref) || days <= 0 || daysBetween(end, next.start) !== 1) {
           continue;
         }
-        await ctx.records(ledger).create({
+        await write({
           personId: record.personId,
           type: type.key,
           kind: "carry",
@@ -291,7 +302,7 @@ export async function syncPerson(
       }
     }
   }
-  return { written, carried, expired };
+  return { written, carried, expired, entries };
 }
 
 function expiryOfCarry(policy: Policy, next: Period): string {

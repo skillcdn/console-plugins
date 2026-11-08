@@ -16,7 +16,9 @@ HR's agent holds the role `hr` through the person it works for. What it does is 
 
 ## Setting up
 
-Set up before enrolling, and enroll before the first request. `console plugin hr help policy` and `help type` say every field; `presets` is long, so read it when a preset must be chosen or compared.
+Ask the person for the organization's rule before anything is written, in their words, for each of these: whether a year runs from each person's hire day or from a fixed day, and what someone hired within a year gets at its first start; whether the first year earns a day a month; what happens to days left at a year's end (they lapse, carry over, or are paid); how far ahead each kind of leave is requested and by what time, and what a request after that meets; which requests need nobody's approval; who approves, in what order; the time zone the times are read in.
+
+Then set it up in this order: the time zone (an administrator's, `console workspace edit --time-zone <zone>`), `setup`, the policy, the kinds of leave, the line, and only then the people and their past leave. Every command here answers with what it saved, in sentences: `setup` lists what the preset chose, `policy` and `type` say what they now do, `configure` says the line. Read each answer, and `policies` and `types` once more before enrolling anyone, and compare them sentence by sentence with the rule the person gave; change what differs before going on. `console plugin hr help policy` and `help type` say every field; `presets` is long, so read it when a preset must be chosen or compared.
 
 | Do | Command |
 |---|---|
@@ -57,7 +59,7 @@ Every manager must be able to work in the plugin's board project, since a decisi
 | Write the day a person leaves: nothing accrues after it | `console plugin hr offboard <login> [--on <day>]` |
 | One person's balance, or their ledger | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
 
-Write the policy before enrolling. `--leave on` writes at once what the policy owes by today and closes what has expired by today, nothing having been used yet. Changing the policy afterwards takes nothing back: a credit written goes with `adjust`, a negative number with `--on` the day of the credit. Enter a person's past leave after enrolling them, with `request --person <login> --approved`: a use for a day before an expiry takes those days first, and the expiry counts for what was left.
+Write the policy before enrolling. `--leave on` writes at once what the policy owes by today and closes what has expired by today, nothing having been used yet, and says what it wrote and what is available: read it against the rule, and stop at a line the rule does not give (first-year monthly days the organization does not grant, say). Changing the policy afterwards takes nothing back by itself: `recount <login>` then reverses what the policy no longer owes that person, with the expiries and payouts of those days, and writes what it now owes. Enter a person's past leave after enrolling them, with `request --person <login> --approved`: a use for a day before an expiry takes those days first, and the expiry counts for what was left.
 
 ## Balances and requests
 
@@ -65,6 +67,8 @@ Write the policy before enrolling. `--leave on` writes at once what the policy o
 |---|---|
 | Give or take days, with a note; a credit expires as the policy's credits do unless `--expires` says when | `console plugin hr adjust <login> --days <n> --note <why> [--type <key>] [--kind adjust\|grant\|payout] [--expires <day>] [--on <day>]` |
 | Write what the policies owe by today, for one person or everyone: what the daily job does | `console plugin hr accrue [--person <login>]` |
+| Bring a person's lines to the policy after it changed: what it no longer owes reversed, what it owes written | `console plugin hr recount <login>` |
+| Undo a line written with `adjust`, its id from `ledger --person <login>` | `console plugin hr reverse <line> --note <why>` |
 | Record leave for anyone else, approved at once; without `--approved` it travels the person's line | `console plugin hr request <from> [<to>] --person <login> --approved [--type <key>] [--reason <words>]` |
 | Cancel any request, approved or not | `console plugin hr cancel <id> [--reason <words>]` |
 | Everyone's requests, or those waiting: twenty unless `--limit` says more, 200 at most | `console plugin hr requests --scope all [--state requested] [--limit <n>]` |
@@ -77,7 +81,7 @@ When the console deactivates a person, the plugin turns their leave off from tha
 ## Rules
 
 - The plugin decides no request. Whoever the line asks answers on the board, or tells you what to answer and you write it with `console answer`. HR records what was decided elsewhere with `request --approved`, and says where it was decided in the reason.
-- Every adjustment has a note that says why; a figure without a reason is not written.
-- The law is HR's to apply: when a policy's figure and the law differ (a termination settled on the hire-date basis, an attendance rate under 80%, a new rule), HR corrects the balance by adjustment, and the plugin counts as told.
+- Every adjustment has a note that says why; a figure without a reason is not written, and a line is undone with `reverse`, never with another adjustment that cancels it.
+- A rule of the whole organization that differs from the preset is the policy's or the kind's to say: change them, and `recount` whoever was enrolled before. An adjustment is for one person's case alone, and the law is HR's to apply there: when a policy's figure and the law differ for someone (a termination settled on the hire-date basis, an attendance rate under 80%, a new rule), HR corrects that balance by adjustment, and the plugin counts as told.
 - A person is enrolled once, and changed with the same command.
 - Say what was changed in the run's report, with the logins and the figures.

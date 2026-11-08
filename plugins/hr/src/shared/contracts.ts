@@ -278,12 +278,19 @@ export interface LeaveRequest {
   readonly decisionId: string | null;
   /** The decision a cancellation waits for, where cancelling needs one. */
   readonly cancelDecisionId: string | null;
+  /**
+   * Whom the decision it waits for, or waited for last, was addressed to, as the console holds it:
+   * those its step asks, or whoever the decision went on to where the console refused them.
+   */
+  readonly asked: string[];
   readonly decidedBy: string | null;
   readonly decidedAt: string | null;
   /** The decider's note, or the words of an answer given in their own words. */
   readonly note: string | null;
   readonly requestedBy: string;
   readonly requestedAt: string;
+  /** The plugin it was requested through, for its person, by key; null where they asked themselves. */
+  readonly requestedVia: string | null;
   readonly cancelledAt: string | null;
   /** The leave period the first day falls in, as the policy counts periods. */
   readonly period: string;
@@ -433,6 +440,7 @@ export type RequestFacts = Pick<
   | "decisionId"
   | "cancelDecisionId"
   | "requestedAt"
+  | "requestedVia"
   | "decidedAt"
 >;
 
@@ -445,6 +453,8 @@ export interface RequestView {
   /** Who decided it, once someone has. */
   readonly decidedBy: PersonBrief | null;
   readonly line: readonly StepView[];
+  /** Whom the decision it waits for is addressed to; nobody once nothing waits. */
+  readonly asked: readonly PersonBrief[];
   /** Whether the caller is among those it waits for now. */
   readonly mine: boolean;
   /** The console's address of the decision the approval waits for, or waited for. */
@@ -544,6 +554,10 @@ export interface EntryView {
   /** The line's note, in the caller's language where the plugin wrote it. */
   readonly note: string;
   readonly requestId: string | null;
+  /** Whether a later line reversed it, so that it counts for nothing. */
+  readonly reversed: boolean;
+  /** Whether the caller may reverse it by hand: HR, for a line written with `adjust`. */
+  readonly reversible: boolean;
 }
 
 export const ANNOUNCEMENT_STATES = ["draft", "published"] as const;

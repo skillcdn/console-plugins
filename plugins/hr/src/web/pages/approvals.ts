@@ -83,11 +83,14 @@ function requestRow(
     main.append(el("p", "request-note prose", view.request.reason));
   }
   if (view.line.length > 0 && view.request.state === "requested") {
-    main.append(lineSteps(frame, view.line, words));
+    main.append(lineSteps(frame, view.line, words, view.asked));
   }
   const notes: string[] = [];
   if (view.recordedBy !== null) {
     notes.push(words.recordedBy(personLabel(view.recordedBy)));
+  }
+  if (view.request.requestedVia !== null) {
+    notes.push(words.requestedVia(view.request.requestedVia));
   }
   if (view.request.rule !== null) {
     notes.push(words.byRule(view.request.rule));

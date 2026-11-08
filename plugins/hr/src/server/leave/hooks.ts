@@ -7,6 +7,7 @@ import type { PluginContext, PluginHookEvent, PluginRecord } from "@skillcdn/con
 import type { LeaveRequest, Person } from "../../shared/contracts.js";
 import { dayIn } from "../../shared/days.js";
 import { marks, people, requests } from "../collections.js";
+import { emit } from "../events.js";
 import {
   type Clock,
   clockOf,
@@ -19,7 +20,7 @@ import {
 import { OPTION_KEYS, serverWords } from "../words.js";
 import { approvedAt, nextOf } from "./approval.js";
 import { reverseUse, writeUse } from "./commands.js";
-import { askApproval } from "./decisions.js";
+import { askApproval, type Raised } from "./decisions.js";
 import { askAboutReturner, mark, nameOf, turnOffLeaver } from "./leavers.js";
 
 type RestDecision = NonNullable<Awaited<ReturnType<PluginContext["console"]["decisions"]["get"]>>>;
@@ -104,6 +105,27 @@ async function requestOfDecision(
 }
 
 /**
+ * What a mark of a next step holds: the decision and whom it went to, as JSON; a mark written
+ * before the request kept whom it was addressed to holds the id alone, and the step stands in.
+ */
+function raisedOf(summary: string, deciders: readonly string[]): Raised {
+  if (summary.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(summary) as { id?: unknown; asked?: unknown };
+      if (typeof parsed.id === "string" && Array.isArray(parsed.asked)) {
+        return {
+          id: parsed.id,
+          asked: parsed.asked.filter((id): id is string => typeof id === "string"),
+        };
+      }
+    } catch {
+      // A mark that does not parse is read as an id below.
+    }
+  }
+  return { id: summary, asked: [...deciders] };
+}
+
+/**
  * The next step's decision, once: a delivery repeated after the decision was raised but before
  * the request was written finds it by the mark, and raises no second one.
  */
@@ -116,17 +138,24 @@ async function goOn(
   next: { readonly step: number; readonly deciders: readonly string[] },
 ): Promise<void> {
   const key = `next:${answered}`;
-  const raised = await ctx.records(marks).list({ where: { key }, limit: 1 });
-  let decisionId = raised.items[0]?.data.summary;
-  if (decisionId === undefined) {
+  const marked = await ctx.records(marks).list({ where: { key }, limit: 1 });
+  const summary = marked.items[0]?.data.summary;
+  let raised: Raised;
+  if (summary === undefined) {
     const advanced = { ...found, data: { ...found.data, steps, step: next.step } };
-    decisionId = await askApproval(ctx, clock, advanced, next.deciders);
-    await mark(ctx, key, clock, decisionId);
+    raised = await askApproval(ctx, clock, advanced, next.deciders);
+    await mark(ctx, key, clock, JSON.stringify(raised));
+  } else {
+    raised = raisedOf(summary, next.deciders);
   }
   await ctx
     .records(requests)
-    .update(found.id, { steps, step: next.step, decisionId }, { baseVersion: found.version });
-  await ctx.events.emit("leave-advanced", { requestId: found.id, personId: found.data.personId });
+    .update(
+      found.id,
+      { steps, step: next.step, decisionId: raised.id, asked: raised.asked },
+      { baseVersion: found.version },
+    );
+  await emit(ctx, "leave-advanced", { requestId: found.id, personId: found.data.personId });
 }
 
 export async function onDecisionAnswered(
@@ -179,7 +208,7 @@ export async function onDecisionAnswered(
         },
         { baseVersion: found.version },
       );
-      await ctx.events.emit("leave-returned", {
+      await emit(ctx, "leave-returned", {
         requestId: found.id,
         personId: found.data.personId,
       });
@@ -200,7 +229,7 @@ export async function onDecisionAnswered(
           { baseVersion: found.version },
         );
       await writeUse(ctx, updated, by);
-      await ctx.events.emit("leave-approved", {
+      await emit(ctx, "leave-approved", {
         requestId: found.id,
         personId: found.data.personId,
       });
@@ -212,7 +241,7 @@ export async function onDecisionAnswered(
           { state: "rejected", decidedBy: answer.by, decidedAt: answer.at, note },
           { baseVersion: found.version },
         );
-      await ctx.events.emit("leave-rejected", {
+      await emit(ctx, "leave-rejected", {
         requestId: found.id,
         personId: found.data.personId,
       });
@@ -227,7 +256,7 @@ export async function onDecisionAnswered(
         },
         { baseVersion: found.version },
       );
-      await ctx.events.emit("leave-returned", {
+      await emit(ctx, "leave-returned", {
         requestId: found.id,
         personId: found.data.personId,
       });
@@ -244,7 +273,7 @@ export async function onDecisionAnswered(
           { state: "cancelled", cancelledAt: stamp(clock), note },
           { baseVersion: found.version },
         );
-      await ctx.events.emit("leave-cancelled", {
+      await emit(ctx, "leave-cancelled", {
         requestId: found.id,
         personId: found.data.personId,
       });
@@ -256,7 +285,7 @@ export async function onDecisionAnswered(
           { state: "approved", note: note ?? answer.words },
           { baseVersion: found.version },
         );
-      await ctx.events.emit("leave-kept", { requestId: found.id, personId: found.data.personId });
+      await emit(ctx, "leave-kept", { requestId: found.id, personId: found.data.personId });
     }
   }
 }

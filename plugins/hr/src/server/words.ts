@@ -3,12 +3,54 @@
 // text, in the language of whoever it is for (the console's ADR-0065): the caller's for a command's
 // answer and a refusal, the decider's for a decision, HR's for a task. English for any language the
 // plugin does not speak. The pages have their own words in ../web/words.ts.
-import type { Notice, Part, Policy } from "../shared/contracts.js";
+import type {
+  ApprovalRule,
+  ApprovalStep,
+  LeaveType,
+  Notice,
+  Part,
+  Policy,
+} from "../shared/contracts.js";
+
+/** What a setting command wrote to the ledger, by what it is, for the sentence that says so. */
+export interface Written {
+  readonly granted: number;
+  readonly monthly: number;
+  readonly accrued: number;
+  readonly carried: number;
+  readonly expired: number;
+  readonly paidOut: number;
+}
+
+/** The sentences a setting command reads its effect back in, so that HR compares them with the rule. */
+export interface Readback {
+  /** What the first fixed period start grants someone hired within a period; empty for the anniversary. */
+  readonly firstPeriod: (policy: Policy) => string;
+  readonly monthly: (policy: Policy) => string;
+  /** How a kind is taken: its notice, in the zone, approval as written, and what a late request meets. */
+  readonly type: (type: LeaveType, zone: string) => string;
+  /** The default line in words, each person named by `named`. */
+  readonly line: (steps: readonly ApprovalStep[], named: (id: string) => string) => string;
+  readonly rule: (rule: ApprovalRule, named: (id: string) => string) => string;
+  readonly zone: (zone: string, set: boolean) => string;
+  readonly setupLead: string;
+  readonly setupClose: string;
+  readonly written: (written: Written, days: (count: number) => string) => string;
+  readonly reversed: (reversed: Written, days: (count: number) => string) => string;
+  readonly available: (days: string, on: string) => string;
+  readonly monthlyFrom: (policy: string, login: string) => string;
+}
 
 /** The refusals, each in the words of the language of whoever is refused. */
 export interface Refusals {
   readonly hrOnly: string;
   readonly personOnly: string;
+  readonly noRole: string;
+  readonly unknownPerson: string;
+  readonly approvedThroughPlugin: string;
+  readonly noSuchLine: string;
+  readonly notReversible: string;
+  readonly alreadyReversed: string;
   readonly noBoard: string;
   readonly badDay: (day: string) => string;
   readonly notEnrolled: string;
@@ -124,6 +166,8 @@ export interface ServerWords {
   readonly cancellationRequested: (id: string) => string;
   readonly adjusted: (days: string, type: string, who: string) => string;
   readonly enrolled: (who: string, leave: boolean) => string;
+  readonly recounted: (who: string, policy: string) => string;
+  readonly reversedLine: (days: string, type: string, who: string) => string;
   readonly offboarded: (who: string, day: string) => string;
   readonly accrued: (count: number, people: number) => string;
   readonly policySaved: (key: string) => string;
@@ -134,6 +178,7 @@ export interface ServerWords {
   readonly holidaysWritten: (count: number, year: number, calendar: string) => string;
   readonly setupDone: (types: number, policy: string, holidays: number) => string;
   readonly zoneIsUtc: string;
+  readonly readback: Readback;
   readonly expiryTaskTitle: (on: string) => string;
   readonly expiryTaskBody: (
     on: string,
@@ -162,6 +207,7 @@ export interface ServerWords {
     readonly expired: string;
     readonly payout: string;
     readonly carried: (day: string) => string;
+    readonly recount: string;
   };
   readonly refused: Refusals;
   readonly untitled: string;
@@ -296,6 +342,8 @@ const ENGLISH: ServerWords = {
   cancellationRequested: (id) => `The cancellation waits for a decision. Request ${id}.`,
   adjusted: (days, type, who) => `${days} of ${type} written for ${who}.`,
   enrolled: (who, leave) => `${who}: record saved; leave ${leave ? "on" : "off"}.`,
+  recounted: (who, policy) => `${who}: recounted by the policy ${policy}.`,
+  reversedLine: (days, type, who) => `Reversed a line of ${days} of ${type} for ${who}.`,
   offboarded: (who, day) => `${who} leaves on ${day}; nothing accrues after that day.`,
   accrued: (count, people) =>
     `${count} ${count === 1 ? "line" : "lines"} written for ${people} ${people === 1 ? "person" : "people"}.`,
@@ -310,6 +358,111 @@ const ENGLISH: ServerWords = {
     `Set up: ${types} leave types, the policy ${policy} as the default, ${holidays} holidays.`,
   zoneIsUtc:
     "The workspace keeps UTC, so today and every notice time are counted in UTC. If you work elsewhere, an administrator sets it: console workspace edit --time-zone <zone>, for example Asia/Seoul.",
+  readback: {
+    firstPeriod: (policy) => {
+      if (policy.basis !== "fixed") {
+        return "";
+      }
+      const what = {
+        prorated:
+          policy.earning === "ahead"
+            ? "days prorated by the time left in it"
+            : "days prorated by the time served",
+        full: "the full days",
+        none: "no days",
+      }[policy.firstPeriod];
+      return `At the first period start before their first anniversary, someone hired within a period gets ${what}.`;
+    },
+    monthly: (policy) =>
+      policy.firstYearMonthly
+        ? `First year: a day for each month completed, ${policy.monthlyMax} at most, usable until ${policy.monthlyUntil === "anniversary" ? "the day before the first anniversary" : "the period's end"}.`
+        : "First year: no monthly days.",
+    type: (type, zone) => {
+      const notice = {
+        none: "Requested any time",
+        days: `Requested ${type.notice.days} ${type.notice.days === 1 ? "day" : "days"} before`,
+        dayBefore: `Requested by ${type.notice.time} the day before, ${zone} time`,
+        sameDay: `Requested by ${type.notice.time} the same day, ${zone} time`,
+      }[type.notice.mode];
+      const auto = {
+        never: "every request goes to the line",
+        always: "approved as written, nobody asked",
+        upTo: `approved as written in time up to ${type.autoApprove.days} ${type.autoApprove.days === 1 ? "day" : "days"}, the rest going to the line`,
+      }[type.autoApprove.mode];
+      let late = "";
+      if (type.notice.mode !== "none") {
+        late = {
+          refuse: "a later request is refused",
+          manager: "a later one only a manager or HR records",
+          mark:
+            type.autoApprove.mode === "always"
+              ? "a later one is approved as written too, and marked late"
+              : "a later one goes to the line, marked late",
+        }[type.late];
+      }
+      return `${notice}; ${auto}${late === "" ? "" : `; ${late}`}.`;
+    },
+    line: (steps, named) => {
+      if (steps.length === 0) {
+        return "Approval: nobody; every request is approved as it is written.";
+      }
+      let managers = 0;
+      const parts = steps.map((step, index) => {
+        const who: string[] = step.sources.map((source): string => {
+          if (source === "manager") {
+            managers += 1;
+            return managers === 1 ? "the person's manager" : "the manager above";
+          }
+          return source === "admin" ? "the administrators" : "HR";
+        });
+        who.push(...step.people.map(named));
+        const many = who.length > 1 || step.sources.some((source) => source !== "manager");
+        const mode = many ? (step.mode === "all" ? ", each in turn" : ", any one of them") : "";
+        return `${index + 1}. ${who.join(" and ")}${mode}`;
+      });
+      return `Approval: ${parts.join("; ")}.`;
+    },
+    rule: (rule, named) => {
+      const when = [
+        rule.kinds.length === 0 ? "every kind" : rule.kinds.join(", "),
+        ...(rule.daysAtLeast === null ? [] : [`${rule.daysAtLeast} days or more`]),
+        ...(rule.lateOnly ? ["late"] : []),
+      ].join(", ");
+      return `Except ${rule.name} (${when}): ${ENGLISH.readback.line(rule.steps, named).replace(/^Approval: /, "")}`;
+    },
+    zone: (zone, set) => (set ? `Time zone: ${zone}.` : `Time zone: none is set, so ${zone}.`),
+    setupLead: "What the preset chose, which organizations set differently:",
+    setupClose:
+      "Compare each line with the organization's rule, and change what differs with policy, type and configure before enrolling anyone.",
+    written: (written, days) => {
+      const parts = [
+        ...(written.granted > 0 ? [`${days(written.granted)} granted`] : []),
+        ...(written.monthly > 0 ? [`${days(written.monthly)} of first-year monthly days`] : []),
+        ...(written.accrued > 0 ? [`${days(written.accrued)} accrued`] : []),
+        ...(written.carried > 0 ? [`${days(written.carried)} carried over`] : []),
+        ...(written.expired > 0 ? [`${days(written.expired)} expired`] : []),
+        ...(written.paidOut > 0 ? [`${days(written.paidOut)} paid out`] : []),
+      ];
+      return parts.length === 0
+        ? "Nothing written to the ledger."
+        : `Written: ${parts.join(", ")}.`;
+    },
+    reversed: (reversed, days) => {
+      const parts = [
+        ...(reversed.granted > 0 ? [`${days(reversed.granted)} granted`] : []),
+        ...(reversed.monthly > 0 ? [`${days(reversed.monthly)} of first-year monthly days`] : []),
+        ...(reversed.accrued > 0 ? [`${days(reversed.accrued)} accrued`] : []),
+        ...(reversed.expired > 0 ? [`${days(reversed.expired)} expired`] : []),
+        ...(reversed.paidOut > 0 ? [`${days(reversed.paidOut)} paid out`] : []),
+      ];
+      return parts.length === 0
+        ? "Nothing to reverse: every line is what the policy owes."
+        : `Reversed, as the policy no longer owes them: ${parts.join(", ")}.`;
+    },
+    available: (days, on) => `Available on ${on}: ${days}.`,
+    monthlyFrom: (policy, login) =>
+      `The first-year monthly days come from the policy ${policy}. Where the organization gives none, turn them off with policy ${policy} --monthly off, then recount ${login} takes back what was written.`,
+  },
   expiryTaskTitle: (on) => `Leave expiring on ${on}: remind the people`,
   expiryTaskBody: (on, rows, daysBefore) =>
     `Days of leave that expire on ${on} (${daysBefore} days from now) and are not used yet. Tell each person, in writing where the law asks for it, and plan the days.\n\n${rows.map((row) => `- ${row.who}: ${row.days}`).join("\n")}`,
@@ -338,10 +491,19 @@ const ENGLISH: ServerWords = {
     expired: "Unused at expiry",
     payout: "Unused at expiry; owed as pay",
     carried: (day) => `Carried over from the period ending ${day}`,
+    recount: "Not owed by the policy as it stands",
   },
   refused: {
     hrOnly: "Only HR may do this.",
-    personOnly: "This is done as a person, not by the console itself.",
+    personOnly: "This is done as a person, not by the console or a plugin of its own accord.",
+    noRole: "You hold no role in HR.",
+    unknownPerson: "No such person in the workspace.",
+    noSuchLine: "No such line in the ledger.",
+    notReversible:
+      "Only a line written with adjust is reversed by hand: a request's goes with cancel, and the policy's with recount.",
+    alreadyReversed: "The line is reversed already.",
+    approvedThroughPlugin:
+      "Leave is recorded as approved by HR itself, never through another plugin.",
     noBoard: "The plugin has no board project; an administrator binds one.",
     badDay: (day) => `${day} is not a day of the calendar.`,
     notEnrolled:
@@ -539,6 +701,8 @@ const KOREAN: ServerWords = {
   cancellationRequested: (id) => `취소가 결재를 기다립니다. 신청 ${id}.`,
   adjusted: (days, type, who) => `${who}의 ${type} ${days}을 기록했습니다.`,
   enrolled: (who, leave) => `${who}: 기록을 저장했습니다. 휴가 ${leave ? "켜짐" : "꺼짐"}.`,
+  recounted: (who, policy) => `${who}: 규정 ${policy}에 맞춰 원장을 다시 셌습니다.`,
+  reversedLine: (days, type, who) => `${who}의 ${type} ${days} 줄을 되돌렸습니다.`,
   offboarded: (who, day) => `${who}은(는) ${day}에 퇴직합니다. 그 뒤로는 발생하지 않습니다.`,
   accrued: (count, people) => `${people}명에게 ${count}건을 기록했습니다.`,
   policySaved: (key) => `규정 ${key}을(를) 저장했습니다.`,
@@ -552,6 +716,111 @@ const KOREAN: ServerWords = {
     `설정 완료: 휴가 종류 ${types}개, 기본 규정 ${policy}, 공휴일 ${holidays}일.`,
   zoneIsUtc:
     "워크스페이스 시간대가 UTC입니다. 오늘 날짜와 신청 마감 시각이 UTC로 계산됩니다. 다른 곳에서 일한다면 관리자가 console workspace edit --time-zone <시간대>로 설정합니다. 예: Asia/Seoul.",
+  readback: {
+    firstPeriod: (policy) => {
+      if (policy.basis !== "fixed") {
+        return "";
+      }
+      const what = {
+        prorated:
+          policy.earning === "ahead"
+            ? "그 기간의 남은 날에 비례한 일수를 부여합니다"
+            : "근무한 날에 비례한 일수를 부여합니다",
+        full: "전체 일수를 부여합니다",
+        none: "일수를 부여하지 않습니다",
+      }[policy.firstPeriod];
+      return `기간 중에 입사한 사람에게는 첫 입사 기념일 전의 첫 기간 시작일에 ${what}.`;
+    },
+    monthly: (policy) =>
+      policy.firstYearMonthly
+        ? `첫해: 한 달을 채울 때마다 1일, 최대 ${policy.monthlyMax}일, ${policy.monthlyUntil === "anniversary" ? "첫 입사 기념일 전날" : "기간 끝"}까지 사용.`
+        : "첫해 월차: 없음.",
+    type: (type, zone) => {
+      const notice = {
+        none: "언제든 신청",
+        days: `${type.notice.days}일 전까지 신청`,
+        dayBefore: `전날 ${type.notice.time}까지 신청(${zone} 기준)`,
+        sameDay: `당일 ${type.notice.time}까지 신청(${zone} 기준)`,
+      }[type.notice.mode];
+      const auto = {
+        never: "모든 신청은 결재선으로 갑니다",
+        always: "결재 없이 바로 승인합니다",
+        upTo: `기한 안의 ${type.autoApprove.days}일 이하는 바로 승인하고, 그 밖은 결재선으로 갑니다`,
+      }[type.autoApprove.mode];
+      let late = "";
+      if (type.notice.mode !== "none") {
+        late = {
+          refuse: "늦은 신청은 거절합니다",
+          manager: "늦은 신청은 매니저나 인사 담당만 등록합니다",
+          mark:
+            type.autoApprove.mode === "always"
+              ? "늦은 신청도 바로 승인하고 늦음 표시만 남깁니다"
+              : "늦은 신청은 늦음 표시와 함께 결재선으로 갑니다",
+        }[type.late];
+      }
+      return `${notice}. ${auto}.${late === "" ? "" : ` ${late}.`}`;
+    },
+    line: (steps, named) => {
+      if (steps.length === 0) {
+        return "결재선: 없음. 모든 신청을 바로 승인합니다.";
+      }
+      let managers = 0;
+      const parts = steps.map((step, index) => {
+        const who: string[] = step.sources.map((source): string => {
+          if (source === "manager") {
+            managers += 1;
+            return managers === 1 ? "매니저" : "그 위 매니저";
+          }
+          return source === "admin" ? "관리자" : "인사 담당";
+        });
+        who.push(...step.people.map(named));
+        const many = who.length > 1 || step.sources.some((source) => source !== "manager");
+        const mode = many ? (step.mode === "all" ? "(차례로 모두)" : "(누구든 한 명)") : "";
+        return `${index + 1}. ${who.join(", ")}${mode}`;
+      });
+      return `결재선: ${parts.join(", ")}.`;
+    },
+    rule: (rule, named) => {
+      const when = [
+        rule.kinds.length === 0 ? "모든 종류" : rule.kinds.join(", "),
+        ...(rule.daysAtLeast === null ? [] : [`${rule.daysAtLeast}일 이상`]),
+        ...(rule.lateOnly ? ["늦은 신청"] : []),
+      ].join(", ");
+      return `예외 ${rule.name}(${when}): ${KOREAN.readback.line(rule.steps, named).replace(/^결재선: /, "")}`;
+    },
+    zone: (zone, set) => (set ? `시간대: ${zone}.` : `시간대: 정하지 않아 ${zone}.`),
+    setupLead: "프리셋이 고른 값입니다. 회사마다 다를 수 있습니다:",
+    setupClose:
+      "줄마다 회사 규칙과 맞춰 보고, 다른 곳은 구성원을 등록하기 전에 policy, type, configure로 고치세요.",
+    written: (written, days) => {
+      const parts = [
+        ...(written.granted > 0 ? [`부여 ${days(written.granted)}`] : []),
+        ...(written.monthly > 0 ? [`첫해 월차 ${days(written.monthly)}`] : []),
+        ...(written.accrued > 0 ? [`발생 ${days(written.accrued)}`] : []),
+        ...(written.carried > 0 ? [`이월 ${days(written.carried)}`] : []),
+        ...(written.expired > 0 ? [`소멸 ${days(written.expired)}`] : []),
+        ...(written.paidOut > 0 ? [`수당 지급 ${days(written.paidOut)}`] : []),
+      ];
+      return parts.length === 0
+        ? "원장에 쓴 줄이 없습니다."
+        : `원장에 썼습니다: ${parts.join(", ")}.`;
+    },
+    reversed: (reversed, days) => {
+      const parts = [
+        ...(reversed.granted > 0 ? [`부여 ${days(reversed.granted)}`] : []),
+        ...(reversed.monthly > 0 ? [`첫해 월차 ${days(reversed.monthly)}`] : []),
+        ...(reversed.accrued > 0 ? [`발생 ${days(reversed.accrued)}`] : []),
+        ...(reversed.expired > 0 ? [`소멸 ${days(reversed.expired)}`] : []),
+        ...(reversed.paidOut > 0 ? [`수당 지급 ${days(reversed.paidOut)}`] : []),
+      ];
+      return parts.length === 0
+        ? "되돌릴 줄이 없습니다. 모든 줄이 규정대로입니다."
+        : `규정이 더는 주지 않아 되돌렸습니다: ${parts.join(", ")}.`;
+    },
+    available: (days, on) => `${on} 기준 잔여 ${days}.`,
+    monthlyFrom: (policy, login) =>
+      `첫해 월차는 규정 ${policy}에서 나왔습니다. 회사가 주지 않는다면 policy ${policy} --monthly off로 끄고, recount ${login}으로 이미 쓴 줄을 되돌리세요.`,
+  },
   expiryTaskTitle: (on) => `${on} 소멸 예정 연차: 사용 촉진 안내`,
   expiryTaskBody: (on, rows, daysBefore) =>
     `${on}에 소멸하는(${daysBefore}일 뒤) 미사용 휴가입니다. 법이 요구하는 경우 서면으로 각자에게 알리고 사용 시기를 정하세요.\n\n${rows.map((row) => `- ${row.who}: ${row.days}`).join("\n")}`,
@@ -580,10 +849,19 @@ const KOREAN: ServerWords = {
     expired: "기한 만료로 소멸",
     payout: "기한 만료: 수당으로 지급",
     carried: (day) => `${day}에 끝난 기간에서 이월`,
+    recount: "지금 규정이 주지 않는 줄",
   },
   refused: {
     hrOnly: "인사 담당만 할 수 있습니다.",
-    personOnly: "사람으로서 하는 일이며 콘솔이 직접 할 수 없습니다.",
+    personOnly: "사람으로서 하는 일이며 콘솔이나 플러그인이 스스로 할 수 없습니다.",
+    noRole: "HR에서 맡은 역할이 없습니다.",
+    unknownPerson: "워크스페이스에 그런 사람이 없습니다.",
+    noSuchLine: "원장에 그런 줄이 없습니다.",
+    notReversible:
+      "손으로 되돌리는 줄은 adjust로 쓴 줄뿐입니다. 신청의 줄은 cancel로, 규정의 줄은 recount로 되돌립니다.",
+    alreadyReversed: "이미 되돌린 줄입니다.",
+    approvedThroughPlugin:
+      "승인된 휴가의 등록은 인사 담당이 직접 하며, 다른 플러그인을 통해서는 할 수 없습니다.",
     noBoard: "플러그인에 보드 프로젝트가 없습니다. 관리자가 연결해야 합니다.",
     badDay: (day) => `달력에 없는 날입니다: ${day}.`,
     notEnrolled:
@@ -729,6 +1007,8 @@ export function noteIn(note: string, words: ServerWords): string {
       return words.notes.payout;
     case "carried":
       return words.notes.carried(first);
+    case "recount":
+      return words.notes.recount;
     default:
       return note;
   }

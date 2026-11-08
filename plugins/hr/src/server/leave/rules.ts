@@ -53,6 +53,16 @@ export interface Credit {
   readonly note: string;
 }
 
+/**
+ * Whether a line of the ledger is one a policy wrote, by its ref: a grant of a period, a monthly day
+ * of the first year, an accrual, a kind's allowance. Only these follow a policy that changed.
+ */
+export function isPolicyRef(ref: string): boolean {
+  return /^(?:monthly:\d{1,2}|grant:\d{4}-\d{2}-\d{2}|grant:[a-z][a-z0-9-]{0,31}:\d{4}-\d{2}-\d{2}|accrual:\d{4}-\d{2}-\d{2}:\d{1,3})$/.test(
+    ref,
+  );
+}
+
 /** Completed years of service at `day`: 0 until the first anniversary. */
 export function tenureAt(hiredOn: string, day: string): number {
   return yearsBetween(hiredOn, day);

@@ -107,6 +107,20 @@ async function figuresOf(
   };
 }
 
+/** A decision raised: its id, and whom the console addressed it to. */
+export interface Raised {
+  readonly id: string;
+  readonly asked: string[];
+}
+
+type RestDecision = Awaited<ReturnType<PluginContext["console"]["decisions"]["ask"]>>;
+
+/** Whom the console addressed a decision to: everyone it names, the first decider alone where it names no list. */
+function askedOf(decision: RestDecision): string[] {
+  const deciders = decision.deciders?.map((person) => person.id) ?? [];
+  return deciders.length > 0 ? deciders : [decision.decider.id];
+}
+
 /** Raises a decision in the words of whoever answers it, trying who may answer it in turn. */
 async function raise(
   ctx: PluginContext,
@@ -117,7 +131,7 @@ async function raise(
     words: ServerWords,
     language: string,
   ) => Promise<Parameters<PluginContext["console"]["decisions"]["ask"]>[1]>,
-): Promise<string> {
+): Promise<Raised> {
   const directory = await directoryOf(ctx);
   const staff = await staffOf(ctx, directory);
   const managers = managersOf(personId, directory);
@@ -150,7 +164,7 @@ async function raise(
       if (ids !== deciders) {
         await askToMendTheLine(ctx, clock, personId, deciders);
       }
-      return decision.id;
+      return { id: decision.id, asked: askedOf(decision) };
     } catch (error) {
       if (error instanceof PluginError) {
         throw error;
@@ -188,7 +202,7 @@ export async function askApproval(
   clock: Clock,
   request: PluginRecord<LeaveRequest>,
   deciders: readonly string[],
-): Promise<string> {
+): Promise<Raised> {
   const data = request.data;
   const [typeRecord, record] = await Promise.all([
     typeByKey(ctx, data.type),
@@ -255,7 +269,7 @@ export async function askCancellation(
   request: PluginRecord<LeaveRequest>,
   who: string,
   reason: string,
-): Promise<string> {
+): Promise<Raised> {
   const data = request.data;
   const typeRecord = await typeByKey(ctx, data.type);
   // Whoever approved it first; leave nobody had to approve goes to the person's manager.

@@ -7,6 +7,7 @@ import {
   ANNUAL,
   type BalanceReport,
   EMPLOYMENTS,
+  type EntryView,
   type LeaveType,
   type PeopleReport,
   type PersonRow,
@@ -311,6 +312,79 @@ function adjustForm(item: PersonRow, view: View, onSaved: () => Promise<void>): 
   return node;
 }
 
+/** HR brings a person's lines to the policy as it stands, after the policy changed. */
+function recountForm(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
+  const { frame, words } = view;
+  const submit = submitButton(words.recountSubmit);
+  const status = statusLine();
+  const node = form(muted(words.recountLead), actions(submit), status);
+  onSubmit(node, async () => {
+    const result = await runCommand(frame, submit, status, words, "recount", {
+      person: item.person.login,
+    });
+    if (result !== null) {
+      say(status, result.text, "ok");
+      await onSaved();
+    }
+  });
+  return node;
+}
+
+/** HR undoes a line written by hand, with a note; the lines come from the person's ledger. */
+function reverseForm(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
+  const { frame, words, format, balanced } = view;
+  const box = stack();
+  const load = async () => {
+    const found: EntryView[] = [];
+    for (const type of balanced) {
+      const lines = (await frame.query("ledger", {
+        person: item.person.login,
+        type: type.key,
+        limit: 200,
+      })) as readonly EntryView[];
+      found.push(...lines.filter((line) => line.reversible));
+    }
+    if (found.length === 0) {
+      box.replaceChildren(muted(words.reverseNone));
+      return;
+    }
+    const line = select(
+      found.map((entry) => ({
+        value: entry.id,
+        label: `${format.day(entry.on)} · ${words.kind[entry.kind]} · ${format.signed(entry.days)} · ${entry.note}`,
+      })),
+      found[0]?.id,
+    );
+    const note = input("text", { maxLength: 500, required: true });
+    const submit = submitButton(words.reverseSubmit, "danger");
+    const status = statusLine();
+    const node = form(
+      field(words.reverseLineLabel, line),
+      field(words.noteLabel, note),
+      actions(submit),
+      status,
+    );
+    onSubmit(node, async () => {
+      const why = note.value.trim();
+      if (why.length === 0) {
+        say(status, words.noteRequired, "error");
+        return;
+      }
+      const result = await runCommand(frame, submit, status, words, "reverse", {
+        line: line.value,
+        note: why,
+      });
+      if (result !== null) {
+        await onSaved();
+        await load();
+      }
+    });
+    box.replaceChildren(node);
+  };
+  void load().catch((error: unknown) => box.replaceChildren(errorBlock(error, words)));
+  return box;
+}
+
 function offboardForm(item: PersonRow, view: View, onSaved: () => Promise<void>): HTMLElement {
   const { frame, words } = view;
   const on = input("date", { value: item.record?.leftOn ?? todayDay(frame) });
@@ -435,6 +509,8 @@ async function personPage(
     ...(hr && enrolled
       ? [
           panel(words.adjustTitle, adjustForm(item, view, refreshAll)),
+          panel(null, fold(words.recountTitle, recountForm(item, view, refreshAll))),
+          panel(null, fold(words.reverseTitle, reverseForm(item, view, refreshAll))),
           panel(null, fold(words.offboardTitle, offboardForm(item, view, refreshAll))),
         ]
       : []),

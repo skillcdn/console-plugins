@@ -27,6 +27,7 @@ import { isDay } from "../shared/days.js";
 import { imageLine, imagesOf, parseText, plainOf } from "../shared/rich-text.js";
 import { actorOf, ROLE_HR, ROLE_MEMBER, requireHr, requirePerson } from "./access.js";
 import { announcementPictures, announcements } from "./collections.js";
+import { emit } from "./events.js";
 import { type Clock, clockOf, type Directory, directoryOf } from "./store.js";
 import { serverWords } from "./words.js";
 
@@ -195,7 +196,7 @@ export const announcement = defineCommand({
         await ctx.records(announcementPictures).archive(existing.data.picturesId);
       }
       await records.archive(existing.id);
-      await ctx.events.emit("announcement-changed", { id: existing.id });
+      await emit(ctx, "announcement-changed", { id: existing.id });
       return { text: words.announcementRemoved(existing.data.title), data: { id: existing.id } };
     }
 
@@ -261,7 +262,7 @@ export const announcement = defineCommand({
         : await records.update(existing.id, next, {
             baseVersion: args.base ?? existing.version,
           });
-    await ctx.events.emit(going ? "announcement-published" : "announcement-changed", {
+    await emit(ctx, going ? "announcement-published" : "announcement-changed", {
       id: saved.id,
     });
     const title = next.title.length > 0 ? next.title : words.untitled;

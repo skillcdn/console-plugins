@@ -61,6 +61,8 @@ export interface Clock {
   /** The hour and the minute in the workspace's time zone, `HH:MM`. */
   readonly time: string;
   readonly timeZone: string;
+  /** Whether an administrator set the zone; the console keeps UTC where nobody did. */
+  readonly timeZoneSet: boolean;
   readonly languages: readonly string[];
   readonly now: Date;
 }
@@ -73,6 +75,8 @@ export async function clockOf(ctx: PluginContext): Promise<Clock> {
     today: dayIn(now, workspace.timeZone),
     time: timeIn(now, workspace.timeZone),
     timeZone: workspace.timeZone,
+    timeZoneSet:
+      (workspace as { timeZoneSet?: boolean }).timeZoneSet ?? workspace.timeZone !== "UTC",
     languages: workspace.languages,
     now,
   };

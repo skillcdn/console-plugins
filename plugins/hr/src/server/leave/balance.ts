@@ -1,7 +1,8 @@
 // The settlement of a ledger: which credits are left, after the uses took from the ones expiring
 // soonest, and what a person may still take on a day. Pure: the ledger's lines come in, figures
-// come out. A use that was reversed and its reversal cancel each other and are left out; an expiry
-// or a payout takes from the bucket it names; everything else is first in, first out by expiry.
+// come out. A use that was reversed and its reversal cancel each other and are left out, as do a
+// line reversed by HR or by a recount and the reversal that names it; an expiry or a payout takes
+// from the bucket it names; everything else is first in, first out by expiry.
 import type { Bucket, Entry, EntryKind } from "../../shared/contracts.js";
 import { roundDays } from "../../shared/days.js";
 
@@ -106,24 +107,54 @@ function credit(state: State, bucket: Working): void {
   state.buckets.push(bucket);
 }
 
+/**
+ * The lines a reversal takes out: the uses of the requests reversed, by the request, and the lines
+ * reversed one by one, by their id, which a `reverse` line names as its `bucket`.
+ */
+export interface Reversals {
+  readonly requests: ReadonlySet<string>;
+  readonly lines: ReadonlySet<string>;
+}
+
+export function reversalsOf(lines: readonly Line[]): Reversals {
+  const requests = new Set<string>();
+  const reversed = new Set<string>();
+  for (const line of lines) {
+    if (line.kind !== "reverse") {
+      continue;
+    }
+    if (line.requestId !== null) {
+      requests.add(line.requestId);
+    } else if (line.bucket !== null) {
+      reversed.add(line.bucket);
+    }
+  }
+  return { requests, lines: reversed };
+}
+
+/** Whether a line counts: not a reversal, not a line reversed, not the use of a request reversed. */
+export function counts(line: Line, reversals: Reversals): boolean {
+  if (line.kind === "reverse" || reversals.lines.has(line.id)) {
+    return false;
+  }
+  return !(
+    line.kind === "use" &&
+    line.requestId !== null &&
+    reversals.requests.has(line.requestId)
+  );
+}
+
 /** Settles a person's ledger of one type: every line, the uses still waiting, and the credits promised. */
 export function settle(
   lines: readonly Line[],
   pending: readonly VirtualUse[] = [],
   projected: readonly ProjectedCredit[] = [],
 ): Settlement {
-  const reversed = new Set(
-    lines
-      .filter((line) => line.kind === "reverse" && line.requestId !== null)
-      .map((line) => line.requestId),
-  );
-  const written = new Set(lines.map((line) => line.ref));
+  const reversals = reversalsOf(lines);
+  const written = new Set(lines.filter((line) => counts(line, reversals)).map((line) => line.ref));
   const events: Event[] = [];
   for (const line of lines) {
-    if (line.kind === "reverse") {
-      continue;
-    }
-    if (line.kind === "use" && line.requestId !== null && reversed.has(line.requestId)) {
+    if (!counts(line, reversals)) {
       continue;
     }
     if (line.days > 0) {
@@ -258,9 +289,14 @@ export function closedWithin(
   period: string,
   settlement: Settlement,
 ): number {
+  const reversals = reversalsOf(lines);
   let total = 0;
   for (const line of lines) {
-    if (line.period === period && (line.kind === "expire" || line.kind === "payout")) {
+    if (
+      line.period === period &&
+      (line.kind === "expire" || line.kind === "payout") &&
+      counts(line, reversals)
+    ) {
       total += settlement.closed.get(line.id) ?? Math.abs(line.days);
     }
   }
@@ -274,17 +310,10 @@ export function sumOf(
   kinds: readonly EntryKind[],
   sign: "credit" | "debit" | "any",
 ): number {
-  const reversed = new Set(
-    lines
-      .filter((line) => line.kind === "reverse" && line.requestId !== null)
-      .map((line) => line.requestId),
-  );
+  const reversals = reversalsOf(lines);
   let total = 0;
   for (const line of lines) {
-    if (line.period !== period || !kinds.includes(line.kind)) {
-      continue;
-    }
-    if (line.kind === "use" && line.requestId !== null && reversed.has(line.requestId)) {
+    if (line.period !== period || !kinds.includes(line.kind) || !counts(line, reversals)) {
       continue;
     }
     if (sign === "credit" && line.days <= 0) {
