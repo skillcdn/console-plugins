@@ -1,9 +1,10 @@
 // What time brings, once a day: the credits the policies owe by today, the expiries and the
 // carry-overs; leave turned off for people past the day they left, and for people deactivated in
 // the console whose event the hooks missed; tasks for HR where a person must act (days about to
-// expire, a period to grant by hand, a leaver to settle); and next year's holidays where a
-// calendar is set. Every write is idempotent by a ref or a mark, so a run repeated on the same
-// day changes nothing more.
+// expire, a period to grant by hand, a leaver to settle, and the line to mend that a request left
+// as a chore, since a call for a person writes no task on the board); and next year's holidays
+// where a calendar is set. Every write is idempotent by a ref or a mark, so a run repeated on the
+// same day changes nothing more.
 import type { JobDefinition, PluginContext } from "@skillcdn/console/plugin";
 import { ANNUAL, type Person, type Policy } from "../../shared/contracts.js";
 import { addDays, dayIn, daysBetween, monthOf, yearOf } from "../../shared/days.js";
@@ -23,7 +24,7 @@ import { settle } from "./balance.js";
 import { writeHolidays } from "./commands.js";
 import { ledgerOf, syncPerson } from "./engine.js";
 import { builtInHolidays } from "./holidays.js";
-import { mark, marked, nameOf, taskOnce, turnOffLeaver } from "./leavers.js";
+import { mark, marked, nameOf, taskOnce, turnOffLeaver, writeChores } from "./leavers.js";
 import { periodOf } from "./rules.js";
 
 /** Days within which a reminder's day is still acted on, so that a job that missed a day catches up. */
@@ -118,6 +119,7 @@ export async function runDaily(ctx: PluginContext): Promise<DailyOutcome> {
       words.manualTaskBody(periodStart, rows),
     );
   }
+  outcome.tasks += await writeChores(ctx, clock);
   if (config.holidayCalendar !== "none") {
     const year = yearOf(clock.today);
     const years = monthOf(clock.today) >= 10 ? [year, year + 1] : [year];

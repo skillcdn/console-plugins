@@ -29,6 +29,7 @@ export {
 export {
   announcementPictures,
   announcements,
+  chores,
   collections,
   config,
   holidays,

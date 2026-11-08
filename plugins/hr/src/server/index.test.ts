@@ -133,8 +133,13 @@ function personOf(who: PluginCaller) {
 interface Board {
   readonly decisions: Map<string, RestDecision>;
   readonly tasks: { title: string; body: string }[];
-  /** The people the console refuses a decision to; "everyone" refuses it to all, "board" the project to the call. */
+  /**
+   * The people the console refuses a decision to; "everyone" refuses it to all; "board" is a
+   * caller who may not see the board project, whose tasks are then not found to them.
+   */
   readonly refuse: Set<string>;
+  /** The decisions the console does not show the caller. */
+  readonly unseen: Set<string>;
   answer(
     id: string,
     option: "approve" | "reject" | "own",
@@ -151,6 +156,7 @@ function board(): Board {
     decisions,
     tasks,
     refuse: new Set(),
+    unseen: new Set(),
     answer(id, option, by, note, agent) {
       const decision = decisions.get(id);
       if (decision === undefined) {
@@ -246,9 +252,6 @@ function contextWith(
       },
       decisions: {
         ask: async (_project, ask) => {
-          if (theBoard.refuse.has("board")) {
-            throw new PluginRefusal("plugin.not_found", "no project hr the call may see");
-          }
           if (
             theBoard.refuse.has("everyone") ||
             ask.deciderIds?.some((id) => theBoard.refuse.has(id))
@@ -283,9 +286,15 @@ function contextWith(
           theBoard.decisions.set(id, decision);
           return decision;
         },
-        get: async (id) => theBoard.decisions.get(id) ?? null,
+        get: async (id) => (theBoard.unseen.has(id) ? null : (theBoard.decisions.get(id) ?? null)),
       },
       tasks: {
+        list: async () => {
+          if (theBoard.refuse.has("board")) {
+            throw new PluginRefusal("plugin.not_found", "no project hr the call may see");
+          }
+          return [];
+        },
         create: async (_project, task) => {
           theBoard.tasks.push({ title: task.title, body: task.body ?? "" });
           return {
@@ -1585,15 +1594,39 @@ describe("the line of a request", () => {
     expect(ctx.all("ledger").filter((line) => line.data.kind === "use")).toHaveLength(0);
   });
 
-  it("goes on up where the console refuses the one asked, and asks HR to mend it", async () => {
+  it("goes on up where the console refuses the one asked, and the job asks HR to mend it", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {}, chain());
     theBoard.refuse.add(personOf(MANAGER).id);
     const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     expect(theBoard.decisions.get(result.waiting ?? "")?.decider.id).toBe(personOf(BOB).id);
-    expect(theBoard.tasks[0]?.body).toContain("MINHO");
     await request.run(ctx.as(ALICE), { from: "2026-11-11" });
+    // A call for a person writes no task on the board: the task waits for the job, once.
+    expect(theBoard.tasks).toHaveLength(0);
+    expect(ctx.all("chores")).toHaveLength(1);
+    await runDaily(ctx.as(CONSOLE));
+    const mend = () => theBoard.tasks.filter((task) => task.body.includes("MINHO"));
+    expect(mend()).toHaveLength(1);
+    expect(ctx.all("chores").every((chore) => chore.archivedAt !== null)).toBe(true);
+    await runDaily(ctx.as(CONSOLE));
+    expect(mend()).toHaveLength(1);
+  });
+
+  it("asks HR to mend the line at once where the plugin's hook raises the decision", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {
+      line: lineWith([
+        { sources: ["manager"], people: [], mode: "any" },
+        { sources: ["hr"], people: [], mode: "any" },
+      ]),
+    });
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    theBoard.refuse.add(personOf(HR).id);
+    theBoard.answer(result.waiting ?? "", "approve", MANAGER);
+    await answered(ctx, result.waiting ?? "");
+    expect(stored(ctx).step).toBe(1);
     expect(theBoard.tasks).toHaveLength(1);
+    expect(ctx.all("chores")).toHaveLength(0);
   });
 
   it("goes on to the administrators, then to HR, past those refused", async () => {
@@ -1607,16 +1640,30 @@ describe("the line of a request", () => {
     expect(theBoard.decisions.get(toHr.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
   });
 
-  it("refuses at once, saying what to do, where the caller may not see the board project", async () => {
+  it("offers the address of a decision only where the console shows it to the caller", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {}, chain());
+    // A requester who may not see the board project raises the decision there all the same.
     theBoard.refuse.add("board");
-    await expect(request.run(ctx.as(ALICE), { from: "2026-11-10" })).rejects.toMatchObject({
-      code: "board_unreachable",
-      message: expect.stringContaining("board project hr"),
-    });
-    expect(theBoard.tasks).toHaveLength(0);
-    expect(await requestsQuery.run(ctx.as(ALICE), {})).toEqual([]);
+    const result = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    const id = ctx.all("requests")[0]?.id ?? "";
+    const path = `/decisions/${result.waiting}`;
+    const first = (await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[];
+    expect(first[0]?.decisionPath).toBe(path);
+    // Once the console no longer shows it to them, the pages offer nothing that is not found.
+    theBoard.unseen.add(result.waiting ?? "");
+    const hidden = (await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[];
+    expect(hidden[0]).toMatchObject({ decisionPath: null, cancelDecisionPath: null });
+    const view = (await requestView.run(ctx.as(ALICE), { id })) as RequestView;
+    expect(view.decisionPath).toBeNull();
+    // Whoever it waits for has it without a read; whoever sees the board project, every one.
+    const waiting = (await requestsQuery.run(ctx.as(MANAGER), {
+      scope: "waiting",
+    })) as RequestView[];
+    expect(waiting[0]?.decisionPath).toBe(path);
+    theBoard.refuse.delete("board");
+    const seen = (await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[];
+    expect(seen[0]?.decisionPath).toBe(path);
   });
 
   it("refuses the request where nobody at all can be asked", async () => {

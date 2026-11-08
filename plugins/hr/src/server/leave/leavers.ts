@@ -6,8 +6,8 @@
 // a thing twice.
 import type { PluginContext, PluginRecord } from "@skillcdn/console/plugin";
 import { ANNUAL, type Person } from "../../shared/contracts.js";
-import { marks, people } from "../collections.js";
-import { type Clock, type RestPerson, stamp } from "../store.js";
+import { chores, marks, people } from "../collections.js";
+import { type Clock, listAll, type RestPerson, stamp } from "../store.js";
 import { daysText, type ServerWords } from "../words.js";
 import { settle } from "./balance.js";
 import { ledgerOf } from "./engine.js";
@@ -33,7 +33,9 @@ export async function mark(
 /**
  * A task for HR on the board project, once per key: nothing without a board, nothing twice, and
  * a board that refuses is logged rather than thrown, so that what the caller was doing goes on.
- * Answers whether a task was written.
+ * A call for a person writes none: the console writes a task in the board project only for
+ * someone who may see it (its ADR-0080), so the task waits as a chore for the daily job, which
+ * writes it as the plugin. Answers whether a task was written.
  */
 export async function taskOnce(
   ctx: PluginContext,
@@ -44,6 +46,18 @@ export async function taskOnce(
 ): Promise<boolean> {
   const board = ctx.plugin.board;
   if (board === null || (await marked(ctx, key))) {
+    return false;
+  }
+  if (ctx.caller.kind === "person" || (ctx.caller.kind === "plugin" && ctx.caller.for !== null)) {
+    const waiting = await ctx.records(chores).list({ where: { key }, limit: 1 });
+    if (waiting.items.length === 0) {
+      await ctx.records(chores).create({
+        key,
+        title: title.slice(0, 300),
+        body: body.slice(0, 8000),
+        at: stamp(clock),
+      });
+    }
     return false;
   }
   try {
@@ -57,6 +71,25 @@ export async function taskOnce(
   }
   await mark(ctx, key, clock, title);
   return true;
+}
+
+/**
+ * The tasks the calls for a person left as chores, written as the plugin, each once; a chore
+ * stays until its task is written. Answers how many were written.
+ */
+export async function writeChores(ctx: PluginContext, clock: Clock): Promise<number> {
+  let written = 0;
+  const waiting = await listAll<{ key: string; title: string; body: string }>(ctx.records(chores));
+  for (const chore of waiting) {
+    const { key, title, body } = chore.data;
+    if (await taskOnce(ctx, clock, key, title, body)) {
+      written += 1;
+    }
+    if (await marked(ctx, key)) {
+      await ctx.records(chores).archive(chore.id);
+    }
+  }
+  return written;
 }
 
 /** How a person is named in a task: as the directory has them, else as their record does. */

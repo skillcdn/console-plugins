@@ -1,16 +1,13 @@
 // Raising a decision on a request, in the words of whoever is to answer it: the first of the people
 // it is addressed to, since a decision several may answer is one text (the console's ADR-0065). A
 // plugin's decision reaches whoever it is addressed to wherever they are, and the managers above
-// them (the console's ADR-0068); the console still refuses someone who is not an active person of
-// the workspace, so a refused decision goes on up the person's managers, to the administrators, to
+// them (the console's ADR-0068); a request raises its first in the board project in the
+// requester's own call, whether they may see the project or not, and it reaches them as its raiser
+// (the console's ADR-0080). The console still refuses someone who is not an active person of the
+// workspace, so a refused decision goes on up the person's managers, to the administrators, to
 // HR, and to where the console sends a decision when nobody is named, with a task for HR to mend
 // the line: the request is not lost.
-import {
-  isPluginRefusal,
-  type PluginContext,
-  PluginError,
-  type PluginRecord,
-} from "@skillcdn/console/plugin";
+import { type PluginContext, PluginError, type PluginRecord } from "@skillcdn/console/plugin";
 import {
   ANNUAL,
   type LeaveRequest,
@@ -174,14 +171,6 @@ async function raise(
     } catch (error) {
       if (error instanceof PluginError) {
         throw error;
-      }
-      // The console raises a decision in a person's call only in a project they may see, and
-      // answers a project it does not find as not found: nobody else asked would change that.
-      if (isPluginRefusal(error) && error.code === "plugin.not_found") {
-        throw new PluginError(
-          "board_unreachable",
-          serverWords(ctx.language).refused.boardUnreachable(boardKey(ctx)),
-        );
       }
       failure = error instanceof Error ? error.message : String(error);
     }

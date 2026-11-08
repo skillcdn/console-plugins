@@ -4,6 +4,7 @@
 import {
   arg,
   defineQuery,
+  isPluginRefusal,
   type PluginContext,
   PluginError,
   type PluginRecord,
@@ -37,6 +38,7 @@ import {
   type RequestView,
   type StepView,
   type TypeBalance,
+  waitingDecision,
 } from "../../shared/contracts.js";
 import {
   addDays,
@@ -81,6 +83,7 @@ import { noteIn, serverWords } from "../words.js";
 import { approvedAs, nextOf, waitingIn } from "./approval.js";
 import { counts, reversalsOf, settle } from "./balance.js";
 import { isHandRef, prepareRequest } from "./commands.js";
+import { boardKey } from "./decisions.js";
 import { ledgerOf, lineOf, typeBalanceOf } from "./engine.js";
 import { PRESETS, policyAbout, policyName } from "./presets.js";
 import { isCounted } from "./rules.js";
@@ -109,6 +112,56 @@ function briefOf(
 /** A decision's own address on the pages, which reaches whoever it is for, in the board project or not. */
 function decisionPath(decisionId: string | null): string | null {
   return decisionId === null ? null : `/decisions/${decisionId}`;
+}
+
+/**
+ * The views with the address of the decision a page opens only where the console shows it to the
+ * caller. Whoever may use the plugin raises a request's decision in the board project without
+ * seeing the project (the console's ADR-0080), and then reads only the decisions that reach them:
+ * raised in their own call, addressed to them, or for a manager to someone below them; a later
+ * step's, raised by the plugin's hook, is not theirs to read. A page offers no address that would
+ * answer not found.
+ */
+async function followable(
+  ctx: PluginContext,
+  actor: Actor,
+  views: readonly RequestView[],
+): Promise<RequestView[]> {
+  const unsure = views.filter((view) => !view.mine && waitingDecision(view) !== null);
+  if (!actor.isPerson || unsure.length === 0 || (await seesBoard(ctx))) {
+    return [...views];
+  }
+  const hidden = new Set<string>();
+  await Promise.all(
+    unsure.map(async (view) => {
+      const path = waitingDecision(view) ?? "";
+      if (!(await shows(ctx, path.slice("/decisions/".length)))) {
+        hidden.add(view.id);
+      }
+    }),
+  );
+  return views.map((view) =>
+    hidden.has(view.id) ? { ...view, decisionPath: null, cancelDecisionPath: null } : view,
+  );
+}
+
+/** Whether the caller may see the board project, where every decision opens for them. */
+async function seesBoard(ctx: PluginContext): Promise<boolean> {
+  try {
+    await ctx.console.tasks.list(boardKey(ctx), { limit: 1 });
+    return true;
+  } catch (error) {
+    return !(isPluginRefusal(error) && error.code === "plugin.not_found");
+  }
+}
+
+/** Whether the console shows the caller a decision; a read that fails hides nothing. */
+async function shows(ctx: PluginContext, decisionId: string): Promise<boolean> {
+  try {
+    return (await ctx.console.decisions.get(decisionId)) !== null;
+  } catch {
+    return true;
+  }
 }
 
 /** Whether someone stands in a request's line: a step asks them, a decision went to them, or they approved. */
@@ -403,7 +456,7 @@ export const requestsQuery = defineQuery({
       ),
     );
     const kept = scope === "waiting" ? views.filter((view) => view.mine) : views;
-    return kept.slice(0, args.limit ?? LINES);
+    return followable(ctx, actor, kept.slice(0, args.limit ?? LINES));
   },
 });
 
@@ -433,7 +486,7 @@ export async function requestViewOf(ctx: PluginContext, id: string): Promise<Req
   if (!visible) {
     throw new PluginError("not_found", no.noSuchRequest);
   }
-  return viewOf(
+  const view = viewOf(
     actor,
     found,
     briefOf(data.personId, directoryMap, null, actor),
@@ -442,6 +495,8 @@ export async function requestViewOf(ctx: PluginContext, id: string): Promise<Req
     directoryMap,
     reach,
   );
+  const [shown] = await followable(ctx, actor, [view]);
+  return shown ?? view;
 }
 
 export const requestView = defineQuery({
@@ -789,10 +844,14 @@ export const overview = defineQuery({
       where: { personId: actor.id, to: { gte: clock.today } },
       order: { field: "from" },
     });
-    const upcoming = mine
-      .filter((item) => ["requested", "approved", "cancelling"].includes(item.data.state))
-      .slice(0, 8)
-      .map((item) => viewOf(actor, item, me, config, clock.today, directoryMap, reach));
+    const upcoming = await followable(
+      ctx,
+      actor,
+      mine
+        .filter((item) => ["requested", "approved", "cancelling"].includes(item.data.state))
+        .slice(0, 8)
+        .map((item) => viewOf(actor, item, me, config, clock.today, directoryMap, reach)),
+    );
     const pending = await listAll<LeaveRequest>(ctx.records(requests), {
       where: { state: { in: ["requested", "cancelling"] } },
       order: { field: "from" },

@@ -13,7 +13,7 @@
     "ko": "구성원의 휴가와 누가 쉬는지, 인사 공지를 다룹니다. 인사 담당은 휴가 규정을 관리하고 공지를 씁니다."
   },
   "pluginApi": 1,
-  "console": ">=0.4.5 <0.5.0",
+  "console": ">=0.4.6 <0.5.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",

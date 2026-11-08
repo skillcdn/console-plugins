@@ -315,6 +315,25 @@ export const marks = defineCollection("marks", {
   history: false,
 });
 
+/**
+ * A task for HR that a person's call could not write: the console raises a decision in the board
+ * project for whoever may use the plugin, but writes a task there only for someone who may see the
+ * project (its ADR-0080), so the task waits here, one per key, until the daily job writes it as
+ * the plugin and archives it.
+ */
+export const chores = defineCollection("chores", {
+  schema: z.object({
+    key: line(120),
+    title: line(300),
+    body: line(8000),
+    at: line(40),
+  }),
+  indexes: ["key"],
+  read: ["hr"],
+  history: false,
+  retention: { days: 30 },
+});
+
 export const collections = [
   people,
   policies,
@@ -326,4 +345,5 @@ export const collections = [
   announcements,
   announcementPictures,
   marks,
+  chores,
 ];

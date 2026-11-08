@@ -78,7 +78,6 @@ export interface Refusals {
   readonly notTheirManager: string;
   readonly ownLeave: string;
   readonly noDecision: (why: string) => string;
-  readonly boardUnreachable: (board: string) => string;
   readonly noSuchRequest: string;
   readonly notYours: string;
   readonly alreadyCancelling: string;
@@ -538,8 +537,6 @@ const ENGLISH: ServerWords = {
     notTheirManager: "You record leave for the people you manage; HR records it for anyone.",
     ownLeave: "Nobody approves their own leave: request it, and it goes to your line.",
     noDecision: (why) => `The decision could not be raised: ${why}.`,
-    boardUnreachable: (board) =>
-      `The decision could not be raised: it goes to the board project ${board}, which you may not see. An administrator adds you to it.`,
     noSuchRequest: "No such request.",
     notYours: "The request is another person's.",
     alreadyCancelling: "The cancellation waits for a decision already.",
@@ -899,8 +896,6 @@ const KOREAN: ServerWords = {
       "내가 매니저인 사람의 휴가만 대신 등록할 수 있습니다. 인사 담당은 누구든 등록합니다.",
     ownLeave: "자기 휴가는 직접 승인할 수 없습니다. 신청하면 결재선으로 갑니다.",
     noDecision: (why) => `결정을 올리지 못했습니다: ${why}.`,
-    boardUnreachable: (board) =>
-      `결정을 올리지 못했습니다. 결정은 보드 프로젝트 ${board}에 올라가는데, 이 프로젝트를 볼 수 없습니다. 관리자가 이 프로젝트에 추가해야 합니다.`,
     noSuchRequest: "그런 신청이 없습니다.",
     notYours: "다른 사람의 신청입니다.",
     alreadyCancelling: "취소가 이미 결정을 기다리고 있습니다.",
