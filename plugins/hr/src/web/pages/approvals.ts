@@ -125,7 +125,6 @@ export async function renderApprovals(
   let filter: Filter = "mine";
   let chosen = false;
   let views: readonly RequestView[] = [];
-  let manages = hr;
 
   const labels: Readonly<Record<Filter, string>> = {
     mine: words.filterMine,
@@ -144,13 +143,11 @@ export async function renderApprovals(
       tab.className = key === filter ? "sc-tab sc-tab-current" : "sc-tab";
       tab.textContent = key === "mine" || key === "open" ? `${labels[key]} ${count}` : labels[key];
     }
-    tabs.hidden = !manages;
-    record.hidden = !manages;
     const kept = views.filter((view) => keeps(filter, view));
     if (kept.length === 0) {
-      const nobody = manages ? null : words.approvalsNobody;
-      const none = filter === "mine" ? words.approvalsMineEmpty : words.approvalsEmpty;
-      body.replaceChildren(empty(nobody ?? none));
+      body.replaceChildren(
+        empty(filter === "mine" ? words.approvalsMineEmpty : words.approvalsEmpty),
+      );
       return;
     }
     const list = el("ul", "requests");
@@ -171,17 +168,15 @@ export async function renderApprovals(
 
   const refresh = sequenced(async (fresh) => {
     try {
-      const [line, waiting, report] = await Promise.all([
+      const [line, waiting] = await Promise.all([
         frame.query("requests", { scope: hr ? "all" : "team", limit: 200 }) as Promise<
           readonly RequestView[]
         >,
         frame.query("requests", { scope: "waiting", limit: 200 }) as Promise<
           readonly RequestView[]
         >,
-        frame.query("people") as Promise<PeopleReport>,
       ]);
       if (fresh()) {
-        manages = hr || report.people.length > 0 || waiting.length > 0;
         const known = new Set(line.map((view) => view.id));
         views = [...waiting.filter((view) => !known.has(view.id)), ...line];
         if (!chosen && !views.some((view) => view.mine)) {

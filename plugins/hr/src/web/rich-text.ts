@@ -1,14 +1,13 @@
 // An announcement as people read it: the blocks of ../shared/rich-text.ts turned into elements one
 // by one, each filled with text, so that nothing a person or an agent wrote is ever read as HTML. A
-// picture comes over the bridge and shows as a blob of its own type. A frame has no way out, so a
-// link to the web cannot open: it copies its address, and a link to a page of the console goes there.
+// picture comes over the bridge and shows as a blob of its own type. A link to the web opens in a
+// new tab through the console, right after the press (its ADR-0067), and a link to a page of the
+// console goes there, an address on the console's own origin included.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import { PICTURE_TYPES } from "../shared/contracts.js";
-import { type Block, isConsolePath, type List, type Mark, type Span } from "../shared/rich-text.js";
+import { type Block, consolePathOf, type List, type Mark, type Span } from "../shared/rich-text.js";
 import { el } from "./ui.js";
 import type { Words } from "./words.js";
-
-const COPIED_SHOWN_MS = 2400;
 
 /** The pictures this frame has read, each read once. */
 const pictures = new Map<string, Promise<string | null>>();
@@ -55,45 +54,29 @@ export function picture(
   return node;
 }
 
-/** Copies a text. The clipboard's own interface is closed to a frame; this needs only the press. */
-function copied(text: string): boolean {
-  const holder = el("textarea", "offscreen");
-  holder.value = text;
-  document.body.append(holder);
-  holder.select();
-  const done = document.execCommand("copy");
-  holder.remove();
-  return done;
-}
-
-function linkTo(href: string, content: Node, frame: PluginFrame, words: Words): HTMLElement {
-  if (isConsolePath(href)) {
-    const link = el("a", "link");
-    link.href = href;
-    link.append(content);
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      frame.navigate(href);
-    });
-    return link;
-  }
-  const holder = el("span", "link-holder");
-  const link = el("button", "link");
-  link.type = "button";
-  link.title = words.linkCopyHint(href);
+function linkTo(
+  href: string,
+  content: Node,
+  frame: PluginFrame,
+  words: Words,
+  origin: string | null,
+): HTMLElement {
+  const link = el("a", "link");
+  link.href = href;
   link.append(content);
-  const note = el("span", "link-note");
-  link.addEventListener("click", () => {
-    const done = copied(href);
-    note.textContent = done ? words.linkCopied : href;
-    if (done) {
-      setTimeout(() => {
-        note.textContent = "";
-      }, COPIED_SHOWN_MS);
+  const path = consolePathOf(href, origin);
+  if (path === null) {
+    link.title = words.linkOpens(href);
+  }
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (path === null) {
+      frame.open(href);
+    } else {
+      frame.navigate(path);
     }
   });
-  holder.append(link, note);
-  return holder;
+  return link;
 }
 
 const MARK_TAGS: Readonly<Record<Mark, keyof HTMLElementTagNameMap>> = {
@@ -120,6 +103,7 @@ function spansInto(
   spans: readonly Span[],
   frame: PluginFrame,
   words: Words,
+  origin: string | null,
 ): HTMLElement {
   for (const span of spans) {
     let content: Node = textNodes(span.text);
@@ -128,36 +112,46 @@ function spansInto(
       wrapper.append(content);
       content = wrapper;
     }
-    parent.append(span.href === null ? content : linkTo(span.href, content, frame, words));
+    parent.append(span.href === null ? content : linkTo(span.href, content, frame, words, origin));
   }
   return parent;
 }
 
-function listNode(list: List, frame: PluginFrame, words: Words): HTMLElement {
+function listNode(
+  list: List,
+  frame: PluginFrame,
+  words: Words,
+  origin: string | null,
+): HTMLElement {
   const node = el(list.ordered ? "ol" : "ul");
   if (list.ordered && list.start !== 1 && node instanceof HTMLOListElement) {
     node.start = list.start;
   }
   for (const item of list.items) {
-    const line = spansInto(el("li"), item.spans, frame, words);
+    const line = spansInto(el("li"), item.spans, frame, words, origin);
     if (item.list !== null) {
-      line.append(listNode(item.list, frame, words));
+      line.append(listNode(item.list, frame, words, origin));
     }
     node.append(line);
   }
   return node;
 }
 
-function blockNode(block: Block, frame: PluginFrame, words: Words): HTMLElement {
+function blockNode(
+  block: Block,
+  frame: PluginFrame,
+  words: Words,
+  origin: string | null,
+): HTMLElement {
   switch (block.kind) {
     case "paragraph":
-      return spansInto(el("p"), block.spans, frame, words);
+      return spansInto(el("p"), block.spans, frame, words, origin);
     case "heading":
-      return spansInto(el(block.level === 2 ? "h2" : "h3"), block.spans, frame, words);
+      return spansInto(el(block.level === 2 ? "h2" : "h3"), block.spans, frame, words, origin);
     case "quote": {
       const quote = el("blockquote");
       for (const part of block.paragraphs) {
-        quote.append(spansInto(el("p"), part, frame, words));
+        quote.append(spansInto(el("p"), part, frame, words, origin));
       }
       return quote;
     }
@@ -169,13 +163,18 @@ function blockNode(block: Block, frame: PluginFrame, words: Words): HTMLElement 
       return figure;
     }
     default:
-      return listNode(block, frame, words);
+      return listNode(block, frame, words, origin);
   }
 }
 
-/** The text of an announcement, as the console's prose. */
-export function richText(blocks: readonly Block[], frame: PluginFrame, words: Words): HTMLElement {
+/** The text of an announcement, as the console's prose; `origin` the console's own, or null. */
+export function richText(
+  blocks: readonly Block[],
+  frame: PluginFrame,
+  words: Words,
+  origin: string | null,
+): HTMLElement {
   const node = el("div", "sc-prose rich");
-  node.append(...blocks.map((block) => blockNode(block, frame, words)));
+  node.append(...blocks.map((block) => blockNode(block, frame, words, origin)));
   return node;
 }

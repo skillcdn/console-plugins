@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type Block,
+  consolePathOf,
   imageLine,
   imagesOf,
   isSafeHref,
@@ -90,6 +91,33 @@ describe("the runs of a line", () => {
     expect(spansOf('<img src=x onerror="alert(1)">')).toEqual([
       plain('<img src=x onerror="alert(1)">'),
     ]);
+  });
+});
+
+describe("a link to the console itself", () => {
+  const origin = "https://console.example.com";
+
+  it("goes to its path in place, an address on the console's origin included", () => {
+    expect(consolePathOf("/plugins/hr/leave", origin)).toBe("/plugins/hr/leave");
+    expect(consolePathOf("https://console.example.com/decisions/1?a=b#c", origin)).toBe(
+      "/decisions/1?a=b#c",
+    );
+    expect(consolePathOf("https://console.example.com", origin)).toBe("/");
+  });
+
+  it("is no path for another origin, mail, a malformed address or a console that names none", () => {
+    for (const href of [
+      "https://console.example.com.evil.example/plugins",
+      "http://console.example.com/plugins",
+      "https://console.example.com:8443/plugins",
+      "https://user@console.example.org/plugins",
+      "mailto:hr@example.com",
+      "//console.example.com/plugins",
+      "https://",
+    ]) {
+      expect(consolePathOf(href, origin), href).toBeNull();
+    }
+    expect(consolePathOf("https://console.example.com/plugins", null)).toBeNull();
   });
 });
 

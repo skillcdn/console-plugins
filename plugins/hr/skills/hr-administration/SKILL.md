@@ -45,9 +45,9 @@ A request travels a line: the default line, which is the person's manager unless
 | Do | Command |
 |---|---|
 | Set the default line, as JSON; `[]` approves everything as it is written | `console plugin hr configure --line '[{"sources":["manager"],"people":[],"mode":"any"},{"sources":["hr"],"people":[],"mode":"any"}]'` |
-| Set the exceptions, the first that holds winning; `kinds` empty means all | `console plugin hr configure --rules '[{"name":"Long leave","kinds":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]'` |
+| Set the exceptions, the first that holds winning; `kinds` empty means every kind and `teams` (the keys of the console's teams, as `console teams` lists them) empty every team | `console plugin hr configure --rules '[{"name":"Long leave","kinds":[],"daysAtLeast":5,"lateOnly":false,"teams":[],"steps":[...]}]'` |
 
-Every manager must be able to work in the plugin's board project, since a decision is addressed within it; `console plugin hr` names it. The console lets anyone who works there answer a decision, so the project holds those who approve and nobody else. Where the console refuses the one asked, the decision goes on up the person's managers, to the administrators and to HR, and a task says whom to add to the project's members.
+A decision reaches whoever it is addressed to and the managers above them wherever they are, so nobody is added to the board project to approve. Where the console refuses the one asked, someone who left it, the decision goes on up the person's managers, to the administrators and to HR, and a task asks HR to mend the line or the person's manager.
 
 ## People
 

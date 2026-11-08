@@ -55,6 +55,26 @@ export function isConsolePath(href: string): boolean {
   return /^\/(?!\/)[^\s\\]*$/.test(href);
 }
 
+/**
+ * Where a link to the console itself goes: a path as it is, and an address on the console's own
+ * origin as its path, which the page follows in place, since the console opens no tab of its own.
+ * Null for any other address.
+ */
+export function consolePathOf(href: string, origin: string | null): string | null {
+  if (isConsolePath(href)) {
+    return href;
+  }
+  if (origin === null) {
+    return null;
+  }
+  try {
+    const url = new URL(href);
+    return url.origin === origin ? `${url.pathname}${url.search}${url.hash}` : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The addresses a link may hold: the web, mail and the console's own pages, and nothing else. */
 export function isSafeHref(href: string): boolean {
   return (

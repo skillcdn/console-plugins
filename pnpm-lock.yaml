@@ -165,8 +165,8 @@ settings:
 catalogs:
   default:
     '@skillcdn/console':
-      specifier: ^0.4.4
-      version: 0.4.4
+      specifier: ^0.4.5
+      version: 0.4.5
     '@types/node':
       specifier: ^24.19.1
       version: 24.19.2
@@ -198,7 +198,7 @@ importers:
         version: 0.4.1
       '@skillcdn/console':
         specifier: 'catalog:'
-        version: 0.4.4(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 0.4.5(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
@@ -216,7 +216,7 @@ importers:
     devDependencies:
       '@skillcdn/console':
         specifier: 'catalog:'
-        version: 0.4.4(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 0.4.5(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -234,7 +234,7 @@ importers:
     devDependencies:
       '@skillcdn/console':
         specifier: 'catalog:'
-        version: 0.4.4(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 0.4.5(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -727,8 +727,8 @@ packages:
     resolution: {integrity: sha512-oVr7E973dk0/2xK8d+0LOQM9ZkFuCjMauMafLqDsv6b1T5lFOwE7E9evT13K3sqOGfFrxekRyKp9wfWI6EuW/g==}
     engines: {node: '>=24'}
 
-  '@skillcdn/console@0.4.4':
-    resolution: {integrity: sha512-qK0s5NahGFyqEVM/8CdmhBBM2GHlxZj269JePxxnTn7d9HVmUDOBPR7lrGQ/lTgu5iYE/34q2FKiqVP+7NgxwA==}
+  '@skillcdn/console@0.4.5':
+    resolution: {integrity: sha512-CO/d7KkD+oWst9aQUwVuJROg2Qu3+Mq1gMXCJpvL4rIyxZAFw7YBRDuwPd7IBJun+dLEoHDk1gcy0/taC31rrQ==}
     engines: {node: '>=24'}
     hasBin: true
     peerDependencies:
@@ -2101,7 +2101,7 @@ snapshots:
     dependencies:
       '@skillcdn/core': 0.4.1
 
-  '@skillcdn/console@0.4.4(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@skillcdn/console@0.4.5(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@skillcdn/core': 0.4.2
       react: 19.3.1

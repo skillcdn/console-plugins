@@ -13,6 +13,7 @@ import {
   STEP_SOURCES,
   type StepMode,
   type StepSource,
+  type TeamBrief,
 } from "../../shared/contracts.js";
 import {
   actions,
@@ -284,9 +285,19 @@ function lineEditor(
   };
 }
 
-function ruleWhen(rule: ApprovalRule, kinds: readonly LeaveType[], view: SetupView): string {
+function ruleWhen(
+  rule: ApprovalRule,
+  kinds: readonly LeaveType[],
+  teams: readonly TeamBrief[],
+  view: SetupView,
+): string {
   const { words, language, format } = view;
   const parts: string[] = [];
+  if (rule.teams.length > 0) {
+    parts.push(
+      rule.teams.map((key) => teams.find((team) => team.key === key)?.name ?? key).join(", "),
+    );
+  }
   if (rule.kinds.length > 0) {
     parts.push(
       rule.kinds
@@ -310,6 +321,7 @@ function ruleForm(
   rule: ApprovalRule | null,
   people: readonly PersonBrief[],
   kinds: readonly LeaveType[],
+  teams: readonly TeamBrief[],
   view: SetupView,
   onSave: (rule: ApprovalRule) => Promise<void>,
   onClose: () => void,
@@ -328,6 +340,18 @@ function ruleForm(
     rule?.kinds ?? [],
     words.ruleKinds,
   );
+  // A team the console has since removed stays a choice, by its key, until HR takes it off.
+  const teamChoices = [
+    ...teams,
+    ...(rule?.teams ?? [])
+      .filter((key) => !teams.some((team) => team.key === key))
+      .map((key) => ({ key, name: key })),
+  ];
+  const teamsControl = toggles(
+    teamChoices.map((team) => ({ value: team.key, label: team.name })),
+    rule?.teams ?? [],
+    words.ruleTeams,
+  );
   const line = lineEditor(
     rule?.steps ?? [{ sources: ["manager"], people: [], mode: "any" }],
     people,
@@ -338,6 +362,15 @@ function ruleForm(
   const node = form(
     field(words.ruleName, name),
     group(words.ruleKinds, kindsControl.node, el("span", "sc-field-hint", words.ruleAllHint)),
+    ...(teamChoices.length === 0
+      ? []
+      : [
+          group(
+            words.ruleTeams,
+            teamsControl.node,
+            el("span", "sc-field-hint", words.ruleTeamsHint),
+          ),
+        ]),
     formRow(field(words.ruleDays, days), group(words.ruleLate, late.wrapper)),
     group(words.ruleLine, line.node),
     actions(submit, button(words.close, onClose, "ghost")),
@@ -355,6 +388,7 @@ function ruleForm(
       kinds: kindsControl.value(),
       daysAtLeast: days.value === "" ? null : Number(days.value),
       lateOnly: late.box.checked,
+      teams: teamsControl.value(),
       steps,
     });
   });
@@ -378,6 +412,7 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
   let rules: ApprovalRule[] = [];
   let people: PersonBrief[] = [];
   let kinds: LeaveType[] = [];
+  let teams: readonly TeamBrief[] = [];
 
   const saveRules = async (next: ApprovalRule[]): Promise<boolean> => {
     const result = await runCommand(frame, saveButton, status, words, "configure", {
@@ -400,6 +435,7 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       rule,
       people,
       kinds,
+      teams,
       view,
       async (next) => {
         const list = [...rules];
@@ -427,7 +463,7 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       const text = el("div", "rule-text");
       text.append(
         el("p", "rule-name", rule.name),
-        el("p", "rule-when sc-muted", ruleWhen(rule, kinds, view)),
+        el("p", "rule-when sc-muted", ruleWhen(rule, kinds, teams, view)),
         el("p", "rule-line", lineText(rule.steps, people, view)),
       );
       const side = el("div", "rule-actions");
@@ -472,6 +508,7 @@ export async function approvalTab(body: HTMLElement, view: SetupView): Promise<v
       }
       people = report.people.filter((row) => row.status === "active").map((row) => row.person);
       kinds = [...typeList];
+      teams = config.teams;
       rules = [...config.config.rules];
       const line = lineEditor(config.config.line, people, view);
       const submit = submitButton(words.saveLine);

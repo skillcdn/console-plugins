@@ -90,6 +90,7 @@ import {
   policyFor,
   staffOf,
   stamp,
+  teamsOf,
   typeByKey,
 } from "../store.js";
 import { daysText, nameIn, type ServerWords, serverWords } from "../words.js";
@@ -254,6 +255,9 @@ export async function prepareRequest(
   requirePerson(actor);
   if (asked.approved === true) {
     requireHr(actor);
+    if (actor.via !== null) {
+      throw new PluginError("approved_through_plugin", no.approvedThroughPlugin);
+    }
   }
   const target: PersonBrief =
     asked.person === undefined
@@ -271,12 +275,6 @@ export async function prepareRequest(
     throw new PluginError("not_their_manager", no.notTheirManager);
   }
   const to = asked.to ?? asked.from;
-  // The console holds a day to its shape alone, so February 30 comes this far.
-  for (const day of [asked.from, to]) {
-    if (!isDay(day)) {
-      throw new PluginError("bad_day", no.badDay(day));
-    }
-  }
   if (to < asked.from) {
     throw new PluginError("span", no.spanBackwards);
   }
@@ -356,7 +354,12 @@ export async function prepareRequest(
   }
   const asksNobody =
     (asked.approved === true && actor.hr) || approvedAsWritten(type.autoApprove, days, late);
-  const ruled = ruleFor(config, { kind: type.key, days, late });
+  const ruled = ruleFor(config, {
+    kind: type.key,
+    days,
+    late,
+    teams: directory.get(target.id)?.teams ?? [],
+  });
   return {
     target,
     type,
@@ -1461,7 +1464,7 @@ export const configure = defineCommand({
     }),
     rules: arg.text({
       about:
-        'the exceptions as JSON, the first that holds winning: [{"name":"...","kinds":[],"daysAtLeast":5,"lateOnly":false,"steps":[...]}]',
+        'the exceptions as JSON, the first that holds winning: [{"name":"...","kinds":[],"daysAtLeast":5,"lateOnly":false,"teams":[],"steps":[...]}]',
       optional: true,
       max: 20_000,
     }),
@@ -1544,7 +1547,7 @@ export const configure = defineCommand({
   },
 });
 
-/** Refuses a line or a rule that names a kind or a person that does not exist. */
+/** Refuses a line or a rule that names a kind, a person or a team that does not exist. */
 async function checkNames(
   ctx: PluginContext,
   patch: Partial<Pick<Config, "line" | "rules">>,
@@ -1563,6 +1566,18 @@ async function checkNames(
   for (const key of kinds) {
     if ((await typeByKey(ctx, key)) === null) {
       throw new PluginError("unknown_type", no.unknownType(key));
+    }
+  }
+  const named = new Set((patch.rules ?? []).flatMap((rule) => rule.teams));
+  if (named.size > 0) {
+    // A team the console removed leaves the rules that named it holding for nobody; only a team
+    // named anew is refused, so that the other rules can still be saved as they are.
+    const kept = new Set((await configOf(ctx)).rules.flatMap((rule) => rule.teams));
+    const known = new Set((await teamsOf(ctx)).map((team) => team.key));
+    for (const team of named) {
+      if (!known.has(team) && !kept.has(team)) {
+        throw new PluginError("unknown_team", no.unknownTeam(team));
+      }
     }
   }
 }

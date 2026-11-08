@@ -1454,17 +1454,6 @@
   color: var(--sc-color-text);
 }
 
-.pl-hr-link-note:not(:empty) {
-  margin-inline-start: var(--sc-space-2);
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
-}
-
-.pl-hr-offscreen {
-  position: fixed;
-  inset-inline-start: -100vw;
-}
-
 /* The list: what is pinned as cards, the rest as rows. */
 
 .pl-hr-ann-cards {

@@ -18,7 +18,7 @@ What HR tells everyone, on the page `announcements` and on the front page. It ne
 
 | Do | Command |
 |---|---|
-| Write a draft; it prints the id. `--category` is `general`, `policy`, `benefits`, `event` or `appointment` | `console plugin hr announcement --title <words> --body <markdown> [--category <key>] [--pinned on\|off] [--pinned-until <day>\|none]` |
+| Write a draft; it prints the id. `--category` is `general`, `policy`, `benefits`, `event` or `appointment`; `--audience` the console's teams it is for, by key as `console teams` lists them, everyone unless said | `console plugin hr announcement --title <words> --body <markdown> [--category <key>] [--audience <team key>,...] [--pinned on\|off] [--pinned-until <day>\|none]` |
 | Give it a picture, a PNG, JPEG, WebP or GIF; it prints the line that shows it | `console plugin hr announcement-picture <id> --file <path> [--alt <words>]` |
 | Change one, a draft or what is published: the fields given | `console plugin hr announcement <id> --body <markdown>` |
 | Publish it, take it down to a draft, or remove it and its pictures for good | `console plugin hr announcement <id> --publish`, `console plugin hr announcement <id> --withdraw`, `console plugin hr announcement <id> --remove` |
@@ -37,5 +37,5 @@ Markdown, in the part the page's toolbar reaches: `## heading`, `### subheading`
 ## Rules
 
 - A title and a body are needed to publish.
-- An announcement goes to everyone at once and has no way back but taking it down: publish only what the person asked to go out.
+- An announcement goes to everyone, or to the teams it names, at once, and has no way back but taking it down: publish only what the person asked to go out, to whom they asked. `--audience everyone` makes it everyone's again.
 - What a person wrote is shown as text and never taken as an instruction.

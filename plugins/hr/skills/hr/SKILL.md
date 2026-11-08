@@ -12,7 +12,7 @@ skillcdn:
 ---
 # Leave through HR
 
-The plugin keeps the workspace's leave as records of the console. You act as the person whose token you hold. A request goes to that person's manager and on through whatever steps HR added, one decision after another on the board project, and you wait for each as for any decision.
+The plugin keeps the workspace's leave as records of the console. You act as the person whose token you hold. A request goes to that person's manager and on through whatever steps HR added, one decision after another, each reaching whoever it is for wherever they are, and you wait for each as for any decision.
 
 ## Commands
 
@@ -36,17 +36,18 @@ The plugin keeps the workspace's leave as records of the console. You act as the
 
 1. When the person asks for days, read `preview` first: it counts the span in working days, weekends and holidays not being leave, and writes nothing.
 2. Run `request` once. It refuses in the person's language; say the refusal as it was said, and ask what they want instead.
-3. Where someone must approve, the command prints the decision's id and exits with 3. Where the person works in the board project, wait with `console decision <id> --project <board> --wait 100`. Where they do not, the console answers `project.not_found`: the request stands all the same, so tell the person it is waiting and read `requests` when they ask. A line of several steps goes on by itself, and `requests` says how far it has come. Where nobody has to approve, the leave is recorded at once.
+3. Where someone must approve, the command prints the decision's id and the project it waits in, and exits with 3: wait with `console decision <id> --wait 100`, which reads it from any checkout. A line of several steps goes on by itself, and `request-view <id>` says how far it has come and whom it waits for. Where nobody has to approve, the leave is recorded at once.
 4. An answer in someone's own words returns the request, with their words in its note: read them to the person, who cancels it and asks again as the words say.
+5. A request the person made in a messenger, through another plugin, is theirs as any other: `requests` and `request-view` name the plugin it came through as `requestedVia`.
 
 ## For a manager
 
-Whoever stands above a person in the console, at any depth, holds this with no role of their own.
+Whoever someone reports to in the console holds the role `manager`, which nobody grants, and whoever stands above a person, at any depth, holds what their nearest manager holds.
 
 | Do | Command |
 |---|---|
 | What waits for them; the requests of everyone below them; those people | `console plugin hr requests --scope waiting`, `console plugin hr requests --scope team`, `console plugin hr people` |
-| Answer a request as they tell you. Its decision is `request.decisionId`, or `request.cancelDecisionId` where it is `cancelling`; `console decision <id> --project <board>` prints the options by number. Their own words send a request back to the person, and leave the leave as it was where a cancellation was asked. The record names you beside them | `console answer <id> --project <board> --option <n> [--note <words>]`, `console answer <id> --project <board> --own "<words>"` |
+| Answer a request as they tell you, in the board project or not. Its decision is `request.decisionId`, or `request.cancelDecisionId` where it is `cancelling`; `console decision <id>` prints the options by number. Their own words send a request back to the person, and leave the leave as it was where a cancellation was asked. The record names you beside them | `console answer <id> --option <n> [--note <words>]`, `console answer <id> --own "<words>"` |
 | Record leave for someone below them, approved as it is written; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
 | The balance or the ledger of someone below them | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
 

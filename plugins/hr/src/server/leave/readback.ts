@@ -12,7 +12,7 @@ import {
 } from "../../shared/contracts.js";
 import { roundDays } from "../../shared/days.js";
 import type { Clock } from "../store.js";
-import { directoryOf } from "../store.js";
+import { directoryOf, teamsOf } from "../store.js";
 import { daysText, type ServerWords, type Written } from "../words.js";
 
 /** A policy as its readers count on it: the summary, the first period and the first year. */
@@ -40,9 +40,11 @@ export async function lineReadback(
     const person = directory.get(id);
     return person === undefined ? id : (person.name ?? person.login);
   };
+  const teams = config.rules.some((rule) => rule.teams.length > 0) ? await teamsOf(ctx) : [];
+  const team = (key: string) => teams.find((candidate) => candidate.key === key)?.name ?? key;
   return [
     words.readback.line(config.line, named),
-    ...config.rules.map((rule) => words.readback.rule(rule, named)),
+    ...config.rules.map((rule) => words.readback.rule(rule, named, team)),
   ].join(" ");
 }
 

@@ -8,6 +8,7 @@ import {
   type LeaveType,
   type Person,
   type Policy,
+  type TeamBrief,
 } from "../shared/contracts.js";
 import { dayIn, timeIn } from "../shared/days.js";
 import { holidays, people, policies, types } from "./collections.js";
@@ -64,7 +65,20 @@ export interface Clock {
   /** Whether an administrator set the zone; the console keeps UTC where nobody did. */
   readonly timeZoneSet: boolean;
   readonly languages: readonly string[];
+  /** The console's own origin, from the address its deployment names; null where it names none. */
+  readonly origin: string | null;
   readonly now: Date;
+}
+
+function originOf(url: string | null): string | null {
+  if (url === null) {
+    return null;
+  }
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
 }
 
 /** The day it is for the workspace, and its languages; one read of the workspace per call. */
@@ -75,9 +89,9 @@ export async function clockOf(ctx: PluginContext): Promise<Clock> {
     today: dayIn(now, workspace.timeZone),
     time: timeIn(now, workspace.timeZone),
     timeZone: workspace.timeZone,
-    timeZoneSet:
-      (workspace as { timeZoneSet?: boolean }).timeZoneSet ?? workspace.timeZone !== "UTC",
+    timeZoneSet: workspace.timeZoneSet,
     languages: workspace.languages,
+    origin: originOf(workspace.url),
     now,
   };
 }
@@ -146,7 +160,21 @@ export async function languageFor(
       break;
     }
   }
-  return ctx.caller.kind === "person" ? ctx.language : (clock.languages[0] ?? "en");
+  const person =
+    ctx.caller.kind === "person" || (ctx.caller.kind === "plugin" && ctx.caller.for !== null);
+  return person ? ctx.language : (clock.languages[0] ?? "en");
+}
+
+/** The teams of the console, by name; none where the console cannot say. */
+export async function teamsOf(ctx: PluginContext): Promise<TeamBrief[]> {
+  try {
+    const teams = await ctx.console.teams.list();
+    return teams
+      .map((team) => ({ key: team.key, name: team.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
 }
 
 /** The people who hold the role `hr`, by id; none where the console cannot say. */

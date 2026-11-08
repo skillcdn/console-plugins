@@ -62,7 +62,7 @@ import {
   requirePerson,
   teamOf,
 } from "../access.js";
-import { latestAnnouncements } from "../announcements.js";
+import { latestAnnouncements, readerOf } from "../announcements.js";
 import { holidays, ledger, people, policies, requests } from "../collections.js";
 import { configOf, configRecord, DEFAULT_CONFIG } from "../config.js";
 import {
@@ -75,6 +75,7 @@ import {
   listAll,
   personRecord,
   policyFor,
+  teamsOf,
 } from "../store.js";
 import { noteIn, serverWords } from "../words.js";
 import { approvedAs, nextOf, waitingIn } from "./approval.js";
@@ -105,11 +106,9 @@ function briefOf(
   return { id, login: record?.login ?? id, name: record?.name ?? null };
 }
 
-function decisionPath(ctx: PluginContext, decisionId: string | null): string | null {
-  const board = ctx.plugin.board;
-  return decisionId === null || board === null
-    ? null
-    : `/projects/${board.key}/decisions/${decisionId}`;
+/** A decision's own address on the pages, which reaches whoever it is for, in the board project or not. */
+function decisionPath(decisionId: string | null): string | null {
+  return decisionId === null ? null : `/decisions/${decisionId}`;
 }
 
 /** Whether someone stands in a request's line: a step asks them, a decision went to them, or they approved. */
@@ -169,7 +168,6 @@ function stepViews(
 }
 
 function viewOf(
-  ctx: PluginContext,
   actor: Actor,
   record: PluginRecord<LeaveRequest>,
   person: PersonBrief,
@@ -221,8 +219,8 @@ function viewOf(
     line: stepViews(data.steps, directoryMap, open),
     asked: asked.map((id) => briefOf(id, directoryMap, null)),
     mine: asked.includes(actor.id),
-    decisionPath: decisionPath(ctx, data.decisionId),
-    cancelDecisionPath: decisionPath(ctx, data.cancelDecisionId),
+    decisionPath: decisionPath(data.decisionId),
+    cancelDecisionPath: decisionPath(data.cancelDecisionId),
     cancellable: cancellable(actor, data, config, today),
   };
 }
@@ -295,7 +293,10 @@ export const balance = defineQuery({
   roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<BalanceReport> {
     const actor = actorOf(ctx);
-    requirePerson(actor);
+    if (args.person === undefined) {
+      // One's own balance is a person's; a plugin calling as itself names whose it reads.
+      requirePerson(actor);
+    }
     const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const targetId = args.person?.id ?? actor.id;
@@ -392,7 +393,6 @@ export const requestsQuery = defineQuery({
     });
     const views = items.map((item) =>
       viewOf(
-        ctx,
         actor,
         item,
         briefOf(item.data.personId, directoryMap, null, actor),
@@ -434,7 +434,6 @@ export async function requestViewOf(ctx: PluginContext, id: string): Promise<Req
     throw new PluginError("not_found", no.noSuchRequest);
   }
   return viewOf(
-    ctx,
     actor,
     found,
     briefOf(data.personId, directoryMap, null, actor),
@@ -793,7 +792,7 @@ export const overview = defineQuery({
     const upcoming = mine
       .filter((item) => ["requested", "approved", "cancelling"].includes(item.data.state))
       .slice(0, 8)
-      .map((item) => viewOf(ctx, actor, item, me, config, clock.today, directoryMap, reach));
+      .map((item) => viewOf(actor, item, me, config, clock.today, directoryMap, reach));
     const pending = await listAll<LeaveRequest>(ctx.records(requests), {
       where: { state: { in: ["requested", "cancelling"] } },
       order: { field: "from" },
@@ -801,7 +800,6 @@ export const overview = defineQuery({
     const waiting = pending
       .map((item) =>
         viewOf(
-          ctx,
           actor,
           item,
           briefOf(item.data.personId, directoryMap, null, actor),
@@ -852,7 +850,13 @@ export const overview = defineQuery({
       waiting,
       outToday: entries,
       nextHolidays: nextHolidays.slice(0, 5).map((item) => item.data),
-      announcements: await latestAnnouncements(ctx, clock, directoryMap, 3),
+      announcements: await latestAnnouncements(
+        ctx,
+        clock,
+        directoryMap,
+        readerOf(actor, directoryMap),
+        3,
+      ),
       counts,
       ready: written.items.length > 0,
     };
@@ -1061,12 +1065,15 @@ export const configQuery = defineQuery({
     const steps = [...config.line, ...config.rules.flatMap((rule) => rule.steps)];
     const ids = [...new Set(steps.flatMap((step) => step.people))];
     const written = await ctx.records(policies).list({ limit: 1 });
+    const clock = await clockOf(ctx);
     return {
       version: record?.version ?? 0,
       config,
-      timeZone: (await clockOf(ctx)).timeZone,
+      timeZone: clock.timeZone,
+      timeZoneSet: clock.timeZoneSet,
       ready: written.items.length > 0,
       people: ids.map((id) => briefOf(id, directoryMap, null)),
+      teams: await teamsOf(ctx),
     };
   },
 });

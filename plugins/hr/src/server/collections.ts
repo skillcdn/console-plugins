@@ -45,6 +45,14 @@ const id = z.string().min(1).max(64);
 export const slug = z
   .string()
   .regex(/^[a-z][a-z0-9-]{0,31}$/, "is a lowercase word of up to 32 letters, digits and dashes");
+/** A team of the console by its key: a project key's shape, which the console never changes. */
+const teamKey = z
+  .string()
+  .max(40)
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "is a team's key: lowercase letters, digits and dashes",
+  );
 /** Words for people by language tag: one language at least, up to ten, each a line. */
 export const names = z
   .record(z.string().regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/), z.string().min(1).max(80))
@@ -72,6 +80,7 @@ export const rule = z.object({
   kinds: z.array(slug).max(32),
   daysAtLeast: z.nullable(z.number().finite().min(0).max(366)),
   lateOnly: z.boolean(),
+  teams: z.array(teamKey).max(32).default([]),
   steps,
 });
 
@@ -275,6 +284,7 @@ export const announcements = defineCollection("announcements", {
     publishedAt: z.nullable(line(40)),
     editedAt: z.nullable(line(40)),
     writtenAt: line(40),
+    audience: z.array(teamKey).max(20).default([]),
   }),
   indexes: ["state", "pinned", "category", "publishedAt", "writtenAt", "authorId"],
   search: ["title", "body"],

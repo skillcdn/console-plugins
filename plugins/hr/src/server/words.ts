@@ -31,7 +31,11 @@ export interface Readback {
   readonly type: (type: LeaveType, zone: string) => string;
   /** The default line in words, each person named by `named`. */
   readonly line: (steps: readonly ApprovalStep[], named: (id: string) => string) => string;
-  readonly rule: (rule: ApprovalRule, named: (id: string) => string) => string;
+  readonly rule: (
+    rule: ApprovalRule,
+    named: (id: string) => string,
+    team: (id: string) => string,
+  ) => string;
   readonly zone: (zone: string, set: boolean) => string;
   readonly setupLead: string;
   readonly setupClose: string;
@@ -48,11 +52,11 @@ export interface Refusals {
   readonly noRole: string;
   readonly unknownPerson: string;
   readonly approvedThroughPlugin: string;
+  readonly unknownTeam: (key: string) => string;
   readonly noSuchLine: string;
   readonly notReversible: string;
   readonly alreadyReversed: string;
   readonly noBoard: string;
-  readonly badDay: (day: string) => string;
   readonly notEnrolled: string;
   readonly noRecord: string;
   readonly spanBackwards: string;
@@ -422,9 +426,10 @@ const ENGLISH: ServerWords = {
       });
       return `Approval: ${parts.join("; ")}.`;
     },
-    rule: (rule, named) => {
+    rule: (rule, named, team) => {
       const when = [
         rule.kinds.length === 0 ? "every kind" : rule.kinds.join(", "),
+        ...(rule.teams.length === 0 ? [] : [`for ${rule.teams.map(team).join(", ")}`]),
         ...(rule.daysAtLeast === null ? [] : [`${rule.daysAtLeast} days or more`]),
         ...(rule.lateOnly ? ["late"] : []),
       ].join(", ");
@@ -477,7 +482,7 @@ const ENGLISH: ServerWords = {
     `${who} was reactivated in the console on ${day}. Their leave has stayed off since they left. If they are back on the payroll, turn it on with \`console plugin hr enroll ${login} --leave on --hired-on <day>\`, saying from which day their service counts.`,
   boardTaskTitle: (who) => `A decision could not reach those asked for ${who}`,
   boardTaskBody: (who, names) =>
-    `The console refused those asked for ${who} (${names}): a decision goes to people who may work in the board project. The request went on to whoever stands above them. Add them to the project's members.`,
+    `The console refused those asked for ${who} (${names}), who may have left it. The request went on to whoever stands above them. Set the line, or the person's manager on the console's People page, again.`,
   noReason: "(none given)",
   notes: {
     month: (month) => `Month ${month} of the first year`,
@@ -504,8 +509,8 @@ const ENGLISH: ServerWords = {
     alreadyReversed: "The line is reversed already.",
     approvedThroughPlugin:
       "Leave is recorded as approved by HR itself, never through another plugin.",
+    unknownTeam: (key) => `No team of the console has the key ${key}; console teams lists them.`,
     noBoard: "The plugin has no board project; an administrator binds one.",
-    badDay: (day) => `${day} is not a day of the calendar.`,
     notEnrolled:
       "This person is not enrolled for leave; HR does it on the People page or with enroll --leave on.",
     noRecord: "The person has no record yet; enroll them first.",
@@ -780,9 +785,10 @@ const KOREAN: ServerWords = {
       });
       return `결재선: ${parts.join(", ")}.`;
     },
-    rule: (rule, named) => {
+    rule: (rule, named, team) => {
       const when = [
         rule.kinds.length === 0 ? "모든 종류" : rule.kinds.join(", "),
+        ...(rule.teams.length === 0 ? [] : [`${rule.teams.map(team).join(", ")} 팀`]),
         ...(rule.daysAtLeast === null ? [] : [`${rule.daysAtLeast}일 이상`]),
         ...(rule.lateOnly ? ["늦은 신청"] : []),
       ].join(", ");
@@ -835,7 +841,7 @@ const KOREAN: ServerWords = {
     `${who}은(는) ${day}에 콘솔에서 다시 활성화되었습니다. 휴가는 퇴직 이후 꺼진 채입니다. 다시 재직 중이라면 \`console plugin hr enroll ${login} --leave on --hired-on <날짜>\`로 켜고, 근속을 어느 날부터 세는지 정하세요.`,
   boardTaskTitle: (who) => `${who}의 결재 요청이 지정된 사람에게 닿지 못했습니다`,
   boardTaskBody: (who, names) =>
-    `콘솔이 ${who}의 결재 요청을 ${names}에게 보내지 못했습니다. 결정은 보드 프로젝트에서 일할 수 있는 사람에게만 갑니다. 이번 요청은 그 위 사람에게 넘어갔습니다. 이 사람들을 프로젝트 멤버로 넣으세요.`,
+    `콘솔이 ${who}의 결재 요청을 ${names}에게 보내지 못했습니다. 콘솔을 떠난 사람일 수 있습니다. 이번 요청은 그 위 사람에게 넘어갔습니다. 결재선이나 콘솔 구성원 페이지의 매니저를 다시 정하세요.`,
   noReason: "(사유 없음)",
   notes: {
     month: (month) => `첫해 ${month}개월차`,
@@ -862,8 +868,8 @@ const KOREAN: ServerWords = {
     alreadyReversed: "이미 되돌린 줄입니다.",
     approvedThroughPlugin:
       "승인된 휴가의 등록은 인사 담당이 직접 하며, 다른 플러그인을 통해서는 할 수 없습니다.",
+    unknownTeam: (key) => `콘솔에 키가 ${key}인 팀이 없습니다. console teams로 목록을 봅니다.`,
     noBoard: "플러그인에 보드 프로젝트가 없습니다. 관리자가 연결해야 합니다.",
-    badDay: (day) => `달력에 없는 날입니다: ${day}.`,
     notEnrolled:
       "이 사람은 휴가가 등록되어 있지 않습니다. 인사 담당이 구성원 페이지나 enroll --leave on으로 등록합니다.",
     noRecord: "이 사람의 기록이 아직 없습니다. 먼저 등록하세요.",

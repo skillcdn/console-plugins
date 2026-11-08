@@ -28,11 +28,12 @@ const rule = (more: Partial<ApprovalRule>): ApprovalRule => ({
   kinds: [],
   daysAtLeast: null,
   lateOnly: false,
+  teams: [],
   steps: [step({ sources: ["hr"] })],
   ...more,
 });
 
-const facts = { kind: "annual", days: 1, late: false };
+const facts = { kind: "annual", days: 1, late: false, teams: [] as string[] };
 
 describe("which rule holds", () => {
   const line = [step({ sources: ["manager"] })];
@@ -53,6 +54,14 @@ describe("which rule holds", () => {
     expect(ruleFor(config, { ...facts, kind: "sick" }).rule).toBe("sick");
     expect(ruleFor(config, facts).rule).toBeNull();
     expect(ruleFor({ line, rules: [rule({ name: "every" })] }, facts).rule).toBe("every");
+  });
+
+  it("reads the teams it names, a person in any of them, and holds for all where it names none", () => {
+    const design = rule({ name: "design", teams: ["design", "brand"] });
+    const config = { line, rules: [design] };
+    expect(ruleFor(config, { ...facts, teams: ["sales", "brand"] }).rule).toBe("design");
+    expect(ruleFor(config, { ...facts, teams: ["sales"] }).rule).toBeNull();
+    expect(ruleFor(config, facts).rule).toBeNull();
   });
 });
 

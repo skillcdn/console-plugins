@@ -65,7 +65,9 @@ function context(): TestContext {
         name: "Test",
         languages: ["en", "ko"],
         timeZone: "Asia/Seoul",
+        timeZoneSet: true,
         weekStart: "auto",
+        url: "https://console.example.com/",
         categories: [],
       }),
       people: {
@@ -217,6 +219,7 @@ describe("publishing", () => {
     });
     const view = (await announcementView.run(ctx.as(ALICE), { id })) as AnnouncementView;
     expect(view.body).toBe("We meet on **Friday**.");
+    expect(view.consoleOrigin).toBe("https://console.example.com");
     expect(view.publishedAt).toBe(NOW.toISOString());
   });
 

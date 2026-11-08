@@ -12,7 +12,7 @@ export const ROLE_MEMBER = "member";
 export const ROLE_HR = "hr";
 
 export interface Actor {
-  /** The person's id, or `console` for a job or a hook. */
+  /** The person's id, `console` for a job or a hook, `plugin:<key>` for a plugin calling as itself. */
   readonly id: string;
   readonly login: string;
   readonly name: string | null;
@@ -40,6 +40,36 @@ export function actorOf(ctx: PluginContext): Actor {
       hr: true,
       admin: true,
       via: null,
+    };
+  }
+  if (ctx.caller.kind === "plugin") {
+    // A plugin calling for a person is that person, with the roles both hold and in their language,
+    // never an administrator by that (ADR-0010); calling as itself, it is its granted roles alone.
+    const { plugin } = ctx.caller;
+    const person = ctx.caller.for;
+    if (person !== null) {
+      return {
+        id: person.id,
+        login: person.login,
+        name: person.name,
+        language: ctx.language,
+        isConsole: false,
+        isPerson: true,
+        hr: roles.includes(ROLE_HR),
+        admin: false,
+        via: plugin,
+      };
+    }
+    return {
+      id: `plugin:${plugin}`,
+      login: plugin,
+      name: null,
+      language: ctx.language,
+      isConsole: false,
+      isPerson: false,
+      hr: roles.includes(ROLE_HR),
+      admin: false,
+      via: plugin,
     };
   }
   const { person } = ctx.caller;
@@ -192,7 +222,8 @@ export function calendarScope(
 
 /**
  * Whom a calendar of the scope `team` shows: the people the actor manages and, where HR opened the
- * calendar to the team, their own manager and those who report to that manager too.
+ * calendar to the team, their own manager and the people of their teams in the console, or, for
+ * someone in no team, those who report to the same manager.
  */
 export function teamOf(
   actor: Actor,
@@ -201,13 +232,20 @@ export function teamOf(
   config: Config,
 ): ReadonlySet<string> {
   const team = new Set(reach);
-  const manager = directory.get(actor.id)?.managerId ?? null;
-  if (config.calendarVisibility !== "team" || manager === null) {
+  if (config.calendarVisibility !== "team") {
     return team;
   }
-  team.add(manager);
+  const manager = directory.get(actor.id)?.managerId ?? null;
+  if (manager !== null) {
+    team.add(manager);
+  }
+  const mine = new Set(directory.get(actor.id)?.teams ?? []);
   for (const person of directory.values()) {
-    if (person.managerId === manager) {
+    const together =
+      mine.size > 0
+        ? (person.teams ?? []).some((team) => mine.has(team))
+        : manager !== null && person.managerId === manager;
+    if (together) {
       team.add(person.id);
     }
   }

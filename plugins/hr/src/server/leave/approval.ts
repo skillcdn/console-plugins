@@ -27,6 +27,8 @@ export interface Facts {
   readonly kind: string;
   readonly days: number;
   readonly late: boolean;
+  /** The teams of the console the person is in. */
+  readonly teams: readonly string[];
 }
 
 /** The first rule that holds for a request, else the default line. */
@@ -38,7 +40,8 @@ export function ruleFor(
     const holds =
       (rule.kinds.length === 0 || rule.kinds.includes(facts.kind)) &&
       (rule.daysAtLeast === null || facts.days >= rule.daysAtLeast) &&
-      (!rule.lateOnly || facts.late);
+      (!rule.lateOnly || facts.late) &&
+      (rule.teams.length === 0 || rule.teams.some((team) => facts.teams.includes(team)));
     if (holds) {
       return { rule: rule.name, steps: rule.steps };
     }

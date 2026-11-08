@@ -8,6 +8,8 @@ import {
   type AnnouncementList,
   type AnnouncementRow,
   type AnnouncementView,
+  type ConfigReport,
+  type TeamBrief,
 } from "../../shared/contracts.js";
 import { parseText } from "../../shared/rich-text.js";
 import { picture, richText } from "../rich-text.js";
@@ -205,12 +207,21 @@ function article(item: AnnouncementView, view: View): HTMLElement {
       ),
     );
   }
+  if (item.audience.length > 0) {
+    name.append(
+      el(
+        "span",
+        "ann-meta",
+        words.announcementFor(item.audience.map((team) => team.name).join(", ")),
+      ),
+    );
+  }
   meta.append(avatar(frame, item.author, "md"), name);
   node.append(
     marks,
     el("h1", "ann-title", titleOf(item, words)),
     meta,
-    richText(parseText(item.body), frame, words),
+    richText(parseText(item.body), frame, words, item.consoleOrigin),
   );
   if (hr) {
     const tools = el("div", "ann-tools");
@@ -400,12 +411,19 @@ export async function renderAnnouncements(
 
   async function showEditor(existing: AnnouncementView | null): Promise<void> {
     const { announcementEditor } = await import("./announcement-editor.js");
+    let teams: readonly TeamBrief[] = [];
+    try {
+      teams = ((await frame.query("config")) as ConfigReport).teams;
+    } catch {
+      teams = [];
+    }
     frame.setTitle(existing?.title ?? words.announcementNew);
     const open = announcementEditor({
       frame,
       words,
       format,
       existing,
+      teams,
       saved: (id) => {
         route = { kind: "edit", id };
         frame.navigate(`${BASE}/${id}/edit`);

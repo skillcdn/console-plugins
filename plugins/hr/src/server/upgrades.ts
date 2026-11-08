@@ -2,8 +2,8 @@
 // before the new code serves anything: the contract's lifecycle. Each upgrade writes what the new
 // shape adds to every record that lacks it, and is safe to run again.
 import type { PluginContext, UpgradeDefinition } from "@skillcdn/console/plugin";
-import type { LeaveRequest } from "../shared/contracts.js";
-import { requests } from "./collections.js";
+import type { Announcement, Config, LeaveRequest } from "../shared/contracts.js";
+import { announcements, config, requests } from "./collections.js";
 import { waitingIn } from "./leave/approval.js";
 import { listAll } from "./store.js";
 
@@ -41,8 +41,20 @@ export const upgrades: UpgradeDefinition[] = [
   {
     to: 2,
     about:
-      "A request keeps whom its decision went to and the plugin it was requested through, for the plugins that read it.",
+      "A request keeps whom its decision went to and the plugin it came through; an exception and an announcement may name teams.",
     async run(ctx) {
+      for (const record of await listAll<Config>(ctx.records(config))) {
+        if (record.data.rules.some((rule) => !Array.isArray(rule.teams))) {
+          await ctx.records(config).update(record.id, {
+            rules: record.data.rules.map((rule) => ({ ...rule, teams: rule.teams ?? [] })),
+          });
+        }
+      }
+      for (const record of await listAll<Announcement>(ctx.records(announcements))) {
+        if (!Array.isArray(record.data.audience)) {
+          await ctx.records(announcements).update(record.id, { audience: [] });
+        }
+      }
       const all = await listAll<LeaveRequest>(ctx.records(requests));
       for (const record of all) {
         const data = record.data as Partial<LeaveRequest> & LeaveRequest;

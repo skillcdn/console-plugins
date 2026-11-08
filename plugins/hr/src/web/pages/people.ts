@@ -582,9 +582,7 @@ export async function renderPeople(
     }
     const kept = report.people.filter(matches);
     if (kept.length === 0) {
-      listBox.replaceChildren(
-        empty(report.people.length === 0 && !hr ? words.peopleNobody : words.peopleEmpty),
-      );
+      listBox.replaceChildren(empty(words.peopleEmpty));
       return;
     }
     const list = el("ul", "sc-people");

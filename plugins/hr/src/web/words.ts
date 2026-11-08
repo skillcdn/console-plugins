@@ -250,8 +250,6 @@ const ENGLISH = {
   approvalsTitle: "Approvals",
   approvalsLead: "Each request and where it stands. Decisions are answered on the console's page.",
   approvalsEmpty: "No requests here.",
-  approvalsNobody:
-    "You have nobody to approve yet. Once you are someone's manager in the console, their requests gather here.",
   approvalsMineEmpty: "Nothing waits for you.",
   openApprovals: "Open",
   requestsUnit: "waiting",
@@ -268,8 +266,6 @@ const ENGLISH = {
   filterPlaceholder: "Search by name, login or title",
   showAll: "All",
   peopleEmpty: "Nobody here.",
-  peopleNobody:
-    "Nobody reports to you yet. Once you are someone's manager in the console, their leave is here.",
   peopleUnit: "out today",
   annualLeft: "days left",
   accrueAll: "Write what is due",
@@ -298,6 +294,11 @@ const ENGLISH = {
   adjustSubmit: "Write it",
   noteRequired: "Say why.",
   reversedMark: "reversed",
+  ruleTeams: "Teams",
+  ruleTeamsHint: "Every team when none is chosen.",
+  announcementAudienceLabel: "For",
+  announcementAudienceHint: "Everyone when no team is chosen.",
+  announcementFor: (teams: string) => `For ${teams}`,
   recountTitle: "Recount by the policy",
   recountLead:
     "After the policy changed: what it no longer owes this person is reversed, with its expiry, and what it owes is written.",
@@ -524,8 +525,7 @@ const ENGLISH = {
   linkApply: "Apply",
   linkRemove: "Remove the link",
   linkInvalid: "Enter a web address, a mail address or a page of the console.",
-  linkCopied: "Address copied. Paste it in a new tab to open it.",
-  linkCopyHint: (address: string) => `Press to copy the address: ${address}`,
+  linkOpens: (address: string) => `Opens in a new tab: ${address}`,
   tools: {
     label: "Formatting",
     style: "Paragraph style",
@@ -797,8 +797,6 @@ const KOREAN: Words = {
   approvalsTitle: "결재",
   approvalsLead: "신청마다 어디까지 왔는지 봅니다. 결정은 콘솔의 결정 페이지에서 답합니다.",
   approvalsEmpty: "해당하는 신청이 없습니다.",
-  approvalsNobody:
-    "결재할 사람이 아직 없습니다. 콘솔에서 누군가의 매니저로 지정되면 그 사람의 신청이 여기에 모입니다.",
   approvalsMineEmpty: "기다리는 결재가 없습니다.",
   openApprovals: "열기",
   requestsUnit: "건 대기",
@@ -815,8 +813,6 @@ const KOREAN: Words = {
   filterPlaceholder: "이름, 로그인, 직함으로 찾기",
   showAll: "전체",
   peopleEmpty: "해당하는 사람이 없습니다.",
-  peopleNobody:
-    "아직 팀원이 없습니다. 콘솔에서 누군가의 매니저로 지정되면 그 사람의 휴가를 여기서 봅니다.",
   peopleUnit: "명 오늘 휴가",
   annualLeft: "일 남음",
   accrueAll: "발생 처리 실행",
@@ -845,6 +841,11 @@ const KOREAN: Words = {
   adjustSubmit: "기록하기",
   noteRequired: "사유를 적으세요.",
   reversedMark: "되돌림",
+  ruleTeams: "팀",
+  ruleTeamsHint: "고르지 않으면 모든 팀입니다.",
+  announcementAudienceLabel: "대상",
+  announcementAudienceHint: "팀을 고르지 않으면 모두에게 갑니다.",
+  announcementFor: (teams) => `${teams} 대상`,
   recountTitle: "규정대로 다시 세기",
   recountLead:
     "규정을 바꾼 뒤에 씁니다. 이 사람에게 규정이 더는 주지 않는 줄은 소멸 줄과 함께 되돌리고, 주는 줄은 씁니다.",
@@ -1070,8 +1071,7 @@ const KOREAN: Words = {
   linkApply: "적용",
   linkRemove: "링크 해제",
   linkInvalid: "웹, 메일 또는 콘솔 안의 주소를 입력해 주세요.",
-  linkCopied: "주소를 복사했습니다. 새 탭에 붙여 넣어 열어 주세요.",
-  linkCopyHint: (address: string) => `누르면 주소를 복사합니다: ${address}`,
+  linkOpens: (address: string) => `새 탭에서 엽니다: ${address}`,
   tools: {
     label: "서식",
     style: "문단 스타일",

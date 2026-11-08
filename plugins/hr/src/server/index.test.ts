@@ -1,10 +1,18 @@
 // The server module against the console's test context: records in memory, the console answering
 // what the test provides (people, a board, decisions, tasks) and refusing the rest. One test per
 // row of the design in README.md: what a command does, what it refuses, what it tells people.
-import { defineCollection, type PluginCaller, type PluginContext } from "@skillcdn/console/plugin";
+import {
+  defineCollection,
+  isCalendarDay,
+  type PluginCaller,
+  type PluginContext,
+  z,
+} from "@skillcdn/console/plugin";
 import { createTestContext, type TestContext } from "@skillcdn/console/plugin/testing";
 import { beforeEach, describe, expect, it } from "vitest";
 import type {
+  AnnouncementList,
+  AnnouncementView,
   BalanceReport,
   CalendarReport,
   ConfigReport,
@@ -17,9 +25,13 @@ import type {
   RequestPreview,
   RequestView,
 } from "../shared/contracts.js";
+import { DEFAULT_CONFIG } from "./config.js";
 import {
   accrue,
   adjust,
+  announcement,
+  announcementsQuery,
+  announcementView,
   api,
   balance,
   calendar,
@@ -65,13 +77,14 @@ function restPerson(
   login: string,
   name: string | null,
   status: "active" | "deactivated" = "active",
-  more: { managerId?: string; language?: string; role?: "admin" | "member" } = {},
+  more: { managerId?: string; language?: string; role?: "admin" | "member"; teams?: string[] } = {},
 ): RestPerson {
   return {
     id,
     login,
     name,
     managerId: more.managerId ?? null,
+    teams: more.teams ?? [],
     language: more.language ?? "en",
     avatar: null,
     role: more.role ?? "member",
@@ -191,10 +204,14 @@ const withAdmin = (people: RestPerson[] = everyone()): RestPerson[] => [
   restPerson(personOf(ADMIN).id, "ada", "ADA", "active", { role: "admin" }),
 ];
 
+type RestTeam = Awaited<ReturnType<PluginContext["console"]["teams"]["list"]>>[number];
+
 function contextWith(
   theBoard: Board,
   people: RestPerson[] = everyone(),
   timeZone = "Asia/Seoul",
+  teams: readonly RestTeam[] = [],
+  timeZoneSet = timeZone !== "UTC",
 ): TestContext {
   let counter = 0;
   return createTestContext({
@@ -211,9 +228,15 @@ function contextWith(
         name: "Test",
         languages: ["en", "ko"],
         timeZone,
+        timeZoneSet,
         weekStart: "auto",
+        url: null,
         categories: [],
       }),
+      teams: {
+        list: async () => teams,
+        get: async (key) => teams.find((team) => team.key === key) ?? null,
+      },
       people: {
         list: async () => people,
         get: async (id) => people.find((person) => person.id === id) ?? null,
@@ -534,6 +557,8 @@ describe("the decision answered", () => {
 
   const event = (id: string, said: Record<string, unknown> = {}) => ({
     source: "console" as const,
+    id: "console:1",
+    attempt: 1,
     kind: "console:decision.answered",
     at: NOW.toISOString(),
     plugin: null,
@@ -618,6 +643,8 @@ describe("the decision answered", () => {
 describe("the people events", () => {
   const peopleEvent = (kind: "deactivated" | "reactivated", login: string) => ({
     source: "console" as const,
+    id: "console:1",
+    attempt: 1,
     kind: `console:person.${kind}`,
     at: NOW.toISOString(),
     plugin: null,
@@ -694,6 +721,8 @@ describe("cancel", () => {
     theBoard.answer(result.waiting ?? "", "approve", MANAGER);
     await onDecisionAnswered(ctx.as(CONSOLE), {
       source: "console",
+      id: "console:1",
+      attempt: 1,
       kind: "console:decision.answered",
       at: NOW.toISOString(),
       plugin: null,
@@ -749,6 +778,8 @@ describe("cancel", () => {
     theBoard.answer(result.waiting ?? "", "reject", MANAGER);
     await onDecisionAnswered(ctx.as(CONSOLE), {
       source: "console",
+      id: "console:1",
+      attempt: 1,
       kind: "console:decision.answered",
       at: NOW.toISOString(),
       plugin: null,
@@ -1017,7 +1048,7 @@ describe("requests, calendar and the overview", () => {
     expect((await requestsQuery.run(ctx.as(BOB), {})) as RequestView[]).toHaveLength(0);
     const team = (await requestsQuery.run(ctx.as(MANAGER), { scope: "team" })) as RequestView[];
     expect(team).toHaveLength(1);
-    expect(team[0]?.decisionPath).toMatch(/^\/projects\/hr\/decisions\//);
+    expect(team[0]?.decisionPath).toMatch(/^\/decisions\//);
     expect(team[0]?.cancellable).toBe(false);
     expect(await requestsQuery.run(ctx.as(BOB), { scope: "team" })).toEqual([]);
     await expect(requestsQuery.run(ctx.as(MANAGER), { scope: "all" })).rejects.toMatchObject({
@@ -2115,21 +2146,14 @@ describe("the words of a policy and of a kind of leave", () => {
 });
 
 describe("a day the calendar does not have", () => {
-  it("is refused by name, before anything is written", async () => {
+  it("is the console's to refuse in a command, and the api's input refuses it", async () => {
     const ctx = await korea(board());
-    await expect(request.run(ctx.as(ALICE), { from: "2027-02-30" })).rejects.toMatchObject({
-      code: "bad_day",
-    });
+    expect(isCalendarDay("2027-02-30")).toBe(false);
+    await expect(api.request.run(ctx.as(ALICE), { from: "2027-02-30" })).rejects.toThrow();
     await expect(
-      request.run(ctx.as(ALICE), { from: "2027-02-01", to: "2027-02-30" }),
-    ).rejects.toMatchObject({ code: "bad_day" });
+      api.preview.run(ctx.as(ALICE), { from: "2027-02-01", to: "2027-02-30" }),
+    ).rejects.toThrow();
     expect(ctx.all("requests")).toHaveLength(0);
-  });
-
-  it("is what a preview says too", async () => {
-    const ctx = await korea(board());
-    const said = (await preview.run(ctx.as(ALICE), { from: "2027-02-30" })) as RequestPreview;
-    expect(said).toMatchObject({ refusal: expect.stringContaining("2027-02-30"), days: 0 });
   });
 });
 
@@ -2145,6 +2169,13 @@ describe("the workspace's time zone", () => {
     const result = await setup.run(ctx, { country: "kr" });
     expect(result.text).toContain("UTC");
     expect(result.text).toContain("console workspace edit --time-zone");
+  });
+
+  it("is not said where an administrator chose UTC", async () => {
+    const ctx = contextWith(board(), everyone(), "UTC", [], true);
+    const result = await setup.run(ctx, { country: "kr" });
+    expect(result.text).toContain("Time zone: UTC.");
+    expect(result.text).not.toContain("--time-zone");
   });
 
   it("is not said when the workspace keeps a zone of its own", async () => {
@@ -2509,5 +2540,343 @@ describe("a line reversed by hand", () => {
     ).rejects.toMatchObject({ code: "hr_only" });
     const own = (await ledgerQuery.run(ctx.as(ALICE), {})) as EntryView[];
     expect(own.every((line) => !line.reversible)).toBe(true);
+  });
+});
+
+describe("a plugin that calls for a person", () => {
+  const forAlice: PluginCaller = {
+    kind: "plugin",
+    plugin: "messenger",
+    roles: ["member"],
+    for: { ...personOf(ALICE), language: "ko", admin: false },
+    project: null,
+  };
+  const asItself: PluginCaller = {
+    kind: "plugin",
+    plugin: "messenger",
+    roles: ["member", "hr"],
+    for: null,
+    project: null,
+  };
+
+  it("requests and cancels as the person, in their language, and the request says through what", async () => {
+    const ctx = await korea(board());
+    const made = (await api.request.run(ctx.as(forAlice), { from: "2026-11-10" })) as {
+      text: string;
+      request: RequestView;
+    };
+    expect(made.text).toContain("신청했습니다");
+    expect(made.request.request.requestedVia).toBe("messenger");
+    expect(stored(ctx)).toMatchObject({
+      personId: personOf(ALICE).id,
+      requestedBy: personOf(ALICE).id,
+      requestedVia: "messenger",
+    });
+    const mine = (await requestsQuery.run(ctx.as(ALICE), {})) as RequestView[];
+    expect(mine[0]?.request.requestedVia).toBe("messenger");
+    const cancelled = (await api.cancel.run(ctx.as(forAlice), { id: made.request.id })) as {
+      request: RequestView;
+    };
+    expect(cancelled.request.request.state).toBe("cancelled");
+  });
+
+  it("is refused what the person is refused, in their language", async () => {
+    const ctx = await korea(board());
+    await expect(
+      api.request.run(ctx.as(forAlice), { from: "2026-11-10", to: "2027-01-29" }),
+    ).rejects.toMatchObject({ code: "insufficient", message: expect.stringMatching(/[가-힣]/) });
+    await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2025-03-15" });
+    const bobs = await request.run(ctx.as(BOB), { from: "2026-11-12" });
+    await expect(
+      api.cancel.run(ctx.as(forAlice), { id: (bobs.data as { id: string }).id }),
+    ).rejects.toMatchObject({ code: "not_yours" });
+    await expect(
+      api.balance.run(ctx.as(forAlice), { personId: personOf(BOB).id }),
+    ).rejects.toMatchObject({ code: "not_visible" });
+  });
+
+  it("never records leave as approved outright, for HR either", async () => {
+    const ctx = await korea(board());
+    const forHr: PluginCaller = {
+      kind: "plugin",
+      plugin: "messenger",
+      roles: ["member", "hr"],
+      for: { ...personOf(HR), language: "en", admin: false },
+      project: null,
+    };
+    await expect(
+      request.run(ctx.as(forHr), { from: "2026-11-10", person: personOf(ALICE), approved: true }),
+    ).rejects.toMatchObject({ code: "approved_through_plugin" });
+    expect(ctx.all("requests")).toHaveLength(0);
+  });
+
+  it("calling as itself, reads with the roles granted to it and does nothing a person does", async () => {
+    const ctx = await korea(board());
+    await request.run(ctx.as(ALICE), { from: "2026-11-10", reason: "family" });
+    const id = ctx.all("requests")[0]?.id ?? "";
+    const view = (await api["request-view"].run(ctx.as(asItself), { id })) as RequestView;
+    expect(view.request).toMatchObject({ state: "requested", reason: "family" });
+    await expect(
+      api["request-view"].run(ctx.as({ ...asItself, roles: ["member"] }), { id }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    const report = (await api.balance.run(ctx.as(asItself), {
+      personId: personOf(ALICE).id,
+    })) as BalanceReport;
+    expect(report.person.login).toBe("alice");
+    await expect(api.balance.run(ctx.as(asItself), {})).rejects.toMatchObject({
+      code: "person_only",
+    });
+    await expect(api.request.run(ctx.as(asItself), { from: "2026-11-12" })).rejects.toMatchObject({
+      code: "person_only",
+    });
+    await expect(api.cancel.run(ctx.as(asItself), { id })).rejects.toMatchObject({
+      code: "person_only",
+    });
+  });
+
+  it("reads a decision answered elsewhere for a person as that person's answer", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    const asked = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    theBoard.answer(asked.waiting ?? "", "approve", MANAGER);
+    await onDecisionAnswered(ctx.as(CONSOLE), {
+      id: "console:9",
+      attempt: 1,
+      source: "console",
+      kind: "console:decision.answered",
+      at: NOW.toISOString(),
+      plugin: "hr",
+      project: { id: "p", key: "hr" },
+      data: {
+        decisionId: asked.waiting ?? "",
+        option: "Approve",
+        optionKey: "approve",
+        via: "messenger",
+        actor: { id: personOf(MANAGER).id },
+      },
+    });
+    expect(stored(ctx)).toMatchObject({ state: "approved", decidedBy: personOf(MANAGER).id });
+  });
+});
+
+describe("the console's teams", () => {
+  const TEAMS = [
+    {
+      id: "00000000-0000-7000-8000-0000000000e1",
+      key: "team-one",
+      name: "Team One",
+      memberIds: [personOf(ALICE).id, personOf(BOB).id],
+      createdAt: "",
+    },
+    {
+      id: "00000000-0000-7000-8000-0000000000e2",
+      key: "team-two",
+      name: "Team Two",
+      memberIds: [],
+      createdAt: "",
+    },
+  ];
+  /** Alice and Bob in Team One, both reporting to Minho, Bob not enrolled until he is asked to be. */
+  const teamed = (): RestPerson[] =>
+    everyone().map((person) =>
+      person.login === "alice" || person.login === "bob"
+        ? { ...person, managerId: personOf(MANAGER).id, teams: ["team-one"] }
+        : person,
+    );
+
+  async function withTeams(theBoard: Board, config: Parameters<typeof configure.run>[1] = {}) {
+    const ctx = contextWith(theBoard, teamed(), "Asia/Seoul", TEAMS);
+    await setup.run(ctx, { country: "kr" });
+    await configure.run(ctx, config);
+    for (const who of [ALICE, BOB]) {
+      await enroll.run(ctx, { person: personOf(who), leave: "on", "hired-on": "2025-03-15" });
+    }
+    return ctx;
+  }
+
+  async function calendarOfBob(people: RestPerson[]): Promise<string[]> {
+    const ctx = contextWith(board(), people, "Asia/Seoul", TEAMS);
+    await setup.run(ctx, { country: "kr" });
+    await configure.run(ctx, { "calendar-visibility": "team", line: "[]" });
+    await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" });
+    await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    const report = (await calendar.run(ctx.as(BOB), {
+      from: "2026-11-01",
+      to: "2026-11-30",
+    })) as CalendarReport;
+    return report.entries.map((entry) => entry.person.login);
+  }
+
+  it("make the calendar's team, and someone in no team keeps those who share a manager", async () => {
+    expect(await calendarOfBob(teamed())).toContain("alice");
+    const apart = teamed().map((person) =>
+      person.login === "bob" ? { ...person, teams: ["team-two"] } : person,
+    );
+    expect(await calendarOfBob(apart)).not.toContain("alice");
+    const teamless = teamed().map((person) => ({ ...person, teams: [] }));
+    expect(await calendarOfBob(teamless)).toContain("alice");
+  });
+
+  it("make an exception hold for the people of a team, and refuse a team that is not there", async () => {
+    const theBoard = board();
+    const ctx = await withTeams(theBoard, {
+      rules: JSON.stringify([
+        {
+          name: "Team One to HR",
+          kinds: [],
+          daysAtLeast: null,
+          lateOnly: false,
+          teams: ["team-one"],
+          steps: [{ sources: ["hr"], people: [], mode: "any" }],
+        },
+      ]),
+    });
+    const alices = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(alices.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
+    await configure.run(ctx, {
+      rules: JSON.stringify([
+        {
+          name: "Team Two to HR",
+          kinds: [],
+          daysAtLeast: null,
+          lateOnly: false,
+          teams: ["team-two"],
+          steps: [{ sources: ["hr"], people: [], mode: "any" }],
+        },
+      ]),
+    });
+    const bobs = await request.run(ctx.as(BOB), { from: "2026-11-11" });
+    expect(theBoard.decisions.get(bobs.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
+    const said = await configQuery.run(ctx, {});
+    expect((said as ConfigReport).teams.map((team) => team.name)).toEqual(["Team One", "Team Two"]);
+    await expect(
+      configure.run(ctx, {
+        rules: JSON.stringify([
+          {
+            name: "Nobody's",
+            kinds: [],
+            daysAtLeast: null,
+            lateOnly: false,
+            teams: ["team-nine"],
+            steps: [],
+          },
+        ]),
+      }),
+    ).rejects.toMatchObject({ code: "unknown_team" });
+    const readback = await configure.run(ctx, {});
+    expect(readback.text).toContain("Except Team Two to HR (every kind, for Team Two)");
+  });
+
+  it("make an announcement for a team, read by that team and HR alone, and everyone's again", async () => {
+    const ctx = await withTeams(board());
+    const written = await announcement.run(ctx, {
+      title: "Team One offsite",
+      body: "On Friday.",
+      audience: ["team-one"],
+      publish: true,
+    });
+    const id = (written.data as { id: string }).id;
+    const titles = async (who: PluginCaller) =>
+      ((await announcementsQuery.run(ctx.as(who), {})) as AnnouncementList).items.map(
+        (item) => item.title,
+      );
+    expect(await titles(ALICE)).toContain("Team One offsite");
+    expect(await titles(HR)).toContain("Team One offsite");
+    expect(await titles(MANAGER)).not.toContain("Team One offsite");
+    const seen = (await announcementView.run(ctx.as(ALICE), { id })) as AnnouncementView;
+    expect(seen.audience.map((team) => team.name)).toEqual(["Team One"]);
+    await expect(announcementView.run(ctx.as(MANAGER), { id })).rejects.toMatchObject({
+      code: "unknown_announcement",
+    });
+    await announcement.run(ctx, { id, audience: ["everyone"] });
+    expect(await titles(MANAGER)).toContain("Team One offsite");
+    await expect(announcement.run(ctx, { id, audience: ["team-nine"] })).rejects.toMatchObject({
+      code: "unknown_team",
+    });
+  });
+
+  it("keep a team the console removed where an exception named it, and refuse a key of no shape", async () => {
+    const teams = [...TEAMS];
+    const ctx = contextWith(board(), teamed(), "Asia/Seoul", teams);
+    await setup.run(ctx, { country: "kr" });
+    const toHr = (name: string, team: string) => ({
+      name,
+      kinds: [],
+      daysAtLeast: null,
+      lateOnly: false,
+      teams: [team],
+      steps: [{ sources: ["hr"], people: [], mode: "any" }],
+    });
+    await configure.run(ctx, { rules: JSON.stringify([toHr("Team Two to HR", "team-two")]) });
+    teams.splice(1, 1);
+    const kept = await configure.run(ctx, {
+      rules: JSON.stringify([
+        toHr("Team Two to HR", "team-two"),
+        toHr("Team One to HR", "team-one"),
+      ]),
+    });
+    expect(kept.text).toContain("Except Team Two to HR (every kind, for team-two)");
+    await expect(
+      configure.run(ctx, { rules: JSON.stringify([toHr("Gone", "team-three")]) }),
+    ).rejects.toMatchObject({ code: "unknown_team" });
+    for (const hostile of ["Team One", "../team-one", "-team", "x".repeat(41), "팀", ""]) {
+      await expect(
+        configure.run(ctx, { rules: JSON.stringify([toHr("Hostile", hostile)]) }),
+      ).rejects.toMatchObject({ code: "config" });
+    }
+  });
+
+  it("keep an announcement for a team the console removed to HR and its writer, by the key", async () => {
+    const teams = [...TEAMS];
+    const ctx = contextWith(board(), teamed(), "Asia/Seoul", teams);
+    await setup.run(ctx, { country: "kr" });
+    const written = await announcement.run(ctx, {
+      title: "Team Two lunch",
+      body: "At noon.",
+      audience: ["Team-Two"],
+      publish: true,
+    });
+    const id = (written.data as { id: string }).id;
+    teams.splice(1, 1);
+    const seen = (await announcementView.run(ctx, { id })) as AnnouncementView;
+    expect(seen.audience).toEqual([{ key: "team-two", name: "team-two" }]);
+    await expect(announcementView.run(ctx.as(ALICE), { id })).rejects.toMatchObject({
+      code: "unknown_announcement",
+    });
+    await announcement.run(ctx, { id, audience: ["team-two", "team-one"] });
+    const widened = (await announcementView.run(ctx.as(ALICE), { id })) as AnnouncementView;
+    expect(widened.audience.map((team) => team.key)).toEqual(["team-two", "team-one"]);
+    await expect(announcement.run(ctx, { id, audience: ["team-three"] })).rejects.toMatchObject({
+      code: "unknown_team",
+    });
+    await expect(
+      announcement.run(ctx, { id, audience: ["everyone", "team-one"] }),
+    ).rejects.toMatchObject({ code: "unknown_team" });
+  });
+
+  it("are written into the records the upgrade finds without them", async () => {
+    const ctx = contextWith(board(), teamed(), "Asia/Seoul", TEAMS);
+    const loose = (name: string) => defineCollection(name, { schema: z.looseObject({}) });
+    const rule = { name: "Old", kinds: [], daysAtLeast: 5, lateOnly: false, steps: [] };
+    await ctx.records(loose("config")).create({ ...DEFAULT_CONFIG, rules: [rule] });
+    await ctx.records(loose("announcements")).create({
+      title: "Old",
+      body: "",
+      category: "general",
+      state: "draft",
+      pinned: false,
+      pinnedUntil: null,
+      picturesId: null,
+      authorId: personOf(HR).id,
+      publishedBy: null,
+      publishedAt: null,
+      editedAt: null,
+      writtenAt: NOW.toISOString(),
+    });
+    for (const upgrade of upgrades) {
+      await upgrade.run(ctx.as(CONSOLE));
+    }
+    expect(ctx.all("config")[0]?.data).toMatchObject({ rules: [{ ...rule, teams: [] }] });
+    expect(ctx.all("announcements")[0]?.data).toMatchObject({ audience: [] });
   });
 });

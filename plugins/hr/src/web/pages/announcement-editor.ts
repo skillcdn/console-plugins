@@ -26,6 +26,7 @@ import {
   type AnnouncementState,
   type AnnouncementView,
   PICTURE_TYPES,
+  type TeamBrief,
 } from "../../shared/contracts.js";
 import { isSafeHref, type Mark, parseText, writeText } from "../../shared/rich-text.js";
 import { blocksOf, docOf, schema } from "../editor/schema.js";
@@ -38,6 +39,7 @@ import {
   errorText,
   type Formatters,
   field,
+  group,
   input,
   optionsOf,
   pageHead,
@@ -47,6 +49,7 @@ import {
   select,
   stack,
   statusLine,
+  toggles,
 } from "../ui.js";
 import type { Words } from "../words.js";
 
@@ -69,6 +72,8 @@ export interface EditorOptions {
   readonly leave: (id: string | null) => void;
   /** The way to remove it, with a question first. */
   readonly removal: (id: string) => HTMLElement;
+  /** The teams of the console it may be for; none, and it is for everyone. */
+  readonly teams: readonly TeamBrief[];
 }
 
 export interface OpenEditor {
@@ -397,6 +402,19 @@ export function announcementEditor(options: EditorOptions): OpenEditor {
     existing?.category ?? "general",
     words.announcementCategoryLabel,
   );
+  // A team the console has since removed stays a choice, by its key, so that saving the
+  // announcement does not make it everyone's.
+  const teamChoices = [
+    ...options.teams,
+    ...(existing?.audience ?? []).filter(
+      (team) => !options.teams.some((known) => known.key === team.key),
+    ),
+  ];
+  const audience = toggles(
+    teamChoices.map((team) => ({ value: team.key, label: team.name })),
+    existing?.audience.map((team) => team.key) ?? [],
+    words.announcementAudienceLabel,
+  );
   const pin = checkbox(words.announcementPinLabel, existing?.pinned ?? false);
   const until = input("date", { value: existing?.pinnedUntil ?? "" });
   const untilField = field(words.announcementPinUntilLabel, until, words.announcementPinUntilHint);
@@ -519,6 +537,9 @@ export function announcementEditor(options: EditorOptions): OpenEditor {
           title: title.value,
           body,
           category: category.value(),
+          ...(teamChoices.length === 0
+            ? {}
+            : { audience: audience.value().length === 0 ? ["everyone"] : audience.value() }),
           pinned: pin.box.checked ? "on" : "off",
           "pinned-until": pin.box.checked && until.value.length > 0 ? until.value : "none",
           ...more,
@@ -744,6 +765,7 @@ export function announcementEditor(options: EditorOptions): OpenEditor {
 
   title.addEventListener("input", touched);
   category.onChange(touched);
+  audience.onChange(touched);
   until.addEventListener("change", touched);
   pin.box.addEventListener("change", () => {
     showUntil();
@@ -807,6 +829,15 @@ export function announcementEditor(options: EditorOptions): OpenEditor {
     panel(
       words.announcementSettings,
       field(words.announcementCategoryLabel, category.node),
+      ...(teamChoices.length === 0
+        ? []
+        : [
+            group(
+              words.announcementAudienceLabel,
+              audience.node,
+              el("span", "sc-field-hint", words.announcementAudienceHint),
+            ),
+          ]),
       pin.wrapper,
       untilField,
     ),

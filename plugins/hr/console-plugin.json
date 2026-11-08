@@ -13,7 +13,7 @@
     "ko": "구성원의 휴가와 누가 쉬는지, 인사 공지를 다룹니다. 인사 담당은 휴가 규정을 관리하고 공지를 씁니다."
   },
   "pluginApi": 1,
-  "console": ">=0.4.4 <0.5.0",
+  "console": ">=0.4.5 <0.5.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",
@@ -34,9 +34,20 @@
         "ko": "구성원"
       },
       "description": {
-        "en": "Requests and cancels their own leave, sees their own balance and history, and the calendar as HR allows. A person's manager in the console sees and records leave for them, with no role of its own.",
-        "ko": "자기 휴가를 신청·취소하고, 자기 잔여와 내역을 보며, 인사 담당이 허용한 범위의 캘린더를 봅니다. 콘솔의 매니저는 별도 역할 없이 팀원의 휴가를 보고 대신 등록합니다."
+        "en": "Requests and cancels their own leave, sees their own balance and history, the calendar as HR allows, and the announcements.",
+        "ko": "자기 휴가를 신청·취소하고, 자기 잔여와 내역, 인사 담당이 허용한 범위의 캘린더, 공지를 봅니다."
       }
+    },
+    "manager": {
+      "name": {
+        "en": "Manager",
+        "ko": "매니저"
+      },
+      "description": {
+        "en": "Whoever someone reports to in the console holds it, granted by nobody: sees the approvals and the people below them at any depth, records their leave and answers their requests.",
+        "ko": "콘솔에서 누군가의 매니저인 사람이 따로 부여받지 않고 가집니다. 몇 단계 아래든 구성원의 결재와 구성원 화면을 보고, 휴가를 대신 등록하며, 신청에 답합니다."
+      },
+      "follows": "reports"
     },
     "hr": {
       "name": {
@@ -59,8 +70,8 @@
         "ko": "인사"
       },
       "description": {
-        "en": "Leave approvals and the people's matters. Decisions reach those who may work here, so managers are members of this project.",
-        "ko": "휴가 결재와 인사 업무. 결정은 이 프로젝트에서 일할 수 있는 사람에게만 가므로 매니저를 멤버로 넣습니다."
+        "en": "Leave approvals and the people's matters. A decision reaches whoever it is for and the managers above them, wherever they are.",
+        "ko": "휴가 결재와 인사 업무. 결정은 받을 사람과 그 위 매니저에게 어디서든 갑니다."
       }
     }
   },
@@ -115,7 +126,7 @@
         "ko": "결재"
       },
       "level": "workspace",
-      "roles": ["member"],
+      "roles": ["manager", "hr"],
       "wide": true
     },
     {
@@ -125,7 +136,7 @@
         "ko": "구성원"
       },
       "level": "workspace",
-      "roles": ["member"],
+      "roles": ["manager", "hr"],
       "wide": true
     },
     {
@@ -182,7 +193,7 @@
       "place": "home:top",
       "sizes": ["small", "medium", "large"],
       "defaultSize": "small",
-      "roles": ["member"]
+      "roles": ["manager", "hr"]
     }
   ],
   "store": {

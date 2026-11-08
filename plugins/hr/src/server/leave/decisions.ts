@@ -1,9 +1,10 @@
 // Raising a decision on a request, in the words of whoever is to answer it: the first of the people
-// it is addressed to, since a decision several may answer is one text (the console's ADR-0065). The
-// console refuses a person who cannot work in the board project, and a manager is someone nobody
-// need have added there, so a refused decision goes on up the person's managers, to the
-// administrators, to HR, and to where the console sends a decision when nobody is named, with a
-// task for HR to mend it: the request is not lost to a board nobody set up.
+// it is addressed to, since a decision several may answer is one text (the console's ADR-0065). A
+// plugin's decision reaches whoever it is addressed to wherever they are, and the managers above
+// them (the console's ADR-0068); the console still refuses someone who is not an active person of
+// the workspace, so a refused decision goes on up the person's managers, to the administrators, to
+// HR, and to where the console sends a decision when nobody is named, with a task for HR to mend
+// the line: the request is not lost.
 import { type PluginContext, PluginError, type PluginRecord } from "@skillcdn/console/plugin";
 import {
   ANNUAL,

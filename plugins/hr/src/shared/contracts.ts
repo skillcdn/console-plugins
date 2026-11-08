@@ -202,6 +202,8 @@ export interface ApprovalRule {
   readonly daysAtLeast: number | null;
   /** Whether it holds for a late request alone. */
   readonly lateOnly: boolean;
+  /** The teams of the console it holds for, by key: a person in any of them; everyone when empty. */
+  readonly teams: string[];
   /** The steps of the line; none, and such a request is approved as it is written. */
   readonly steps: ApprovalStep[];
 }
@@ -392,6 +394,12 @@ export interface PersonBrief {
   readonly name: string | null;
 }
 
+/** A team of the console, as the pages name one: by its key, which never changes, and its name. */
+export interface TeamBrief {
+  readonly key: string;
+  readonly name: string;
+}
+
 /** The decision a request waits for now: its cancellation's, else its approval's. */
 export function waitingDecision(view: {
   readonly request: { readonly state: RequestState };
@@ -542,6 +550,10 @@ export interface ConfigReport {
   readonly ready: boolean;
   /** The people named in the lines and the rules, by id. */
   readonly people: readonly PersonBrief[];
+  /** Whether an administrator set the time zone; the console keeps UTC where nobody did. */
+  readonly timeZoneSet: boolean;
+  /** The teams of the console, for an exception by team and an announcement for teams. */
+  readonly teams: readonly TeamBrief[];
 }
 
 /** A line of the ledger as the query `ledger` says it; `export` has every field. */
@@ -597,6 +609,8 @@ export interface Announcement {
   /** The last change after it was published. */
   readonly editedAt: string | null;
   readonly writtenAt: string;
+  /** The teams of the console it is for, by key; everyone when empty. */
+  readonly audience: string[];
 }
 
 /** An announcement in a list. */
@@ -618,6 +632,8 @@ export interface AnnouncementRow {
   readonly publishedAt: string | null;
   readonly editedAt: string | null;
   readonly writtenAt: string;
+  /** The teams it is for; everyone when empty. */
+  readonly audience: readonly TeamBrief[];
 }
 
 export interface AnnouncementList {
@@ -633,6 +649,8 @@ export interface AnnouncementList {
 export interface AnnouncementView extends AnnouncementRow {
   readonly body: string;
   readonly version: number;
+  /** The console's own origin, whose addresses in the text the page follows in place; null where none is named. */
+  readonly consoleOrigin: string | null;
 }
 
 export interface OverviewReport {
