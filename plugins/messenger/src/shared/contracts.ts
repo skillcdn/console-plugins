@@ -142,6 +142,37 @@ export interface PeopleReport {
 
 export type Outcome = "sent" | "skipped" | "failed";
 
+/**
+ * What a delivery line says, as a code the page says in its reader's language, any detail after
+ * a colon: told (`thread`, `next_step`, `approved:<posts>`, ...), passed over (`not_connected`,
+ * `no_grant`, `outside:<version>`, ...), or failed (`slack:<code>`, `console:<code>`,
+ * `rate_limited`).
+ */
+export const NOTES = [
+  "thread",
+  "nobody",
+  "next_step",
+  "approved",
+  "approved_partly",
+  "rejected",
+  "returned",
+  "cancel_asked",
+  "cancelled",
+  "kept",
+  "no_thread",
+  "not_leave",
+  "not_connected",
+  "no_capability",
+  "outside",
+  "no_grant",
+  "hidden",
+  "slack",
+  "console",
+  "rate_limited",
+  "failed",
+] as const;
+export type NoteCode = (typeof NOTES)[number];
+
 export interface ActivityRow {
   readonly id: string;
   readonly at: string;

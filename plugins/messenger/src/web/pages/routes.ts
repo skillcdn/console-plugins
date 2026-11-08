@@ -70,7 +70,12 @@ function routeRows(
   });
 }
 
-function addForm(frame: PluginFrame, words: Words, language: Language): HTMLElement {
+function addForm(
+  frame: PluginFrame,
+  words: Words,
+  language: Language,
+  connected: boolean,
+): HTMLElement {
   const w = words.routes;
   const kind = select(
     ROUTE_KINDS.map((value) => ({ value, label: w.kinds[value] })),
@@ -80,31 +85,34 @@ function addForm(frame: PluginFrame, words: Words, language: Language): HTMLElem
   kind.addEventListener("change", () => {
     kindHint.textContent = w.kindHints[kind.value as RouteKind] ?? "";
   });
-  const channel = select([{ value: "", label: w.channelPick }], "");
+  const channel = select([{ value: "", label: connected ? w.channelPick : w.connectFirst }], "");
   channel.disabled = true;
   const said = statusLine();
-  void frame
-    .query("channels")
-    .then((answer) => {
-      const channels = answer as readonly ChannelView[];
-      channel.replaceChildren();
-      const first = document.createElement("option");
-      first.value = "";
-      first.textContent = channels.length === 0 ? w.noChannels : w.channelPick;
-      channel.append(first);
-      for (const found of channels) {
-        const option = document.createElement("option");
-        option.value = found.id;
-        option.textContent = found.private
-          ? `#${found.name} (${w.channelPrivate})`
-          : `#${found.name}`;
-        channel.append(option);
-      }
-      channel.disabled = channels.length === 0;
-    })
-    .catch((error: unknown) => {
-      say(said, errorText(error, words), "error");
-    });
+  // The channels are Slack's to list: before Slack is connected there are none to ask for.
+  if (connected) {
+    void frame
+      .query("channels")
+      .then((answer) => {
+        const channels = answer as readonly ChannelView[];
+        channel.replaceChildren();
+        const first = document.createElement("option");
+        first.value = "";
+        first.textContent = channels.length === 0 ? w.noChannels : w.channelPick;
+        channel.append(first);
+        for (const found of channels) {
+          const option = document.createElement("option");
+          option.value = found.id;
+          option.textContent = found.private
+            ? `#${found.name} (${w.channelPrivate})`
+            : `#${found.name}`;
+          channel.append(option);
+        }
+        channel.disabled = channels.length === 0;
+      })
+      .catch((error: unknown) => {
+        say(said, errorText(error, words), "error");
+      });
+  }
   const languages = pills<Language>(
     LANGUAGES.map((value) => ({ value, label: words.languages[value] })),
     language,
@@ -116,6 +124,8 @@ function addForm(frame: PluginFrame, words: Words, language: Language): HTMLElem
     w.as,
   );
   const submit = submitButton(w.save);
+  // Before Slack is connected, the form shows what a route is, and saves nothing.
+  submit.disabled = !connected;
   const node = form(
     field(w.kind, kind),
     kindHint,
@@ -176,9 +186,9 @@ export async function renderRoutes(
           : table([w.kind, w.channel, w.language, w.as, ""], routeRows(frame, words, routes)),
       ),
     );
-    if (connected) {
-      parts.push(addForm(frame, words, languageOf(frame.context.workspace?.languages?.[0])));
-    }
+    parts.push(
+      addForm(frame, words, languageOf(frame.context.workspace?.languages?.[0]), connected),
+    );
     node.replaceChildren(...parts);
   });
   await draw();

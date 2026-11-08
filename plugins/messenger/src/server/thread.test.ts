@@ -126,7 +126,11 @@ describe("a request", () => {
     expect(blocksOf(step)).toContain(`"value":"${FIRST}"`);
     expect(blocksOf(step)).toContain("https://console.example.test/decisions");
     expect(blocksOf(step)).not.toContain(`/decisions/${FIRST}`);
-    expect(ctx.all("deliveries")[0]?.data).toMatchObject({ outcome: "sent", thing: REQUEST });
+    expect(ctx.all("deliveries")[0]?.data).toMatchObject({
+      outcome: "sent",
+      thing: REQUEST,
+      note: "thread",
+    });
   });
 
   it("tells an event once, however often it is delivered", async () => {
@@ -307,12 +311,12 @@ describe("what stands in the way", () => {
     await onLeaveEvent(unconnected.ctx.as(CONSOLE), event("leave-requested"));
     expect(unconnected.ctx.all("deliveries")[0]?.data).toMatchObject({
       outcome: "skipped",
-      note: "Slack is not connected",
+      note: "not_connected",
     });
     const off = setup({ capabilities: ["people:read"] });
     await connected(off.ctx);
     await onLeaveEvent(off.ctx.as(CONSOLE), event("leave-requested"));
-    expect(off.ctx.all("deliveries")[0]?.data.note).toMatch(/api is not turned on/);
+    expect(off.ctx.all("deliveries")[0]?.data.note).toBe("no_capability");
     expect(off.slack.calls).toHaveLength(0);
   });
 
@@ -320,7 +324,7 @@ describe("what stands in the way", () => {
     const { ctx, slack } = setup({ grants: [], hr: fakeHr({ views: {} }) });
     await connected(ctx);
     await onLeaveEvent(ctx.as(CONSOLE), event("leave-requested"));
-    expect(ctx.all("deliveries")[0]?.data.note).toMatch(/holds no role in HR/);
+    expect(ctx.all("deliveries")[0]?.data.note).toBe("no_grant");
     expect(slack.calls).toHaveLength(0);
   });
 
@@ -328,7 +332,7 @@ describe("what stands in the way", () => {
     const { ctx } = setup({ hr: fakeHr({ version: "0.3.0", views: { [REQUEST]: view({}) } }) });
     await connected(ctx);
     await onLeaveEvent(ctx.as(CONSOLE), event("leave-requested"));
-    expect(ctx.all("deliveries")[0]?.data.note).toMatch(/outside the versions/);
+    expect(ctx.all("deliveries")[0]?.data.note).toBe("outside:0.3.0");
   });
 
   it("hands Slack's wait to the console and keeps the failure for the page", async () => {

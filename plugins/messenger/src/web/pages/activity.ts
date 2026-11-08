@@ -1,7 +1,7 @@
 // The activity page: what the messenger did with each event it heard, newest first, narrowed to
 // what was sent, passed over or failed, with what happened in a line.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
-import type { ActivityRow, Outcome } from "../../shared/contracts.js";
+import { type ActivityRow, NOTES, type NoteCode, type Outcome } from "../../shared/contracts.js";
 import {
   badge,
   dateTimeIn,
@@ -20,6 +20,16 @@ import {
 import type { Words } from "../words.js";
 
 const OUTCOMES: readonly Outcome[] = ["sent", "skipped", "failed"];
+
+/** A delivery's note in the reader's words: its code, and what follows the colon. */
+function noteIn(words: Words, note: string): string {
+  const at = note.indexOf(":");
+  const code = at < 0 ? note : note.slice(0, at);
+  const detail = at < 0 ? "" : note.slice(at + 1);
+  return (NOTES as readonly string[]).includes(code)
+    ? words.activity.notes[code as NoteCode](detail)
+    : note;
+}
 const TONES: Readonly<Record<Outcome, Tone>> = {
   sent: "success",
   skipped: "neutral",
@@ -67,7 +77,7 @@ export async function renderActivity(
         when(line.at),
         w.kinds[line.kind] ?? line.kind,
         badge(w.outcomes[line.outcome], TONES[line.outcome]),
-        line.note,
+        noteIn(words, line.note),
         String(line.attempt),
       ]),
     );

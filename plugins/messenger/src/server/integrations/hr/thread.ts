@@ -538,7 +538,7 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
     case "leave-requested": {
       let thread = await ensureThread(telling);
       thread = await askStep(telling, thread, "approval", request.decisionId);
-      return thread.data.channelId === null ? "nobody in Slack to tell" : "thread begun";
+      return thread.data.channelId === null ? "nobody" : "thread";
     }
     case "leave-advanced": {
       let thread = await ensureThread(telling);
@@ -550,7 +550,7 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
         request.decisionId,
       );
       await askStep(telling, thread, "approval", request.decisionId);
-      return "next step asked";
+      return "next_step";
     }
     case "leave-approved": {
       const found = await threadOf(ctx, view.id);
@@ -565,14 +565,14 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
       const told = await tellChannels(telling, thread);
       await ctx.records(threads).update(told.thread.id, { state: "approved" });
       return told.failed.length > 0
-        ? `approved; not posted to ${told.failed.join(", ")}`
-        : `approved; ${told.thread.data.posts.length} channel posts`;
+        ? `approved_partly:${told.failed.join(", ")}`
+        : `approved:${told.thread.data.posts.length}`;
     }
     case "leave-rejected":
     case "leave-returned": {
       const thread = await threadOf(ctx, view.id);
       if (thread === null) {
-        return "no thread";
+        return "no_thread";
       }
       const by = nameOrSomeone(view.decidedBy, thread.data.language);
       const closed = await closeSteps(telling, thread, (language) =>
@@ -590,18 +590,18 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
       await ctx.records(threads).update(closed.id, {
         state: event === "leave-rejected" ? "rejected" : "returned",
       });
-      return event === "leave-rejected" ? "rejected" : "sent back";
+      return event === "leave-rejected" ? "rejected" : "returned";
     }
     case "leave-cancelling": {
       const thread = (await threadOf(ctx, view.id)) ?? (await ensureThread(telling));
       await sayInThread(telling, thread, serverWords(thread.data.language).thread.cancelling);
       await askStep(telling, thread, "cancellation", request.cancelDecisionId);
-      return "cancellation asked";
+      return "cancel_asked";
     }
     case "leave-cancelled": {
       const thread = await threadOf(ctx, view.id);
       if (thread === null) {
-        return "nothing told to strike";
+        return "no_thread";
       }
       const closed = await closeSteps(
         telling,
@@ -623,12 +623,12 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
         await update(ctx, kept.channelId, kept.ts, line.text, line.blocks);
       }
       await ctx.records(threads).update(closed.id, { state: "cancelled" });
-      return `struck through in ${closed.data.posts.length + (closed.data.rootTs === null ? 0 : 1)} places`;
+      return `cancelled:${closed.data.posts.length + (closed.data.rootTs === null ? 0 : 1)}`;
     }
     case "leave-kept": {
       const thread = await threadOf(ctx, view.id);
       if (thread === null) {
-        return "no thread";
+        return "no_thread";
       }
       const closed = await closeSteps(
         telling,
@@ -636,7 +636,7 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
         (language) => serverWords(language).thread.closedAnswered,
       );
       await sayInThread(telling, closed, serverWords(closed.data.language).thread.kept);
-      return "leave kept";
+      return "kept";
     }
   }
 }
@@ -646,13 +646,19 @@ function eventOf(kind: string): LeaveEvent | null {
   return (LEAVE_EVENTS as readonly string[]).includes(name) ? (name as LeaveEvent) : null;
 }
 
-/** What a delivery line says of a failure: Slack's code, the console's, or the kind of error. */
+/**
+ * What a delivery line says of a failure, as a code the page says in its reader's language:
+ * Slack's refusal, Slack asking to wait, or the console's refusal.
+ */
 function describe(error: unknown): string {
   if (error instanceof SlackError) {
-    return `Slack: ${error.code} (${error.method})`;
+    return `slack:${error.code}`;
   }
   const code = refusalCode(error);
-  return code === null ? "failed" : code;
+  if (code === "rate_limited") {
+    return "rate_limited";
+  }
+  return code === null ? "failed" : `console:${code}`;
 }
 
 /** Hears one of HR's leave events and tells it, once. */
@@ -665,27 +671,21 @@ export async function onLeaveEvent(ctx: PluginContext, event: PluginHookEvent): 
   const requestId =
     typeof data?.requestId === "string" && data.requestId.length <= 64 ? data.requestId : null;
   if (leaveEvent === null || requestId === null) {
-    await deliver(ctx, event, "skipped", "not a leave event this plugin tells", null);
+    await deliver(ctx, event, "skipped", "not_leave", null);
     return;
   }
   const connection = await connectionOf(ctx);
   if (!isConnected(connection)) {
-    await deliver(ctx, event, "skipped", "Slack is not connected", requestId);
+    await deliver(ctx, event, "skipped", "not_connected", requestId);
     return;
   }
   const hr: OtherPlugin | null = await hrOf(ctx);
   if (hr === null) {
-    await deliver(ctx, event, "skipped", "HR's api is not turned on for the messenger", requestId);
+    await deliver(ctx, event, "skipped", "no_capability", requestId);
     return;
   }
   if (!satisfiesRange(hr.version, HR_VERSIONS)) {
-    await deliver(
-      ctx,
-      event,
-      "skipped",
-      `HR ${hr.version} is outside the versions this messenger reads (${HR_VERSIONS})`,
-      requestId,
-    );
+    await deliver(ctx, event, "skipped", `outside:${hr.version.slice(0, 40)}`, requestId);
     return;
   }
   let view: RequestView;
@@ -698,15 +698,7 @@ export async function onLeaveEvent(ctx: PluginContext, event: PluginHookEvent): 
       code === "plugin.not_found" ||
       code?.startsWith("plugin.hr.")
     ) {
-      await deliver(
-        ctx,
-        event,
-        "skipped",
-        hrGranted(ctx)
-          ? "HR does not show the request to the messenger"
-          : "the messenger holds no role in HR to read the request: grant it on the console's plugin page",
-        requestId,
-      );
+      await deliver(ctx, event, "skipped", hrGranted(ctx) ? "hidden" : "no_grant", requestId);
       return;
     }
     await deliver(ctx, event, "failed", describe(error), requestId);

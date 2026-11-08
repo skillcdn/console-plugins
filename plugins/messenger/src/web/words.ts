@@ -5,6 +5,7 @@ import type {
   AddressState,
   HrState,
   MatchState,
+  NoteCode,
   Outcome,
   RouteAs,
   RouteKind,
@@ -96,6 +97,7 @@ export interface Words {
     readonly channelPick: string;
     readonly channelPrivate: string;
     readonly noChannels: string;
+    readonly connectFirst: string;
     readonly saved: string;
   };
   readonly people: {
@@ -103,6 +105,7 @@ export interface Words {
     readonly lead: string;
     readonly notConnected: string;
     readonly matchNow: string;
+    readonly lastMatched: string;
     readonly matchedAt: (when: string) => string;
     readonly neverMatched: string;
     readonly states: Readonly<Record<MatchState, string>>;
@@ -126,6 +129,7 @@ export interface Words {
     readonly attempt: string;
     readonly none: string;
     readonly kinds: Readonly<Record<string, string>>;
+    readonly notes: Readonly<Record<NoteCode, (detail: string) => string>>;
   };
 }
 
@@ -256,6 +260,7 @@ const EN: Words = {
     channelPick: "Choose a channel",
     channelPrivate: "private",
     noChannels: "Slack lists no channel the app can post to.",
+    connectFirst: "Connect Slack to choose a channel",
     saved: "Saved.",
   },
   people: {
@@ -264,7 +269,8 @@ const EN: Words = {
     notConnected:
       "Connect Slack first; then the people are matched within the hour, and every day after.",
     matchNow: "Match now",
-    matchedAt: (when) => `Matched ${when}`,
+    lastMatched: "Last matched",
+    matchedAt: (when) => when,
     neverMatched: "Not matched yet",
     states: {
       matched: "Matched",
@@ -306,6 +312,29 @@ const EN: Words = {
       "plugin:hr:leave-cancelling": "Cancellation asked",
       "plugin:hr:leave-cancelled": "Leave cancelled",
       "plugin:hr:leave-kept": "Leave kept",
+    },
+    notes: {
+      thread: () => "The conversation is begun and the step asked.",
+      nobody: () => "Nobody of this request is in Slack.",
+      next_step: () => "The step is closed and the next asked.",
+      approved: (posts) => `Said in the thread; ${posts} channel posts.`,
+      approved_partly: (channels) => `Said in the thread; not posted to ${channels}.`,
+      rejected: () => "The rejection is said in the thread.",
+      returned: () => "The request sent back is said in the thread.",
+      cancel_asked: () => "The cancellation is asked in the thread.",
+      cancelled: (places) => `Struck through in ${places} places.`,
+      kept: () => "The leave kept is said in the thread.",
+      no_thread: () => "Nothing was told of this request before.",
+      not_leave: () => "Not an event the messenger tells.",
+      not_connected: () => "Slack is not connected.",
+      no_capability: () => "HR's api is not turned on for the messenger.",
+      outside: (version) => `HR ${version} is not a version the messenger reads.`,
+      no_grant: () => "The messenger holds no role in HR to read the request.",
+      hidden: () => "HR does not show the messenger the request.",
+      slack: (code) => `Slack refused: ${code}.`,
+      console: (code) => `The console refused: ${code}.`,
+      rate_limited: () => "Slack asked to wait; the console tries again.",
+      failed: () => "Something went wrong.",
     },
   },
 };
@@ -434,6 +463,7 @@ const KO: Words = {
     channelPick: "채널 선택",
     channelPrivate: "비공개",
     noChannels: "앱이 글을 올릴 수 있는 채널이 없습니다.",
+    connectFirst: "Slack을 연결하면 채널을 고를 수 있습니다",
     saved: "저장했습니다.",
   },
   people: {
@@ -441,7 +471,8 @@ const KO: Words = {
     lead: "콘솔의 이메일과 워크스페이스 멤버를 맞춰, 사람마다 Slack 계정을 연결합니다.",
     notConnected: "먼저 Slack을 연결하세요. 연결하면 한 시간 안에, 그 뒤로는 매일 맞춥니다.",
     matchNow: "지금 맞추기",
-    matchedAt: (when) => `${when}에 맞춤`,
+    lastMatched: "마지막으로 맞춘 때",
+    matchedAt: (when) => when,
     neverMatched: "아직 맞추지 않음",
     states: {
       matched: "연결됨",
@@ -482,6 +513,29 @@ const KO: Words = {
       "plugin:hr:leave-cancelling": "취소 결재 요청",
       "plugin:hr:leave-cancelled": "휴가 취소",
       "plugin:hr:leave-kept": "휴가 유지",
+    },
+    notes: {
+      thread: () => "대화를 열고 결재를 요청했습니다.",
+      nobody: () => "이 신청에 관련된 사람이 Slack에 없습니다.",
+      next_step: () => "결재 단계를 닫고 다음 단계를 요청했습니다.",
+      approved: (posts) => `스레드에 알리고 채널에 ${posts}건 올렸습니다.`,
+      approved_partly: (channels) => `스레드에 알렸지만 ${channels}에는 올리지 못했습니다.`,
+      rejected: () => "반려를 스레드에 알렸습니다.",
+      returned: () => "보완 요청을 스레드에 알렸습니다.",
+      cancel_asked: () => "취소 결재를 스레드에서 요청했습니다.",
+      cancelled: (places) => `${places}곳에 취소선을 그었습니다.`,
+      kept: () => "휴가 유지를 스레드에 알렸습니다.",
+      no_thread: () => "이 신청은 전에 알린 것이 없습니다.",
+      not_leave: () => "메신저가 알리는 알림이 아닙니다.",
+      not_connected: () => "Slack이 연결되지 않았습니다.",
+      no_capability: () => "메신저에 HR의 api가 켜져 있지 않습니다.",
+      outside: (version) => `메신저가 읽지 않는 HR 버전입니다(${version}).`,
+      no_grant: () => "메신저에 신청을 읽을 HR 역할이 없습니다.",
+      hidden: () => "HR이 메신저에게 이 신청을 보여 주지 않습니다.",
+      slack: (code) => `Slack이 거절했습니다: ${code}.`,
+      console: (code) => `콘솔이 거절했습니다: ${code}.`,
+      rate_limited: () => "Slack이 기다려 달라고 해서 콘솔이 다시 시도합니다.",
+      failed: () => "문제가 생겼습니다.",
     },
   },
 };

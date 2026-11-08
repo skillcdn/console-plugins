@@ -70,7 +70,10 @@ export async function renderPeople(
     }
     parts.push(
       factsRow([
-        [w.state, report.matchedAt === null ? w.neverMatched : w.matchedAt(when(report.matchedAt))],
+        [
+          w.lastMatched,
+          report.matchedAt === null ? w.neverMatched : w.matchedAt(when(report.matchedAt)),
+        ],
         ...STATES.map((state) => [w.states[state], String(report.counts[state])] as const),
       ]),
     );

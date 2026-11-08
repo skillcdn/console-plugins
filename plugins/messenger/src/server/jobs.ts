@@ -34,7 +34,6 @@ export const keep: JobDefinition = {
 export const match: JobDefinition = {
   about: "Matches people to their Slack accounts by email again.",
   every: "P1D",
-  at: "04:00",
   async run(ctx) {
     await matchWhenConnected(ctx, false);
   },
