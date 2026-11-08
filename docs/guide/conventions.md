@@ -55,6 +55,12 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 - Work left for later is a task on the board project (`ctx.console.tasks.create`), worked by whoever takes it; a plugin changes, closes and comments its own items only.
 - A job writes what it did into records and, where people should know, a task, a decision or a page under `plugins/<key>/`; one run of a job at a time is the console's rule, and a job that finds its last run unfinished in the records does the rest, not everything again.
 
+## Between plugins
+
+- What a plugin offers other plugins is its contract ([ADR-0010](../adr/0010-a-plugins-events-and-api-are-its-contract-with-other-plugins-and-a-plugin-calling-for-a-person-is-that-person.md)): its events, thin, the ids and the kind and nothing a holder of its roles may not read; its `api`, each entry the function a command or a query runs, under the caller's roles as `actorOf` reads them, never a path of its own; and the option keys of the decisions it raises. It is written in the README's section "The contract", with the order its events may come in, and a test holds the names and the fields the section gives to the definitions, as the skills are held.
+- A change to the contract is versioned as the plugin is: a field, an entry or a kind removed or renamed, or a key changed, is a `minor` with `Breaking:` first; an addition is a `patch`. A consumer names the range of the producer's versions it was written against, as the manifest names the console's.
+- A plugin caller acting for a person, once the console passes one, is that person: the same actor, in the person's language, under the roles the console gives the call, refused for coming through a plugin only for a security reason the design states and the README records. One acting for nobody is the roles it holds and no person, refused where a person is needed as a job is.
+
 ## Pages
 
 - `src/web/index.ts` begins with `connect()`, renders into `#root`, and speaks to the console through the frame alone: `command`, `query`, `records`, `files`, `navigate`, `download`, `setTitle`, `onEvent`; never `fetch`, a socket or a cookie, which `console-plugin check` refuses.

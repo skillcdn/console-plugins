@@ -146,6 +146,25 @@ Each page has a head, its title and a line beside it with its action at the righ
 
 The editor is ProseMirror, in a file of its own that only opening it loads, so that a widget and a reader carry none of it: `src/web/editor/schema.ts` is what it can hold, which is what `src/shared/rich-text.ts` can say, and `src/web/pages/announcement-editor.ts` the toolbar around it. What is pasted is read in a document that runs nothing, keeps the look a style gave it as tags, and goes through the schema, which drops what it does not name. The pages read a text with no editor at all: `src/web/rich-text.ts` builds it element by element.
 
+## Planned: the console's next line, and the messenger
+
+What the next version does, decided before it is built; the decisions are [ADR-0008](../../docs/adr/0008-every-notification-leaves-the-console-through-the-messenger-plugin-which-reads-what-it-tells-as-a-principal.md) and [ADR-0010](../../docs/adr/0010-a-plugins-events-and-api-are-its-contract-with-other-plugins-and-a-plugin-calling-for-a-person-is-that-person.md). It is one `minor`: the console's next line moves the manifest's `console` range, and a deployment takes that console and this version in one release ([ADR-0006](../../docs/adr/0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md)).
+
+| What changes | What `hr` does |
+|---|---|
+| The `messenger` plugin reads leave and acts for people | A section "The contract" here: the leave events with their data and the order they may come in (a request approved as it is written is `leave-approved` with no `leave-requested` before it; leave recorded for someone is `leave-recorded` and then one of the two; a cancellation that asks someone ends in `leave-cancelled` or `leave-kept`); an `api` for other plugins, each entry the function a command or a query runs under the caller's roles: `request-view`, `types`, `balance`, `preview`, `request` and `cancel`; the option keys of its decisions, `approve` and `reject`. A query `request-view <id>`, one request in full, for people and agents too. The request records whom its live decision was addressed to, since the console may have sent it on up the line |
+| The console lets a plugin call for a person, within what both may do, and records it | `actorOf` takes the call as the person's, in their language; `--approved` is refused through a plugin; a request made through one says so on the pages and in `requests` |
+| The console says whether the workspace's time zone is set | The note that the workspace keeps UTC is given only when it is unset |
+| `arg.day` refuses a day the calendar does not have | The plugin's own check in `request` and `preview` goes |
+| A role that follows who manages someone, and a decision that reaches a manager outside the board project | The pages `approvals` and `people` and the widget `approvals` go to that role; the guidance that every manager works in the board project goes from this README, the manifest's board description, the skill and the task the plugin writes |
+| The command's answer names the board project a decision is in | The skill's sentence on waiting is shortened |
+| Teams in the console | The calendar's `team` is the person's teams; an exception may hold for a team; an announcement may be for a team |
+| A frame opens a link in a new tab | A web link in an announcement opens instead of copying its address |
+| `console plugin <key>` prints shorter usage and the file argument as `--file` | The `about` of `announcement-picture` drops the words |
+| The preview answers the console's version and serves a rebuilt bundle | [docs/guide/local-console.md](../../docs/guide/local-console.md) goes back to `console login` and drops the copy at another version |
+| What the first setup on a live console taught | `setup`, `policy`, `type`, `enroll` and `configure` read the effect back in a sentence; the words of a late request say what happens; the skill asks before setting up and compares the policy with the organization's rule |
+| History entered after a person is enrolled | A command that rewrites a person's lines after the policy changes, reversing what the policy no longer owes; an adjustment reversed by line |
+
 ## Not yet
 
 - Attendance (working time, absences, check-in and check-out) and the people's records, the plugin's next features, under the same roles and records; sick leave accrued by hours worked, as US state laws have it, waits for attendance.
