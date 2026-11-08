@@ -251,7 +251,10 @@ export const announcement = defineCommand({
       integer: true,
       min: 0,
     }),
-    publish: arg.boolean({ about: "publish it, for everyone to read", optional: true }),
+    publish: arg.boolean({
+      about: "publish it, for everyone or the teams it is for",
+      optional: true,
+    }),
     withdraw: arg.boolean({ about: "take it down, back to a draft", optional: true }),
     remove: arg.boolean({ about: "remove it and its pictures", optional: true }),
     audience: arg.list(arg.text({ max: 80 }), {

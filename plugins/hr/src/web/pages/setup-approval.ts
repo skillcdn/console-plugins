@@ -294,9 +294,8 @@ function ruleWhen(
   const { words, language, format } = view;
   const parts: string[] = [];
   if (rule.teams.length > 0) {
-    parts.push(
-      rule.teams.map((key) => teams.find((team) => team.key === key)?.name ?? key).join(", "),
-    );
+    const names = rule.teams.map((key) => teams.find((team) => team.key === key)?.name ?? key);
+    parts.push(`${words.ruleTeams}: ${names.join(", ")}`);
   }
   if (rule.kinds.length > 0) {
     parts.push(

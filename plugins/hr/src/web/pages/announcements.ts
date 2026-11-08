@@ -102,8 +102,19 @@ function titleOf(row: AnnouncementRow, words: Words): string {
   return row.title.length > 0 ? row.title : words.announcementUntitled;
 }
 
-function card(row: AnnouncementRow, view: View): HTMLElement {
+/** Who wrote it and when, and the teams it is for where it names any. */
+function metaOf(row: AnnouncementRow, view: View): string {
   const { frame, words, format } = view;
+  const teams = row.audience.map((team) => team.name).join(", ");
+  return [
+    personLabel(row.author),
+    dayOfRow(row, frame, format),
+    ...(teams.length === 0 ? [] : [words.announcementFor(teams)]),
+  ].join(" · ");
+}
+
+function card(row: AnnouncementRow, view: View): HTMLElement {
+  const { frame, words } = view;
   const node = el("button", "ann-card");
   node.type = "button";
   node.addEventListener("click", () => {
@@ -119,14 +130,14 @@ function card(row: AnnouncementRow, view: View): HTMLElement {
     marks,
     el("span", "ann-card-title", titleOf(row, words)),
     el("span", "ann-card-excerpt", row.excerpt),
-    el("span", "ann-meta", `${personLabel(row.author)} · ${dayOfRow(row, frame, format)}`),
+    el("span", "ann-meta", metaOf(row, view)),
   );
   node.append(text);
   return node;
 }
 
 function rowItem(row: AnnouncementRow, view: View, path: string): HTMLElement {
-  const { frame, words, format } = view;
+  const { frame, words } = view;
   const item = el("li", "ann-item");
   const open = el("button", "ann-row");
   open.type = "button";
@@ -144,9 +155,7 @@ function rowItem(row: AnnouncementRow, view: View, path: string): HTMLElement {
   if (row.excerpt.length > 0) {
     main.append(el("span", "ann-row-excerpt", row.excerpt));
   }
-  main.append(
-    el("span", "ann-meta", `${personLabel(row.author)} · ${dayOfRow(row, frame, format)}`),
-  );
+  main.append(el("span", "ann-meta", metaOf(row, view)));
   open.append(main);
   if (row.cover !== null) {
     open.append(picture(frame, row.cover, "", "ann-row-picture"));
