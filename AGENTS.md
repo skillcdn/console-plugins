@@ -143,6 +143,7 @@ One topic, one file. Link to where something is documented instead of restating 
 ## Working alongside other agents
 
 - Concurrent tasks on one machine each get their own git worktree (a worktree needs its own short-lived local branch; rebase it onto `main` and push when done).
+- Sessions that share one checkout share its index too: commit by path, `git commit -- <paths>`, so that a commit carries its own files and nothing another session staged.
 - Hot files (`pnpm-lock.yaml`, the catalog, `docs/roadmap.md`, the root `README.md`, this file) conflict easily: keep edits minimal and rebase before pushing.
 - One plugin per task. Do not "fix" another plugin in passing; open an issue or leave a `TODO(#issue)`.
 
