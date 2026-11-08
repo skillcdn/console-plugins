@@ -5,7 +5,12 @@
 // the workspace, so a refused decision goes on up the person's managers, to the administrators, to
 // HR, and to where the console sends a decision when nobody is named, with a task for HR to mend
 // the line: the request is not lost.
-import { type PluginContext, PluginError, type PluginRecord } from "@skillcdn/console/plugin";
+import {
+  isPluginRefusal,
+  type PluginContext,
+  PluginError,
+  type PluginRecord,
+} from "@skillcdn/console/plugin";
 import {
   ANNUAL,
   type LeaveRequest,
@@ -169,6 +174,14 @@ async function raise(
     } catch (error) {
       if (error instanceof PluginError) {
         throw error;
+      }
+      // The console raises a decision in a person's call only in a project they may see, and
+      // answers a project it does not find as not found: nobody else asked would change that.
+      if (isPluginRefusal(error) && error.code === "plugin.not_found") {
+        throw new PluginError(
+          "board_unreachable",
+          serverWords(ctx.language).refused.boardUnreachable(boardKey(ctx)),
+        );
       }
       failure = error instanceof Error ? error.message : String(error);
     }

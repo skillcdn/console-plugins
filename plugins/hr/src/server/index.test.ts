@@ -6,6 +6,7 @@ import {
   isCalendarDay,
   type PluginCaller,
   type PluginContext,
+  PluginRefusal,
   z,
 } from "@skillcdn/console/plugin";
 import { createTestContext, type TestContext } from "@skillcdn/console/plugin/testing";
@@ -132,7 +133,7 @@ function personOf(who: PluginCaller) {
 interface Board {
   readonly decisions: Map<string, RestDecision>;
   readonly tasks: { title: string; body: string }[];
-  /** The people the console refuses a decision to; "everyone" refuses it to all. */
+  /** The people the console refuses a decision to; "everyone" refuses it to all, "board" the project to the call. */
   readonly refuse: Set<string>;
   answer(
     id: string,
@@ -245,6 +246,9 @@ function contextWith(
       },
       decisions: {
         ask: async (_project, ask) => {
+          if (theBoard.refuse.has("board")) {
+            throw new PluginRefusal("plugin.not_found", "no project hr the call may see");
+          }
           if (
             theBoard.refuse.has("everyone") ||
             ask.deciderIds?.some((id) => theBoard.refuse.has(id))
@@ -1601,6 +1605,18 @@ describe("the line of a request", () => {
     theBoard.refuse.add(personOf(ADMIN).id);
     const toHr = await request.run(ctx.as(ALICE), { from: "2026-11-11" });
     expect(theBoard.decisions.get(toHr.waiting ?? "")?.decider.id).toBe(personOf(HR).id);
+  });
+
+  it("refuses at once, saying what to do, where the caller may not see the board project", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, {}, chain());
+    theBoard.refuse.add("board");
+    await expect(request.run(ctx.as(ALICE), { from: "2026-11-10" })).rejects.toMatchObject({
+      code: "board_unreachable",
+      message: expect.stringContaining("board project hr"),
+    });
+    expect(theBoard.tasks).toHaveLength(0);
+    expect(await requestsQuery.run(ctx.as(ALICE), {})).toEqual([]);
   });
 
   it("refuses the request where nobody at all can be asked", async () => {

@@ -47,7 +47,7 @@ A request travels a line: the default line, which is the person's manager unless
 | Set the default line, as JSON; `[]` approves everything as it is written | `console plugin hr configure --line '[{"sources":["manager"],"people":[],"mode":"any"},{"sources":["hr"],"people":[],"mode":"any"}]'` |
 | Set the exceptions, the first that holds winning; `kinds` empty means every kind and `teams` (the keys of the console's teams, as `console teams` lists them) empty every team | `console plugin hr configure --rules '[{"name":"Long leave","kinds":[],"daysAtLeast":5,"lateOnly":false,"teams":[],"steps":[...]}]'` |
 
-A decision reaches whoever it is addressed to and the managers above them wherever they are, so nobody is added to the board project to approve. Where the console refuses the one asked, someone who left it, the decision goes on up the person's managers, to the administrators and to HR, and a task asks HR to mend the line or the person's manager.
+A decision reaches whoever it is addressed to and the managers above them wherever they are, so nobody is added to the board project to approve. Whoever requests leave must see that project, as a member or with it open to the workspace, and whoever sees it may read and answer the decisions there: a request from someone outside it is refused as `board_unreachable`, and an administrator adds them (`console member add <login> --project <board>`). Where the console refuses the one asked, someone who left it, the decision goes on up the person's managers, to the administrators and to HR, and a task asks HR to mend the line or the person's manager.
 
 ## People
 
