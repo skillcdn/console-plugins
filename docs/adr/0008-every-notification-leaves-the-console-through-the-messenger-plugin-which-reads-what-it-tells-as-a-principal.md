@@ -1,6 +1,6 @@
 # ADR-0008: Every notification leaves the console through one plugin, `messenger`, which reads what it tells as a principal in the plugin that knows it
 
-- Status: Accepted
+- Status: Accepted; point 4 amended by [ADR-0011](0011-an-incoming-request-from-a-messenger-is-answered-within-the-request-alone-and-what-others-read-is-the-hooks-and-the-jobs.md), the request answered within the request alone
 - Date: 2026-11-08
 - Depends on the console's side, proposed in the console's repository and adopted here by version: a role granted to a plugin and a call made for a person, a secret sealed from an answer a plugin receives. Until the console has them, `messenger` is a design.
 
