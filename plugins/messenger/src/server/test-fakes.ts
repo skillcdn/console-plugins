@@ -359,6 +359,8 @@ export function setup(
     console: {
       workspace: async () => ({
         name: "Acme",
+        language: "en",
+        languageSet: false,
         languages: ["en", "ko"],
         timeZone: "Asia/Seoul",
         timeZoneSet: true,

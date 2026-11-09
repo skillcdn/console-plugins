@@ -233,6 +233,8 @@ function contextWith(
     console: {
       workspace: async () => ({
         name: "Test",
+        language: "en",
+        languageSet: false,
         languages: ["en", "ko"],
         timeZone,
         timeZoneSet,

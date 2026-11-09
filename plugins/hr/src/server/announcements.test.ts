@@ -63,6 +63,8 @@ function context(): TestContext {
     console: {
       workspace: async () => ({
         name: "Test",
+        language: "en",
+        languageSet: false,
         languages: ["en", "ko"],
         timeZone: "Asia/Seoul",
         timeZoneSet: true,
