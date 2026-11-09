@@ -1,10 +1,13 @@
-// The leave form in Slack, for the person who pressed the shortcut: what they have left, the kinds
-// of leave they may request, the first and the last day, and a part of a day and a reason as the
-// kind chosen takes them, its rules said under it, each read of HR for them. Choosing another kind
-// draws the form again for that kind, the fields that stay keeping what was filled. The submission
-// is read back into what HR's `request` takes; what HR refuses is said on the form, beside the
-// field it is about, in the person's language.
-import { type Block, plain, safe, section } from "../../slack/blocks.js";
+// The leave form in Slack, for the person who pressed the shortcut: what they have left, their
+// upcoming leave they may cancel, each with a button, then the kinds of leave they may request, the
+// first and the last day, and a part of a day and a reason as the kind chosen takes them, its rules
+// said under it, each read of HR for them. Choosing another kind draws the form again for that
+// kind, the fields that stay keeping what was filled. A cancel button pushes a form of its own over
+// it: the leave, what cancelling it comes to, a reason. A submission is read back into what HR's
+// `request` or `cancel` takes; what HR refuses is said on the form, beside the field it is about,
+// in the person's language.
+import { z } from "@skillcdn/console/plugin";
+import { type Block, clean, context, link, plain, safe, section } from "../../slack/blocks.js";
 import { LEAVE_SHORTCUT } from "../../slack/manifest.js";
 import type { StateValues } from "../../slack/payloads.js";
 import { type ServerWords, serverWords } from "../../words.js";
@@ -15,8 +18,9 @@ import {
   PARTS,
   type Part,
   partsOfUnit,
+  type RequestView,
 } from "./contract.js";
-import { daysOf } from "./texts.js";
+import { daysOf, spanOf } from "./texts.js";
 
 export type View = Readonly<Record<string, unknown>>;
 
@@ -30,6 +34,20 @@ export interface FormData {
   readonly kinds: readonly LeaveKind[];
   readonly balance: BalanceReport | null;
   readonly today: string;
+  /** Their leave from today on that they may cancel, the nearest first; none from HR before 0.3.0. */
+  readonly upcoming: readonly RequestView[];
+  /** The console's address, for the link to every request; null where the deployment names none. */
+  readonly consoleUrl: string | null;
+}
+
+/** One's own requests as the form lists them: those they may cancel, the nearest first. */
+export function cancellableOf(requests: readonly RequestView[]): RequestView[] {
+  return requests
+    .filter((request) => request.cancellable === true)
+    .sort(
+      (a, b) =>
+        a.request.from.localeCompare(b.request.from) || a.request.to.localeCompare(b.request.to),
+    );
 }
 
 /** The kinds the form offers: those that may be requested, in HR's order, a hundred at most. */
@@ -148,7 +166,11 @@ export function leaveFormView(data: FormData, chosenKey: string): View {
     title: plain(words.form.title, 24),
     submit: plain(words.form.submit, 24),
     close: plain(words.form.close, 24),
-    blocks: [...balanceLine(data, words), ...fields(data, chosen, words)],
+    blocks: [
+      ...balanceLine(data, words),
+      ...upcomingBlocks(data, words),
+      ...fields(data, chosen, words),
+    ],
   };
 }
 
@@ -161,6 +183,149 @@ export function noticeView(language: string, title: string, body: string): View 
     close: plain(words.form.close, 24),
     blocks: [section(safe(body))],
   };
+}
+
+/** The callback of the form pushed over the leave form to cancel one leave. */
+export const CANCEL_FORM = "leave-cancel";
+/** The action of a leave's cancel button in the leave form. */
+export const CANCEL_PRESS = "cancel";
+/** How many of one's upcoming leave the form lists, the nearest first. */
+const UPCOMING_AT_MOST = 5;
+/** HR's page of one's own leave, where every request is. */
+const MY_LEAVE = "/plugins/hr/leave";
+
+/** One leave in a line: its kind, its days, where it stands. */
+function leaveLine(request: RequestView, kinds: readonly LeaveKind[], language: string): string {
+  const words = serverWords(language).cancel;
+  const kind = kinds.find((item) => item.key === request.request.type);
+  const name = kind === undefined ? request.request.type : nameIn(kind.name, language, kind.key);
+  const span = spanOf(request.request.from, request.request.to, request.request.part, language);
+  const state = request.request.state;
+  const stands =
+    state === "requested" || state === "returned" || state === "approved" || state === "cancelling"
+      ? words.states[state]
+      : "";
+  return [`*${safe(clean(name, 80))}*`, safe(span), safe(stands)]
+    .filter((part) => part.length > 0)
+    .join(" · ");
+}
+
+/** One's upcoming leave that may be cancelled, the nearest first, each with its button. */
+function upcomingBlocks(data: FormData, words: ServerWords): Block[] {
+  if (data.upcoming.length === 0) {
+    return [];
+  }
+  const blocks: Block[] = [section(`*${safe(words.cancel.upcoming)}*`)];
+  for (const request of data.upcoming.slice(0, UPCOMING_AT_MOST)) {
+    blocks.push({
+      ...section(leaveLine(request, data.kinds, data.language)),
+      accessory: {
+        type: "button",
+        action_id: CANCEL_PRESS,
+        text: plain(words.cancel.button, 75),
+        value: request.id,
+      },
+    });
+  }
+  const rest = data.upcoming.length - UPCOMING_AT_MOST;
+  if (rest > 0) {
+    const count = new Intl.NumberFormat(data.language).format(rest);
+    blocks.push(
+      context(
+        words.cancel.more(
+          count,
+          data.consoleUrl === null
+            ? null
+            : link(`${data.consoleUrl}${MY_LEAVE}`, words.cancel.seeAll),
+        ),
+      ),
+    );
+  }
+  blocks.push({ type: "divider" });
+  return blocks;
+}
+
+/** What the form pushed to cancel a leave carries back: the leave, and the kind the form was on. */
+const cancelMetadata = z.object({
+  id: z.string().regex(/^[A-Za-z0-9-]{1,64}$/),
+  kind: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
+    .optional(),
+});
+export type CancelMetadata = z.infer<typeof cancelMetadata>;
+
+export function cancelMetadataOf(text: string | undefined): CancelMetadata | null {
+  try {
+    const parsed = cancelMetadata.safeParse(JSON.parse(text ?? ""));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The form pushed over the leave form for one leave: the leave, what cancelling it comes to by
+ * HR's rules for its reader (at once, or a decision of whom), and a reason; or that it cannot be
+ * cancelled now, with nothing to submit.
+ */
+export function cancelView(input: {
+  readonly language: string;
+  readonly request: RequestView;
+  readonly kinds: readonly LeaveKind[];
+  readonly metadata: CancelMetadata;
+}): View {
+  const words = serverWords(input.language);
+  const { request } = input;
+  const may = request.cancellable !== false && request.cancellation !== null;
+  const deciders = (request.cancelDeciders ?? []).map(nameOfPerson);
+  const outcome = !may
+    ? words.cancel.cannot
+    : request.cancellation === "now"
+      ? words.cancel.now
+      : request.cancellation === "decision"
+        ? deciders.length === 0
+          ? words.cancel.decisionNobody
+          : words.cancel.decision(deciders.join(", "))
+        : "";
+  const blocks: Block[] = [section(leaveLine(request, input.kinds, input.language))];
+  if (outcome.length > 0) {
+    blocks.push(context(safe(outcome)));
+  }
+  if (may) {
+    blocks.push({
+      type: "input",
+      block_id: "reason",
+      optional: true,
+      label: plain(words.form.reason, 2000),
+      element: { type: "plain_text_input", action_id: "value", multiline: true, max_length: 2000 },
+    });
+  }
+  return {
+    type: "modal",
+    callback_id: CANCEL_FORM,
+    private_metadata: JSON.stringify(input.metadata),
+    title: plain(words.cancel.title, 24),
+    close: plain(words.cancel.back, 24),
+    ...(may ? { submit: plain(words.cancel.submit, 24) } : {}),
+    blocks,
+  };
+}
+
+/** What became of a cancellation, the form's last word: closing it goes back to the leave form. */
+export function cancelledView(language: string, said: string): View {
+  const words = serverWords(language);
+  return {
+    type: "modal",
+    callback_id: CANCEL_FORM,
+    title: plain(words.cancel.title, 24),
+    close: plain(words.form.close, 24),
+    blocks: [section(safe(said))],
+  };
+}
+
+function nameOfPerson(person: { readonly login: string; readonly name: string | null }): string {
+  return clean(person.name !== null && person.name.length > 0 ? person.name : person.login, 80);
 }
 
 /** What `request` takes, read from the form. */

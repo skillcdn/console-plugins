@@ -593,7 +593,9 @@ async function tell(telling: Telling, event: LeaveEvent): Promise<string> {
       return event === "leave-rejected" ? "rejected" : "returned";
     }
     case "leave-cancelling": {
-      const thread = (await threadOf(ctx, view.id)) ?? (await ensureThread(telling));
+      // Leave approved as it was written has no conversation yet: its cancellation opens one, of
+      // the person and whoever decides it, so that the person reads what becomes of it.
+      const thread = await ensureThread(telling);
       await sayInThread(telling, thread, serverWords(thread.data.language).thread.cancelling);
       await askStep(telling, thread, "cancellation", request.cancelDecisionId);
       return "cancel_asked";

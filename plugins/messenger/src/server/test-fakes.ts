@@ -250,6 +250,10 @@ export function fakeHr(
     readonly absent?: boolean;
     /** Whether HR keeps leave for the person: not, and their balance says `leave: false`. */
     readonly enrolled?: boolean;
+    /** One's requests as HR 0.3.0's `requests` answers them; HR has no `requests` unless given. */
+    readonly requests?: readonly unknown[];
+    /** HR 0.3.0's `cancel`, for a person; HR has no `cancel` unless given. */
+    readonly cancel?: (personId: string | null, input: unknown) => unknown;
   } = {},
 ) {
   const calls: { readonly as: string | null; readonly name: string; readonly input: unknown }[] =
@@ -333,6 +337,22 @@ export function fakeHr(
         ? { text: "Requested.", request: { id: "req-new" }, waiting: null }
         : options.request(personId, input);
     },
+    ...(options.requests === undefined
+      ? {}
+      : {
+          requests: async (input: unknown) => {
+            calls.push({ as: personId, name: "requests", input });
+            return options.requests;
+          },
+        }),
+    ...(options.cancel === undefined
+      ? {}
+      : {
+          cancel: async (input: unknown) => {
+            calls.push({ as: personId, name: "cancel", input });
+            return options.cancel?.(personId, input);
+          },
+        }),
   });
   return {
     plugin: {

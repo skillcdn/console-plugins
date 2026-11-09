@@ -70,8 +70,21 @@ export const requestView = z.object({
     )
     .max(50),
   asked: z.array(personBrief).max(500),
+  /** Whether the reader may cancel it now; from HR 0.3.0 with what that comes to and whom it asks. */
+  cancellable: z.boolean().optional(),
+  cancellation: z.enum(["now", "decision"]).nullable().optional(),
+  cancelDeciders: z.array(personBrief).max(500).optional(),
 });
 export type RequestView = z.infer<typeof requestView>;
+
+/** What `requests` answers: requests as `request-view` answers each, from HR 0.3.0. */
+export const requestViews = z.array(requestView).max(200);
+
+/** What `cancel` answers: the request as it stands after, and the decision it waits for. */
+export const cancelOutcome = z.object({
+  request: requestView,
+  waiting: z.string().max(64).nullable().optional(),
+});
 
 /** Whether a request of a kind asks for a reason: `hidden` keeps none. */
 export const REASON_RULES = ["optional", "required", "hidden"] as const;

@@ -5,8 +5,8 @@
     "ko": "메신저"
   },
   "description": {
-    "en": "Tells people in Slack what the console's plugins have for them, and brings back what they do there: for HR, a leave form in the chat and each approval threaded with whoever decides.",
-    "ko": "콘솔의 플러그인이 사람들에게 전할 것을 Slack으로 보내고, 거기서 한 일을 콘솔로 가져옵니다. HR은 채팅에서 휴가를 신청하고, 결재는 결재자와 함께 스레드로 이어집니다."
+    "en": "Tells people in Slack what the console's plugins have for them and brings back what they do there: for HR, time off requested and cancelled in the chat, approvals threaded with whoever decides.",
+    "ko": "콘솔의 플러그인이 사람들에게 전할 것을 Slack으로 보내고, 거기서 한 일을 콘솔로 가져옵니다. HR은 채팅에서 휴가를 신청하고 취소하며, 결재는 결재자와 함께 스레드로 이어집니다."
   },
   "agentNote": {
     "en": "Connects the workspace's Slack, matches people to their accounts and routes plugin events to channels; for whoever keeps the messenger.",

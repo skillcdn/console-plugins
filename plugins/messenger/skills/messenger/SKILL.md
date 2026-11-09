@@ -12,7 +12,7 @@ skillcdn:
 ---
 # Keeping the messenger
 
-The messenger carries what the console's plugins have for people to the organization's Slack, and brings back what people do there: for HR, a leave form in the chat and each approval threaded with the person and whoever decides. Whoever holds the role `messenger` keeps it: the connection, the routes, the matching. Everyone else meets it in Slack alone.
+The messenger carries what the console's plugins have for people to the organization's Slack, and brings back what people do there: for HR, one shortcut, 휴가 in Korean and Time off in English, whose form requests leave and cancels one's upcoming leave, and each approval threaded with the person and whoever decides. Whoever holds the role `messenger` keeps it: the connection, the routes, the matching. Everyone else meets it in Slack alone.
 
 ## Commands
 
@@ -46,7 +46,8 @@ To move to another workspace, as from a workspace kept for trying the plugin to 
 
 - `activity --outcome failed` says what Slack or the console answered, and `activity --outcome skipped` why an event was passed over: Slack not connected, HR's api off, the role not granted, nobody in Slack to tell.
 - Someone gets nothing: `people` says whether they are matched; a person with no email in the console, or with another address in Slack, is not.
-- The shortcut is missing in Slack: `status` says whether HR is on for the messenger; the plugin puts the shortcut in the app within the hour once it is.
+- The shortcut is missing in Slack: `status` says whether HR is on for the messenger; the plugin puts the shortcut in the app within the hour once it is. People find it by typing its name after `/` in a message box, or in the shortcuts menu.
+- Someone sees no leave to cancel in the form: the form lists only what HR 0.3.0 or later says they may cancel themselves; leave whose first day has gone by, or that their kind leaves to HR, is HR's to cancel on the console.
 
 ## Rules
 

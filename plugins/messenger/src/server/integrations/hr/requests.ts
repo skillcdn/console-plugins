@@ -1,8 +1,9 @@
-// A leave request from Slack, answered within the request alone (ADR-0011): the shortcut opens
-// the form with what HR says for the person who pressed, read as that person, and choosing another
-// kind draws it again for that kind; the submission is HR's `request`, made for them, which HR
-// records as theirs through the messenger. Nothing anyone else reads is written here: HR's events
-// bring the thread to the hooks.
+// Leave from Slack, answered within the request alone (ADR-0011): the shortcut opens the form with
+// what HR says for the person who pressed, read as that person, and choosing another kind draws it
+// again for that kind; the submission is HR's `request`, made for them, which HR records as theirs
+// through the messenger. A leave's cancel button pushes a form over it, whose submission is HR's
+// `cancel` for them, at once or by a decision as HR's rules say. Nothing anyone else reads is
+// written here: HR's events bring the thread and the channels' strike-through to the hooks.
 import { type PluginContext, PluginError, satisfiesRange } from "@skillcdn/console/plugin";
 import { SlackError, slack } from "../../slack/api.js";
 import type {
@@ -14,14 +15,24 @@ import type {
 import { serverWords } from "../../words.js";
 import {
   balanceReport,
+  cancelOutcome,
   HR_VERSIONS,
   hrOf,
   isAbsent,
+  type LeaveKind,
   leaveKinds,
+  type RequestView,
   refusalCode,
   requestOutcome,
+  requestView,
+  requestViews,
 } from "./contract.js";
 import {
+  CANCEL_PRESS,
+  cancellableOf,
+  cancelledView,
+  cancelMetadataOf,
+  cancelView,
   type FormData,
   firstKind,
   leaveFormView,
@@ -58,18 +69,24 @@ async function readForm(ctx: PluginContext, presser: Presser): Promise<FormRead>
   }
   const forPerson = hr.for(presser.personId);
   const workspace = await ctx.console.workspace();
+  const today = todayIn(ctx.now(), workspace.timeZone);
   let data: FormData;
   try {
-    const [types, left] = await Promise.all([
+    const [types, left, mine] = await Promise.all([
       forPerson.api.types?.({}),
       forPerson.api.balance?.({}).catch(() => null),
+      // One's own, ending today or later; HR before 0.3.0 has no `requests`, and no list is shown.
+      forPerson.api.requests?.({ from: today, limit: 200 }).catch(() => null),
     ]);
     const parsed = balanceReport.safeParse(left);
+    const requests = requestViews.safeParse(mine ?? []);
     data = {
       language: presser.language,
       kinds: offeredKinds(leaveKinds.parse(types ?? [])),
       balance: parsed.success ? parsed.data : null,
-      today: todayIn(ctx.now(), workspace.timeZone),
+      today,
+      upcoming: requests.success ? cancellableOf(requests.data) : [],
+      consoleUrl: workspace.url,
     };
   } catch (error) {
     ctx.log.warn("the leave form could not read HR", {
@@ -116,17 +133,26 @@ const STALE = new Set(["hash_conflict", "not_found", "view_not_found"]);
 
 /**
  * A press within the form: another kind chosen, which draws the form again for it, read of HR
- * afresh; Slack keeps what was filled in the fields that stay.
+ * afresh, Slack keeping what was filled in the fields that stay; or a leave's cancel button, which
+ * pushes the form that cancels it.
  */
 export async function onFormPress(
   ctx: PluginContext,
   payload: ActionsPayload,
   presser: Presser | null,
 ): Promise<void> {
+  if (presser === null) {
+    return;
+  }
+  const cancel = payload.actions.find((action) => action.action_id === CANCEL_PRESS);
+  if (cancel?.value !== undefined) {
+    await openCancel(ctx, payload, presser, cancel.value);
+    return;
+  }
   const view = payload.view;
   const chosen = payload.actions.find((action) => action.block_id === "kind")?.selected_option
     ?.value;
-  if (presser === null || view?.id === undefined || chosen === undefined) {
+  if (view?.id === undefined || chosen === undefined) {
     return;
   }
   const read = await readForm(ctx, presser);
@@ -141,6 +167,151 @@ export async function onFormPress(
       return;
     }
     throw error;
+  }
+}
+
+const KIND = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const REQUEST_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+/** The kind the leave form was on when it was pressed, to draw it again the same. */
+function kindOf(values: StateValues | undefined): string | undefined {
+  const kind = values?.kind?.value?.selected_option?.value;
+  return kind !== undefined && KIND.test(kind) ? kind : undefined;
+}
+
+/**
+ * Pushes the form that cancels one leave over the leave form, within the three seconds the
+ * press's trigger lasts: the leave as HR answers it to its person, what cancelling it comes to.
+ */
+async function openCancel(
+  ctx: PluginContext,
+  payload: ActionsPayload,
+  presser: Presser,
+  requestId: string,
+): Promise<void> {
+  const trigger = payload.trigger_id;
+  if (trigger === undefined || !REQUEST_ID.test(requestId)) {
+    return;
+  }
+  const words = serverWords(presser.language);
+  const push = (view: View) => slack(ctx, "views.push", { trigger_id: trigger, view });
+  const hr = await hrOf(ctx);
+  const forPerson = hr?.for(presser.personId);
+  const read = forPerson?.api["request-view"];
+  if (hr === null || read === undefined || !satisfiesRange(hr.version, HR_VERSIONS)) {
+    await push(noticeView(presser.language, words.form.unavailableTitle, words.form.unavailable));
+    return;
+  }
+  let request: RequestView;
+  let kinds: LeaveKind[];
+  try {
+    const [view, types] = await Promise.all([
+      read({ id: requestId }),
+      forPerson?.api.types?.({}).catch(() => []),
+    ]);
+    request = requestView.parse(view);
+    kinds = leaveKinds.safeParse(types ?? []).data ?? [];
+  } catch (error) {
+    ctx.log.warn("a leave to cancel could not be read", { code: refusalCode(error) });
+    await push(noticeView(presser.language, words.cancel.title, words.cancel.gone));
+    return;
+  }
+  const kind = kindOf(payload.view?.state.values);
+  await push(
+    cancelView({
+      language: presser.language,
+      request,
+      kinds,
+      metadata: { id: request.id, ...(kind === undefined ? {} : { kind }) },
+    }),
+  );
+}
+
+export type CancelAnswer =
+  | { readonly response_action: "update"; readonly view: View }
+  | { readonly response_action: "errors"; readonly errors: Readonly<Record<string, string>> };
+
+/**
+ * Cancels the leave for whoever submitted, as HR's `cancel` does for them: at once, or by the
+ * decision HR raises, which the hooks then thread. The leave form below is drawn again without
+ * it, and the form says what became of it; what HR refuses is said beside the reason.
+ */
+export async function submitCancel(
+  ctx: PluginContext,
+  payload: SubmissionPayload,
+  presser: Presser | null,
+  language: string,
+): Promise<CancelAnswer> {
+  if (presser === null) {
+    return {
+      response_action: "errors",
+      errors: { reason: serverWords(language).form.notLinked },
+    };
+  }
+  const words = serverWords(presser.language);
+  const metadata = cancelMetadataOf(payload.view.private_metadata);
+  const reason = (payload.view.state.values.reason?.value?.value ?? "").trim();
+  if (metadata === null || [...reason].length > 2000) {
+    return { response_action: "errors", errors: { reason: words.cancel.failed } };
+  }
+  const hr = await hrOf(ctx);
+  const cancel = hr?.for(presser.personId).api.cancel;
+  if (hr === null || cancel === undefined || !satisfiesRange(hr.version, HR_VERSIONS)) {
+    return { response_action: "errors", errors: { reason: words.form.unavailable } };
+  }
+  let outcome: RequestView;
+  try {
+    outcome = cancelOutcome.parse(
+      await cancel({ id: metadata.id, ...(reason.length === 0 ? {} : { reason }) }),
+    ).request;
+  } catch (error) {
+    if (error instanceof PluginError || isOwnRefusal(error)) {
+      return {
+        response_action: "errors",
+        errors: { reason: (error as Error).message.slice(0, 1000) },
+      };
+    }
+    ctx.log.warn("a cancellation from Slack failed", { code: refusalCode(error) });
+    return {
+      response_action: "errors",
+      errors: { reason: isAbsent(error) ? words.form.unavailable : words.cancel.failed },
+    };
+  }
+  await drawAgain(ctx, payload.view.root_view_id, presser, metadata.kind);
+  const asked = outcome.asked.map((person) =>
+    person.name !== null && person.name.length > 0 ? person.name : person.login,
+  );
+  const said =
+    outcome.request.state === "cancelling"
+      ? asked.length === 0
+        ? words.cancel.askedNobody
+        : words.cancel.asked(asked.join(", "))
+      : words.cancel.done;
+  return { response_action: "update", view: cancelledView(presser.language, said) };
+}
+
+/** The leave form under a cancellation drawn again, its list read afresh; what fails is let be. */
+async function drawAgain(
+  ctx: PluginContext,
+  viewId: string | null | undefined,
+  presser: Presser,
+  kind: string | undefined,
+): Promise<void> {
+  if (viewId === null || viewId === undefined) {
+    return;
+  }
+  try {
+    const read = await readForm(ctx, presser);
+    if (read.ok) {
+      await slack(ctx, "views.update", {
+        view_id: viewId,
+        view: leaveFormView(read.data, kind ?? firstKind(read.data.kinds)),
+      });
+    }
+  } catch (error) {
+    ctx.log.warn("the leave form was not drawn again after a cancellation", {
+      code: refusalCode(error),
+    });
   }
 }
 

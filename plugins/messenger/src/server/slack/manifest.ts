@@ -1,5 +1,6 @@
 // The Slack app the plugin makes and keeps: its names in the workspace's one language, the bot,
-// the shortcut that opens the leave form while HR is there to take it, the addresses of the
+// the shortcut that opens the leave form, to request leave and cancel it, while HR is there to
+// take it (one of the five global shortcuts an app has, kept for HR alone), the addresses of the
 // plugin's two endpoints, and the scopes, each needed by a row of the design. The scopes never
 // change with the shortcut, `commands` among them from the start, so that adding or taking the
 // shortcut away asks nobody to install the app again.

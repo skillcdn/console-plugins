@@ -94,7 +94,7 @@ describe("connect", () => {
     ]);
     expect(manifest.oauth_config.scopes.bot).toEqual([...SCOPES]);
     expect(manifest.features.shortcuts).toEqual([
-      expect.objectContaining({ name: "휴가 신청", callback_id: "leave-request", type: "global" }),
+      expect.objectContaining({ name: "휴가", callback_id: "leave-request", type: "global" }),
     ]);
     expect(manifest.display_information.name).toBe("콘솔");
     const [record] = ctx.all("connections");
@@ -120,13 +120,13 @@ describe("connect", () => {
     const korean = setup({ slack: fakeSlack(created), caller: KEEPER_KO });
     await connect.run(korean.ctx, {});
     const ko = manifestOf(korean.slack.of("apps.manifest.create")[0]?.params ?? {});
-    expect(ko.features.shortcuts?.[0]?.name).toBe("휴가 신청");
+    expect(ko.features.shortcuts?.[0]?.name).toBe("휴가");
     expect(ko.display_information.name).toBe("콘솔");
     expect(korean.ctx.all("connections")[0]?.data.language).toBe("ko");
     const english = setup({ slack: fakeSlack(created) });
     await connect.run(english.ctx, {});
     const en = manifestOf(english.slack.of("apps.manifest.create")[0]?.params ?? {});
-    expect(en.features.shortcuts?.[0]?.name).toBe("Request leave");
+    expect(en.features.shortcuts?.[0]?.name).toBe("Time off");
     expect(en.display_information.name).toBe("Console");
   });
 
@@ -162,7 +162,7 @@ describe("connect", () => {
     await connect.run(ctx, { language: "en" });
     const update = slack.of("apps.manifest.update")[0];
     expect(update?.params.app_id).toBe("A0NEWAPP1");
-    expect(manifestOf(update?.params ?? {}).features.shortcuts?.[0]?.name).toBe("Request leave");
+    expect(manifestOf(update?.params ?? {}).features.shortcuts?.[0]?.name).toBe("Time off");
     expect(slack.of("apps.manifest.create")).toHaveLength(1);
     expect(ctx.all("connections")).toHaveLength(1);
   });

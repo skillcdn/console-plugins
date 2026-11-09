@@ -74,6 +74,26 @@ export interface ServerWords {
     readonly unavailableTitle: string;
     readonly unavailable: string;
   };
+  /** One's upcoming leave on the form, and its cancellation, a form pushed over it. */
+  readonly cancel: {
+    readonly upcoming: string;
+    readonly button: string;
+    readonly states: Readonly<Record<"requested" | "returned" | "approved" | "cancelling", string>>;
+    readonly more: (count: string, link: string | null) => string;
+    readonly seeAll: string;
+    readonly title: string;
+    readonly submit: string;
+    readonly back: string;
+    readonly now: string;
+    readonly decision: (names: string) => string;
+    readonly decisionNobody: string;
+    readonly cannot: string;
+    readonly gone: string;
+    readonly done: string;
+    readonly asked: (names: string) => string;
+    readonly askedNobody: string;
+    readonly failed: string;
+  };
   readonly press: {
     readonly notYours: (link: string) => string;
     readonly answered: string;
@@ -169,14 +189,15 @@ const EN: ServerWords = {
     name: "Console",
     botName: "console",
     description: "What the console's plugins have for you, and the answers you give them here.",
-    shortcutName: "Request leave",
-    shortcutDescription: "Request leave through the console's HR, with your balance beside it.",
+    // Never "leave": Slack's own `/leave` leaves the channel, and the `/` menu lists the two together.
+    shortcutName: "Time off",
+    shortcutDescription: "Request or cancel time off, with your balance and upcoming days.",
     test: "The console's messenger is connected. What the console's plugins have for people comes here.",
   },
   form: {
-    title: "Request leave",
+    title: "Time off",
     submit: "Request",
-    close: "Cancel",
+    close: "Close",
     kind: "Kind",
     from: "First day",
     to: "Last day",
@@ -197,6 +218,31 @@ const EN: ServerWords = {
     notEnrolled: "You are not enrolled for leave, so you cannot request it. Ask HR to enroll you.",
     unavailableTitle: "Not available",
     unavailable: "Leave cannot be requested from Slack now. Request it on the console.",
+  },
+  cancel: {
+    upcoming: "Your upcoming time off",
+    button: "Cancel",
+    states: {
+      requested: "Waiting",
+      returned: "Sent back",
+      approved: "Approved",
+      cancelling: "Cancellation waiting",
+    },
+    more: (count, link) =>
+      link === null ? `${count} more, on the console.` : `${count} more · ${link}`,
+    seeAll: "See all on the console",
+    title: "Cancel time off",
+    submit: "Cancel it",
+    back: "Back",
+    now: "It is cancelled at once.",
+    decision: (names) => `It is cancelled once ${names} approves.`,
+    decisionNobody: "It is cancelled once a decision approves it.",
+    cannot: "This leave cannot be cancelled now.",
+    gone: "This leave is not there any more.",
+    done: "Cancelled.",
+    asked: (names) => `The cancellation waits for ${names} to decide.`,
+    askedNobody: "The cancellation waits for a decision.",
+    failed: "It was not cancelled. Try again, or cancel it on the console.",
   },
   press: {
     notYours: (link) =>
@@ -302,14 +348,14 @@ const KO: ServerWords = {
     name: "콘솔",
     botName: "console",
     description: "콘솔의 플러그인이 전하는 것, 그리고 여기서 하는 답.",
-    shortcutName: "휴가 신청",
-    shortcutDescription: "콘솔의 HR로 휴가를 신청합니다. 남은 휴가도 함께 봅니다.",
+    shortcutName: "휴가",
+    shortcutDescription: "휴가를 신청하거나 취소합니다. 남은 휴가와 예정된 휴가도 봅니다.",
     test: "콘솔의 메신저가 연결되었습니다. 콘솔 플러그인이 사람들에게 전할 것이 여기로 옵니다.",
   },
   form: {
-    title: "휴가 신청",
+    title: "휴가",
     submit: "신청",
-    close: "취소",
+    close: "닫기",
     kind: "종류",
     from: "시작일",
     to: "종료일",
@@ -331,6 +377,31 @@ const KO: ServerWords = {
       "휴가 대상으로 등록되어 있지 않아 신청할 수 없습니다. 인사 담당에게 등록을 요청하세요.",
     unavailableTitle: "사용할 수 없음",
     unavailable: "지금은 Slack에서 휴가를 신청할 수 없습니다. 콘솔에서 신청하세요.",
+  },
+  cancel: {
+    upcoming: "예정된 내 휴가",
+    button: "취소",
+    states: {
+      requested: "결재 대기",
+      returned: "보완 요청됨",
+      approved: "승인됨",
+      cancelling: "취소 결재 중",
+    },
+    more: (count, link) =>
+      link === null ? `외 ${count}건은 콘솔에서 볼 수 있습니다.` : `외 ${count}건 · ${link}`,
+    seeAll: "콘솔에서 모두 보기",
+    title: "휴가 취소",
+    submit: "취소하기",
+    back: "돌아가기",
+    now: "누르면 바로 취소됩니다.",
+    decision: (names) => `누르면 ${names} 님의 결재를 거쳐 취소됩니다.`,
+    decisionNobody: "누르면 결재를 거쳐 취소됩니다.",
+    cannot: "이 휴가는 지금 취소할 수 없습니다.",
+    gone: "이 휴가를 찾을 수 없습니다.",
+    done: "취소했습니다.",
+    asked: (names) => `취소 결재를 올렸습니다. ${names} 님이 결재합니다.`,
+    askedNobody: "취소 결재를 올렸습니다.",
+    failed: "취소하지 못했습니다. 다시 시도하거나 콘솔에서 취소하세요.",
   },
   press: {
     notYours: (link) =>

@@ -316,6 +316,46 @@ describe("the end of a request", () => {
     expect(updates.some((blocks) => blocks.includes("~On leave"))).toBe(true);
   });
 
+  it("opens a conversation for the cancellation of leave approved as it was written", async () => {
+    const written = { decisionId: null, line: [] } as const;
+    const views: Record<string, unknown> = {
+      [REQUEST]: view({ ...written, state: "approved", asked: [] }),
+    };
+    const { hook, slack, ctx } = await ready(views);
+    await onLeaveEvent(hook, event("leave-approved"));
+    expect(slack.of("conversations.open")).toHaveLength(0);
+    views[REQUEST] = view({
+      ...written,
+      state: "cancelling",
+      cancelDecisionId: CANCEL,
+      asked: [brief(JIHYE)],
+    });
+    await onLeaveEvent(hook, event("leave-cancelling"));
+    // The person and whoever decides the cancellation, the leave in the person's name first.
+    expect(slack.of("conversations.open")[0]?.params.users).toBe("U0MINSU01,U0JIHYE01");
+    const [root, ...threaded] = slack.of("chat.postMessage");
+    expect(root?.params.username).toBe("Kim Minsu");
+    const step = threaded.at(-1);
+    expect(step?.params.thread_ts).toBe(ctx.all("threads")[0]?.data.rootTs);
+    expect(blocksOf(step)).toContain(`"value":"${CANCEL}"`);
+    expect(blocksOf(step)).toContain("<@U0JIHYE01>");
+    views[REQUEST] = view({
+      ...written,
+      state: "cancelled",
+      cancelDecisionId: CANCEL,
+      asked: [],
+    });
+    await onLeaveEvent(hook, event("leave-cancelled"));
+    expect(
+      slack
+        .of("chat.update")
+        .map(blocksOf)
+        .some((blocks) => blocks.includes("~*휴가 신청*~")),
+    ).toBe(true);
+    expect(blocksOf(slack.of("chat.postMessage").at(-1))).toContain("취소되었습니다");
+    expect(ctx.all("threads")[0]?.data.state).toBe("cancelled");
+  });
+
   it("says the leave stands when its cancellation is rejected", async () => {
     const { hook, slack, views } = await requested();
     views[REQUEST] = view({ state: "cancelling", cancelDecisionId: CANCEL });

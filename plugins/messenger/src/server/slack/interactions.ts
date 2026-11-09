@@ -1,9 +1,9 @@
-// The endpoint Slack posts to when someone presses: the shortcut, a choice within the form, the
-// form's submission, a decision's button. It answers the request and nothing else (ADR-0011): the
-// signature verified first, the presser matched to a person by their account, the form opened,
-// drawn again or checked for them, the decision answered for them where it is on their plate. A
-// refusal reaches the presser alone, through the address the press carried. What others read
-// follows from the producer's events.
+// The endpoint Slack posts to when someone presses: the shortcut, a choice or a cancel button
+// within the form, a form's submission, a decision's button. It answers the request and nothing
+// else (ADR-0011): the signature verified first, the presser matched to a person by their account,
+// the form opened, drawn again, pushed or checked for them, the decision answered for them where it
+// is on their plate. A refusal reaches the presser alone, through the address the press carried.
+// What others read follows from the producer's events.
 import {
   defineEndpoint,
   type EndpointResponse,
@@ -11,10 +11,12 @@ import {
 } from "@skillcdn/console/plugin";
 import type { Language } from "../../shared/contracts.js";
 import { refusalCode } from "../integrations/hr/contract.js";
+import { CANCEL_FORM } from "../integrations/hr/form.js";
 import {
   onFormPress,
   openLeaveForm,
   type Presser,
+  submitCancel,
   submitLeave,
 } from "../integrations/hr/requests.js";
 import { languageOfPerson, workspaceLanguage } from "../people.js";
@@ -166,15 +168,19 @@ export const slackEndpoint = defineEndpoint({
       }
       case "view_submission": {
         const payload = submissionPayload.safeParse(json);
+        const form = payload.success ? payload.data.view.callback_id : null;
         if (
           !payload.success ||
-          payload.data.view.callback_id !== LEAVE_SHORTCUT ||
+          (form !== LEAVE_SHORTCUT && form !== CANCEL_FORM) ||
           teamOf(payload.data) !== connection.data.teamId
         ) {
           return OK;
         }
         const presser = await presserOf(ctx, payload.data.user.id, language);
-        const answer = await submitLeave(ctx, payload.data, presser, language);
+        const answer =
+          form === CANCEL_FORM
+            ? await submitCancel(ctx, payload.data, presser, language)
+            : await submitLeave(ctx, payload.data, presser, language);
         return answer.response_action === "clear"
           ? OK
           : { status: 200, headers: JSON_TYPE, body: answer };
