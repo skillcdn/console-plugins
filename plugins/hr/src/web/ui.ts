@@ -345,10 +345,9 @@ export function peoplePicker(
   const draw = () => {
     const chips = chosen.map((id) => {
       const person = byId.get(id);
-      const chip = el(
-        "span",
-        "sc-chip",
-        person === undefined ? id.slice(0, 8) : personLabel(person),
+      const chip = el("span", "sc-chip");
+      chip.append(
+        el("span", "sc-chip-label", person === undefined ? id.slice(0, 8) : personLabel(person)),
       );
       const remove = el("button", "sc-chip-remove", "×");
       remove.type = "button";
@@ -371,7 +370,7 @@ export function peoplePicker(
       ],
       "",
     );
-    add.classList.add("sc-chip-add");
+    add.classList.add(`${PREFIX}chip-add`);
     add.disabled = left.length === 0 || chosen.length >= atMost;
     add.addEventListener("change", () => {
       if (add.value !== "") {
@@ -472,39 +471,40 @@ export function stateTone(state: RequestState): Tone {
   }
 }
 
+/** Where a request stands, as the console's badge of a state: a soft fill, no line. */
 export function stateBadge(state: RequestState, words: Words): HTMLSpanElement {
-  const node = badge(words.requestState[state], stateTone(state));
-  // What waits is painted in the pages' amber, a wash with no stroke, as every waiting thing is.
-  if (stateTone(state) === "warning") {
-    node.classList.add(`${PREFIX}state-waiting`);
-  }
-  return node;
+  return el(
+    "span",
+    `sc-badge sc-badge-${stateTone(state)} sc-badge-kind-state`,
+    words.requestState[state],
+  );
 }
 
-/** The number of a series colour, held to the six the console has. */
-export function seriesOf(color: number): number {
-  return Number.isInteger(color) && color >= 1 && color <= 6 ? color : 1;
+/** The console's category colours, in the order of the pages' colours 1 to 6. */
+const CATEGORIES = ["blue", "orange", "green", "yellow", "purple", "teal"] as const;
+
+/** The console's class of a colour of the pages, 1 to 6; grey, as the console's, for any other. */
+export function categoryOf(color: number | undefined): string {
+  const hue = color !== undefined && Number.isInteger(color) ? CATEGORIES[color - 1] : undefined;
+  return `sc-category-${hue ?? "gray"}`;
 }
 
-/** A kind of leave as a badge with its colour, named in the language, the key where no type is known. */
+/** A kind of leave as the console's badge of a category, named in the language, the key where no type is known. */
 export function typeBadge(
   type: LeaveType | undefined,
   key: string,
   language: string,
 ): HTMLSpanElement {
-  const node = el(
+  return el(
     "span",
-    "sc-badge sc-badge-neutral type",
+    `sc-badge sc-badge-category ${categoryOf(type?.color)}`,
     type === undefined ? key : nameIn(type.name, language),
   );
-  node.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${seriesOf(type?.color ?? 1)})`);
-  return node;
 }
 
+/** A colour as the console's swatch of a category. */
 export function swatch(color: number): HTMLSpanElement {
-  const node = el("span", "swatch");
-  node.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${seriesOf(color)})`);
-  return node;
+  return el("span", `sc-category-swatch ${categoryOf(color)} swatch`);
 }
 
 /** The head of a page: its title and a line beside it, its actions at the right. */
@@ -577,18 +577,9 @@ export function empty(text: string, title?: string): HTMLDivElement {
 }
 
 export function callout(title: string, body?: string, warning = false): HTMLDivElement {
-  // A warning is a wash of the pages' amber with no stroke, an amber dot before its title: the
-  // console's class names it for a reader, the pages' own paints it.
-  const node = el(
-    "div",
-    `sc-callout callout${warning ? " sc-callout-warning callout-warning" : ""}`,
-  );
+  const node = el("div", `sc-callout callout${warning ? " sc-callout-warning" : ""}`);
   const text = el("div", "");
-  const heading = el("p", "sc-callout-title");
-  if (warning) {
-    heading.append(el("span", "callout-dot"));
-  }
-  heading.append(document.createTextNode(title));
+  const heading = el("p", "sc-callout-title", title);
   text.append(heading);
   if (body !== undefined) {
     text.append(el("p", "sc-callout-body", body));
@@ -672,7 +663,7 @@ function initialOf(person: PersonBrief): string {
 export function avatar(
   frame: PluginFrame,
   person: PersonBrief,
-  size: "sm" | "md" | "lg" = "sm",
+  size: "xs" | "sm" | "md" | "lg" = "sm",
 ): HTMLElement {
   const node = el(
     "span",
@@ -747,7 +738,11 @@ export function meter(total: number, segments: readonly Segment[]): HTMLElement 
   if (total > 0) {
     for (const segment of segments) {
       if (segment.value > 0) {
-        const part = el("span", `meter-${segment.tone}`);
+        // Days waiting take the console's yellow mark; the rest, the tones the rules give them.
+        const part = el(
+          "span",
+          `meter-${segment.tone}${segment.tone === "pending" ? " sc-category-yellow" : ""}`,
+        );
         part.style.width = `${Math.min(100, (segment.value / total) * 100)}%`;
         bar.append(part);
       }
@@ -763,9 +758,9 @@ export function lineSteps(
   words: Words,
   asked: readonly PersonBrief[] = [],
 ): HTMLElement {
-  const node = el("ol", "line-steps");
+  const node = el("ol", "sc-chips line-steps");
   for (const step of steps) {
-    const item = el("li", `line-step line-step-${step.state}`);
+    const item = el("li", `sc-chip line-step line-step-${step.state}`);
     // The step waiting shows whom the decision went to, where the console sent it on up.
     const sentOn =
       step.state === "waiting" && asked.length > 0 && !samePeople(asked, step.deciders);
@@ -777,7 +772,7 @@ export function lineSteps(
         ? names.join(step.mode === "all" && !sentOn ? " → " : ", ")
         : words.peopleCount(String(names.length));
     const text = names.length === 0 ? words.anyHolder : sentOn ? words.sentOnTo(label) : label;
-    item.append(el("span", "line-step-name", text));
+    item.append(el("span", "sc-chip-label", text));
     node.append(item);
   }
   return node;

@@ -20,6 +20,7 @@ import {
   avatar,
   badge,
   button,
+  categoryOf,
   el,
   errorBlock,
   type Formatters,
@@ -33,10 +34,8 @@ import {
   panel,
   personLabel,
   sequenced,
-  seriesOf,
   sortedTypes,
   stack,
-  swatch,
   todayDay,
   watch,
 } from "../ui.js";
@@ -74,21 +73,27 @@ function byDay<T extends { readonly on: string }>(items: readonly T[]): Map<stri
   return map;
 }
 
-function chip(entry: CalendarEntry, view: View): HTMLDivElement {
+/**
+ * Someone out on a day, as the console's calendar draws a day's bar: the kind's colour, their face
+ * and their name, the part of the day where it is one; dashed while the request waits.
+ */
+function outBar(entry: CalendarEntry, view: View): HTMLDivElement {
   const { frame, words, language, types } = view;
-  const node = el("div", `chip${entry.state === "requested" ? " chip-requested" : ""}`);
   const type = entry.type === null ? undefined : types.get(entry.type);
-  node.style.setProperty(
-    "--pl-hr-series",
-    type === undefined ? "var(--sc-color-accent)" : `var(--pl-hr-series-${seriesOf(type.color)})`,
+  const node = el(
+    "div",
+    `sc-calendar-bar sc-calendar-bar-begins sc-calendar-bar-ends ${categoryOf(type?.color)} out${entry.state === "requested" ? " out-waiting" : ""}`,
   );
   node.title =
     type === undefined
       ? personLabel(entry.person)
       : `${personLabel(entry.person)}, ${nameIn(type.name, language)}`;
-  node.append(avatar(frame, entry.person), el("span", "chip-name", personLabel(entry.person)));
+  node.append(
+    avatar(frame, entry.person, "xs"),
+    el("span", "sc-calendar-task-title out-name", personLabel(entry.person)),
+  );
   if (entry.part !== "none") {
-    node.append(el("span", "chip-part", words.partShort[entry.part]));
+    node.append(el("span", "out-part", words.partShort[entry.part]));
   }
   return node;
 }
@@ -115,7 +120,7 @@ function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: V
     const off = !workDays.has(weekdayOf(day)) || dayHolidays.length > 0;
     const cell = el(
       "td",
-      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today month-today" : ""}${off ? " month-off" : ""}${dayHolidays.length > 0 ? " month-holiday" : ""}`,
+      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today" : ""}${off ? " month-off" : ""}${dayHolidays.length > 0 ? " month-holiday" : ""}`,
     );
     cell.append(el("span", "sc-calendar-day day-number", String(dateOf(day))));
     for (const holiday of dayHolidays) {
@@ -123,10 +128,12 @@ function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: V
     }
     const shown = entriesByDay.get(day) ?? [];
     for (const entry of shown.slice(0, CELL_ENTRIES)) {
-      cell.append(chip(entry, view));
+      cell.append(outBar(entry, view));
     }
     if (shown.length > CELL_ENTRIES) {
-      cell.append(el("div", "chip-more", words.andMore(String(shown.length - CELL_ENTRIES))));
+      cell.append(
+        el("div", "sc-calendar-more", words.andMore(String(shown.length - CELL_ENTRIES))),
+      );
     }
     line.append(cell);
     if (weekdayOf(day) === week[week.length - 1]) {
@@ -148,10 +155,13 @@ function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: V
 function legend(view: View): HTMLElement {
   const { words, language, types } = view;
   const node = el("div", "calendar-legend");
-  const kinds = el("ul", "rows");
+  // The kinds as the console's legend of a calendar: a dot of each colour and its name.
+  const kinds = el("dl", "sc-calendar-legend");
   for (const type of sortedTypes(types).filter((type) => type.enabled)) {
-    const item = el("li", "rows-item");
-    item.append(swatch(type.color), el("span", "rows-main", nameIn(type.name, language)));
+    const item = el("div", "");
+    const term = el("dt", "");
+    term.append(el("span", `sc-calendar-dot ${categoryOf(type.color)}`));
+    item.append(term, el("dd", "", nameIn(type.name, language)));
     kinds.append(item);
   }
   const samples = el("dl", "sc-calendar-legend calendar-samples");
@@ -163,8 +173,8 @@ function legend(view: View): HTMLElement {
     return wrapper;
   };
   samples.append(
-    sample("legend-approved", words.legendApproved),
-    sample("legend-requested", words.legendRequested),
+    sample("legend-approved sc-category-gray", words.legendApproved),
+    sample("legend-requested sc-category-gray", words.legendRequested),
     sample("legend-holiday", words.legendHoliday),
     sample("legend-off", words.legendOff),
   );
@@ -223,17 +233,29 @@ export async function renderCalendar(
   const holidayBox = stack();
   const scope = muted("");
   const mineHolder = el("div", "sc-subtabs");
-  // The month between its arrows, as the year stands on the holidays page.
+  // The month and the way to move it, as the console's calendar has them.
   const previous = button("‹", () => move(-1), "ghost", true);
   previous.setAttribute("aria-label", words.previousMonth);
   previous.title = words.previousMonth;
   const next = button("›", () => move(1), "ghost", true);
   next.setAttribute("aria-label", words.nextMonth);
   next.title = words.nextMonth;
-  const nav = el("div", "month-nav");
-  nav.append(previous, title, next);
+  const nav = el("nav", "sc-calendar-nav");
+  nav.append(
+    previous,
+    button(
+      words.thisMonth,
+      () => {
+        month = thisMonth;
+        void refresh();
+      },
+      "ghost",
+      true,
+    ),
+    next,
+  );
   const head = el("div", "sc-calendar-head");
-  head.append(nav);
+  head.append(title, nav);
   // The month in the wide column; beside it, what its colours mean and the month's holidays.
   const columns = el("div", "columns calendar-columns");
   const aside = stack();

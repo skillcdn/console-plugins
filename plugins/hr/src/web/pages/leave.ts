@@ -19,6 +19,7 @@ import {
   badge,
   button,
   callout,
+  categoryOf,
   DASH,
   el,
   empty,
@@ -44,7 +45,6 @@ import {
   runCommand,
   say,
   sequenced,
-  seriesOf,
   sortedTypes,
   spanText,
   stack,
@@ -88,8 +88,7 @@ function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
   const { words, format, language, types } = view;
   const type = types.get(balance.type);
   // The card carries its kind's colour: a wash over its head, the dot by its name, the bar's fill.
-  const card = el("article", "sc-panel kind");
-  card.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${seriesOf(type?.color ?? 1)})`);
+  const card = el("article", `sc-panel kind ${categoryOf(type?.color)}`);
   const head = el("div", "sc-section-head panel-head");
   // The wash over the head says the kind's colour; the title is the name alone.
   const title = el(
@@ -119,7 +118,9 @@ function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
     const item = el("div", "kind-stat");
     const term = el("dt", "");
     if (tone !== undefined) {
-      term.append(el("span", `legend-dot legend-${tone}`));
+      term.append(
+        el("span", `legend-dot legend-${tone}${tone === "pending" ? " sc-category-yellow" : ""}`),
+      );
     }
     term.append(document.createTextNode(label));
     item.append(term, el("dd", "", value));
@@ -388,7 +389,7 @@ export function ledgerTable(
         // A day that hands out a period's days is where a period begins: said, so that the days
         // paid out or expired beside the new ones read as the turn of the year they are.
         if (lines.some((other) => other.on === entry.on && other.kind === "grant")) {
-          title.append(el("span", "ledger-day-tag", words.ledgerNewPeriod));
+          title.append(badge(words.ledgerNewPeriod, "accent"));
         }
         group = el("ul", "ledger-lines");
         day.append(title, group);

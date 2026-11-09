@@ -10,7 +10,8 @@
 //      ship what runs, the scripts every plugin has, and its repository directory;
 //   4. the skills' manifest and every skill carry a Korean translation, and name this plugin's
 //      commands and the console's own, never another's;
-//   5. the stylesheet's classes carry the plugin's prefix, pl-<key>-;
+//   5. the stylesheet's classes carry the plugin's prefix, pl-<key>-, and it writes no colour of
+//      its own: every colour is a console token or comes with one of its classes (PRODUCT.md);
 //   6. every link a Markdown file of the repository makes to a file of the repository resolves;
 //   7. every plugin is listed in the root README's table and in the roadmap.
 // Dependency-free but for the console's own manifest parser, which the root installs. Part of
@@ -132,6 +133,17 @@ function classesIn(css) {
     }
   }
   return [...found];
+}
+
+/** A colour written out, as a hex value or a colour function, where a token would give it. */
+const COLOUR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/;
+
+/** The lines of a stylesheet that write a colour out, by number, comments aside. */
+function colourLines(css) {
+  const lines = css
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "))
+    .split("\n");
+  return lines.flatMap((line, index) => (COLOUR_LITERAL.test(line) ? [index + 1] : []));
 }
 
 function* walk(dir) {
@@ -388,10 +400,14 @@ for (const key of plugins) {
       if (!file.endsWith(".css")) {
         continue;
       }
-      for (const className of classesIn(read(file))) {
+      const css = read(file);
+      for (const className of classesIn(css)) {
         if (!className.startsWith(`pl-${key}-`)) {
           fail(file, `styles .${className}; a plugin's classes begin with pl-${key}-`);
         }
+      }
+      for (const line of colourLines(css)) {
+        fail(file, `writes a colour on line ${line}; take it from the console's tokens or classes`);
       }
     }
   }

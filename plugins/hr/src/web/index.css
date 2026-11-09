@@ -1,28 +1,9 @@
 /* The plugin's own classes begin with pl-hr-; the console's tokens and sc-* classes give the look. */
 
-/* A holiday's red: brighter than the console's danger, which reads as a warning rather than a day
-   off, and still 6:1 on white. */
-/* The colours the pages paint figures with: fills, dots, chips and washes, where the console's
-   tones for words run too dark and muddy. Six for the kinds of leave, in the order a workspace
-   starts with them, and one each for what the bars say. The words keep the console's tones. */
-.pl-hr-page,
-.pl-hr-widget {
-  --pl-hr-series-1: #3b6fd4;
-  --pl-hr-series-2: #ef6a6a;
-  --pl-hr-series-3: #2bb673;
-  --pl-hr-series-4: #f5a524;
-  --pl-hr-series-5: #8b6cf6;
-  --pl-hr-series-6: #2bb0c5;
-  --pl-hr-used: #3b6fd4;
-  --pl-hr-pending: #f5a524;
-  --pl-hr-pending-wash: #fef3c7;
-  --pl-hr-pending-ink: #b45309;
-  --pl-hr-left: color-mix(in srgb, var(--pl-hr-used) 16%, transparent);
-  --pl-hr-expiring: #f0603a;
-  --pl-hr-highlight: #ffe066;
-  --pl-hr-holiday: #e11d2e;
-  --pl-hr-holiday-fill: color-mix(in srgb, var(--pl-hr-holiday) 9%, transparent);
-}
+/* Every colour is the console's. A kind of leave and an announcement's category take the console's
+   category colours, a class each on the element (`categoryOf` in ui.ts), whose fill, line and mark
+   the rules below read; what the pages say of days takes its tones: the accent for days used, the
+   yellow category's mark for days waiting, the point for days about to go, danger for a holiday. */
 
 /* A page pads itself by the step the console's frame stands outside the page's column. */
 .pl-hr-page {
@@ -48,29 +29,6 @@
 
 .pl-hr-page .pl-hr-callout {
   margin-bottom: 0;
-}
-
-/* What waits, or warns, is one thing everywhere on the pages: a wash of amber with no stroke, the
-   words in the text's own tone or in the amber's ink. */
-.pl-hr-callout-warning {
-  border-color: transparent;
-  background: var(--pl-hr-pending-wash);
-}
-
-.pl-hr-callout-dot {
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-inline-end: var(--sc-space-2);
-  border-radius: var(--sc-radius-full);
-  background: var(--pl-hr-pending);
-  vertical-align: 0.05em;
-}
-
-.pl-hr-state-waiting {
-  border-color: transparent;
-  background: var(--pl-hr-pending-wash);
-  color: var(--pl-hr-pending-ink);
 }
 
 .pl-hr-stack {
@@ -260,31 +218,8 @@
   min-width: 0;
 }
 
-.pl-hr-pills .pl-hr-pill {
-  position: relative;
-}
-
-.pl-hr-pills .pl-hr-pill input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.pl-hr-pills .pl-hr-pill:has(input:checked) {
-  border-color: var(--sc-color-accent);
-  background: var(--sc-color-accent-subtle);
-  color: var(--sc-color-accent);
-  font-weight: var(--sc-weight-medium);
-}
-
 .pl-hr-pills .pl-hr-pill:has(.pl-hr-swatch) {
   padding-inline: var(--sc-space-2);
-}
-
-.pl-hr-pills .pl-hr-pill:has(input:focus-visible) {
-  outline: var(--sc-focus-ring);
-  outline-offset: 1px;
 }
 
 .pl-hr-option-cards {
@@ -438,7 +373,7 @@
 
 .pl-hr-person-figures strong {
   font-size: var(--sc-text-xl);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-person-head {
@@ -466,15 +401,15 @@
 }
 
 .pl-hr-meter-used {
-  background: var(--pl-hr-used);
+  background: var(--sc-color-accent-solid);
 }
 
 .pl-hr-meter-pending {
-  background: var(--pl-hr-pending);
+  background: var(--sc-category-mark);
 }
 
 .pl-hr-meter-left {
-  background: var(--pl-hr-left);
+  background: color-mix(in srgb, var(--sc-color-accent-solid) 22%, transparent);
 }
 
 .pl-hr-balance {
@@ -492,7 +427,7 @@
   font-size: 3rem;
   font-weight: var(--sc-weight-bold);
   letter-spacing: var(--sc-tracking-tight);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
   line-height: 1;
 }
 
@@ -516,13 +451,16 @@
 }
 
 .pl-hr-legend-item dt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-1);
   color: var(--sc-color-text-muted);
 }
 
 .pl-hr-legend-item dd {
   margin: 0;
   font-weight: var(--sc-weight-medium);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-legend-dot {
@@ -532,15 +470,15 @@
 }
 
 .pl-hr-legend-used {
-  background: var(--pl-hr-used);
+  background: var(--sc-color-accent-solid);
 }
 
 .pl-hr-legend-pending {
-  background: var(--pl-hr-pending);
+  background: var(--sc-category-mark);
 }
 
 .pl-hr-legend-expiring {
-  background: var(--pl-hr-expiring);
+  background: var(--sc-color-point);
 }
 
 .pl-hr-kinds {
@@ -558,7 +496,7 @@
   align-items: center;
   gap: var(--sc-space-2);
   font-size: var(--sc-text-sm);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 /* The kinds of leave, a card each, their figures lining up */
@@ -584,7 +522,7 @@
 }
 
 .pl-hr-kind-period {
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 /* The kind's colour washes the head of its card, under the words: the card's only mark of it. */
@@ -595,7 +533,7 @@
   border-radius: inherit;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--pl-hr-series) 14%, transparent),
+    color-mix(in srgb, var(--sc-category-fill) 70%, transparent),
     transparent 7rem
   );
   content: "";
@@ -639,7 +577,7 @@
   margin: 0;
   font-size: var(--sc-text-lg);
   font-weight: var(--sc-weight-bold);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
   line-height: var(--sc-leading-tight);
 }
 
@@ -652,24 +590,8 @@
   margin: 0;
   padding: 0.3rem var(--sc-space-3);
   border-radius: var(--sc-radius-full);
-  background: color-mix(in srgb, var(--pl-hr-expiring) 12%, transparent);
+  background: var(--sc-color-point-subtle);
   font-size: var(--sc-text-xs);
-}
-
-.pl-hr-type::before {
-  content: "";
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--sc-radius-full);
-  background: var(--pl-hr-series);
-}
-
-.pl-hr-swatch {
-  flex: none;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: var(--sc-radius-full);
-  background: var(--pl-hr-series);
 }
 
 /* Lists of a pane: a row each, hairlines between */
@@ -733,9 +655,9 @@
 .pl-hr-rows-day {
   flex: none;
   min-width: 4.5rem;
-  color: var(--pl-hr-holiday);
+  color: var(--sc-color-danger);
   font-weight: var(--sc-weight-medium);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-rows-week {
@@ -766,7 +688,7 @@
    narrow column parted by a line, not a box in the pane, and no wider than what it says. */
 .pl-hr-request {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
+  grid-template-columns: minmax(0, 3fr) minmax(14rem, 2fr);
   gap: var(--sc-space-6);
   align-items: stretch;
 }
@@ -876,7 +798,7 @@
 .pl-hr-quote-days {
   font-size: var(--sc-text-2xl);
   font-weight: var(--sc-weight-bold);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-quote-unit,
@@ -887,45 +809,21 @@
 /* A line, step after step */
 
 .pl-hr-line-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sc-space-1) var(--sc-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pl-hr-line-step {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sc-space-1);
-  max-width: 100%;
-  padding: 0.125rem var(--sc-space-2) 0.125rem 0.125rem;
-  border: var(--sc-border);
-  border-radius: var(--sc-radius-full);
-  background: var(--sc-color-sheet);
-  font-size: var(--sc-text-xs);
-}
-
-.pl-hr-line-step + .pl-hr-line-step {
-  position: relative;
-}
-
-.pl-hr-line-step-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* A step is the console's chip; how far the request has come is said by its fill. */
 .pl-hr-line-step-done {
-  border-color: var(--sc-color-success);
+  border-color: color-mix(in srgb, var(--sc-color-success) 40%, transparent);
   background: var(--sc-color-success-subtle);
 }
 
 .pl-hr-line-step-waiting {
   border-color: transparent;
-  background: var(--pl-hr-pending-wash);
-  color: var(--pl-hr-pending-ink);
+  background: var(--sc-color-warning-subtle);
+  color: var(--sc-color-warning);
 }
 
 .pl-hr-line-step-ahead {
@@ -1008,7 +906,7 @@
 .pl-hr-request-days {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-sm);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-request-note {
@@ -1121,7 +1019,7 @@
   margin: 0;
   font-size: var(--sc-text-sm);
   font-weight: var(--sc-weight-bold);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-ledger-day-title::after {
@@ -1136,16 +1034,6 @@
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
   font-weight: var(--sc-weight-normal);
-}
-
-/* The day a period begins, said beside its date. */
-.pl-hr-ledger-day-tag {
-  padding: 0.05rem var(--sc-space-2);
-  border-radius: var(--sc-radius-full);
-  background: var(--sc-color-accent-subtle);
-  color: var(--sc-color-accent);
-  font-size: var(--sc-text-xs);
-  font-weight: var(--sc-weight-medium);
 }
 
 .pl-hr-ledger-lines {
@@ -1201,7 +1089,7 @@
 .pl-hr-ledger-amount {
   font-size: var(--sc-text-sm);
   font-weight: var(--sc-weight-bold);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
   white-space: nowrap;
 }
 
@@ -1212,7 +1100,7 @@
 .pl-hr-ledger-balance {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
   white-space: nowrap;
 }
 
@@ -1227,11 +1115,11 @@
 
 .pl-hr-numeric {
   text-align: right;
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
   white-space: nowrap;
 }
 
-/* The calendar: the console's own, with the plugin's chips in its cells */
+/* The calendar: the console's own, someone out on a day drawn as its calendar draws a day's bar */
 
 .pl-hr-month {
   min-width: 42rem;
@@ -1249,12 +1137,8 @@
     padding: 2px;
   }
 
-  .pl-hr-chip {
-    padding: 0;
-  }
-
-  .pl-hr-chip-name,
-  .pl-hr-chip-part,
+  .pl-hr-out-name,
+  .pl-hr-out-part,
   .pl-hr-holiday {
     display: none;
   }
@@ -1264,29 +1148,16 @@
   overflow: hidden;
 }
 
-/* The month between its arrows, the name wide enough that the arrows stay where they are. */
-.pl-hr-month-nav {
-  display: flex;
-  align-items: center;
-  gap: var(--sc-space-1);
-}
-
-.pl-hr-month-nav > button {
-  min-width: 2rem;
-  font-size: var(--sc-text-lg);
-  line-height: 1;
-}
-
-.pl-hr-month-nav > h2 {
-  min-width: 8rem;
-  margin: 0;
-  text-align: center;
-  font-variant-numeric: var(--sc-numeric);
-}
-
-/* The month in the wide column and, beside it, an aside of the console's width. */
+/* The month in the wide column and, beside it, an aside of the console's width; under the month
+   where the frame has no room for both. */
 .pl-hr-calendar-columns {
   grid-template-columns: minmax(0, 1fr) var(--sc-width-aside);
+}
+
+@media (max-width: 70rem) {
+  .pl-hr-calendar-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .pl-hr-calendar-legend {
@@ -1294,26 +1165,9 @@
   gap: var(--sc-space-3);
 }
 
-.pl-hr-calendar-legend .pl-hr-rows-item {
-  gap: var(--sc-space-2);
-  padding: var(--sc-space-1) 0;
-}
-
 .pl-hr-calendar-samples {
   padding-top: var(--sc-space-3);
   border-top: var(--sc-hairline);
-}
-
-/* Today: its number on a disc of the accent, where the console colours the number alone. */
-.pl-hr-month-today .pl-hr-day-number {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.375rem;
-  height: 1.375rem;
-  padding-inline: 0.25rem;
-  border-radius: var(--sc-radius-full);
-  background: var(--sc-color-accent-solid);
-  color: var(--sc-color-accent-contrast);
 }
 
 .pl-hr-month-off {
@@ -1324,63 +1178,32 @@
   color: var(--sc-color-text-faint);
 }
 
-/* A holiday: its cell tinted, its date and its name in the holiday's red. */
+/* A holiday: its cell tinted, its date and its name in the console's danger. */
 .pl-hr-month-holiday {
-  background: var(--pl-hr-holiday-fill);
+  background: var(--sc-color-danger-subtle);
 }
 
 .pl-hr-month-holiday .pl-hr-day-number {
-  color: var(--pl-hr-holiday);
+  color: var(--sc-color-danger);
   font-weight: var(--sc-weight-bold);
 }
 
-.pl-hr-chip {
-  display: flex;
-  align-items: center;
-  gap: var(--sc-space-1);
-  margin-top: 2px;
-  padding: 1px var(--sc-space-2) 1px 2px;
-  overflow: hidden;
-  /* A pill of the kind's colour, a face at its start, no stroke; a request not yet approved is
-     drawn dashed. */
-  border: 1px solid transparent;
-  border-radius: var(--sc-radius-full);
-  background: color-mix(in srgb, var(--pl-hr-series) 16%, transparent);
-  font-size: var(--sc-text-xs);
-  white-space: nowrap;
-}
-
-.pl-hr-chip .pl-hr-avatar {
-  width: 1rem;
-  height: 1rem;
-  font-size: 0.5rem;
-}
-
-.pl-hr-chip-requested {
-  border-color: color-mix(in srgb, var(--pl-hr-series) 60%, transparent);
+/* Someone out: the console's bar of the kind's colour, a face at its start; dashed while the
+   request waits, as the legend says. */
+.pl-hr-out-waiting {
   border-style: dashed;
   background: transparent;
 }
 
-.pl-hr-chip-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pl-hr-chip-part {
+.pl-hr-out-part {
   flex: none;
-  color: var(--sc-color-text-muted);
-}
-
-.pl-hr-chip-more {
-  margin-top: 2px;
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
+  margin-inline-start: var(--sc-space-1);
+  opacity: 0.8;
 }
 
 .pl-hr-holiday {
   overflow: hidden;
-  color: var(--pl-hr-holiday);
+  color: var(--sc-color-danger);
   font-weight: var(--sc-weight-medium);
   font-size: var(--sc-text-xs);
   text-overflow: ellipsis;
@@ -1391,23 +1214,23 @@
   display: inline-block;
   width: 0.875rem;
   height: 0.625rem;
-  border-radius: 2px;
+  border-radius: var(--sc-radius-sm);
 }
 
 .pl-hr-legend-approved {
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, var(--sc-category-mark) 60%, transparent);
   border-radius: var(--sc-radius-full);
-  background: color-mix(in srgb, var(--sc-color-accent) 16%, transparent);
+  background: var(--sc-category-fill);
 }
 
 .pl-hr-legend-requested {
-  border: 1px dashed color-mix(in srgb, var(--sc-color-accent) 60%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--sc-category-mark) 60%, transparent);
   border-radius: var(--sc-radius-full);
 }
 
 .pl-hr-legend-holiday {
-  border: 1px solid color-mix(in srgb, var(--pl-hr-holiday) 50%, transparent);
-  background: var(--pl-hr-holiday-fill);
+  border: 1px solid color-mix(in srgb, var(--sc-color-danger) 50%, transparent);
+  background: var(--sc-color-danger-subtle);
 }
 
 .pl-hr-legend-off {
@@ -1711,7 +1534,7 @@
   min-width: 3.5rem;
   font-weight: var(--sc-weight-medium);
   text-align: center;
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 /* Lines under forms */
@@ -1770,7 +1593,7 @@
   font-size: clamp(2.25rem, 24vh, 3.5rem);
   font-weight: var(--sc-weight-bold);
   letter-spacing: var(--sc-tracking-tight);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
   line-height: 1.1;
 }
 
@@ -1798,7 +1621,7 @@
 .pl-hr-widget-facts dd {
   margin: 0;
   font-weight: var(--sc-weight-medium);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-widget-rows {
@@ -1844,7 +1667,7 @@
 
 .pl-hr-widget-row-side {
   flex: none;
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-widget-more {
@@ -1898,7 +1721,7 @@
 }
 
 .pl-hr-week-day-off {
-  background: var(--pl-hr-holiday-fill);
+  background: var(--sc-color-danger-subtle);
 }
 
 .pl-hr-week-label {
@@ -1912,11 +1735,11 @@
 .pl-hr-week-label strong {
   color: var(--sc-color-text);
   font-size: var(--sc-text-sm);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-week-day-off .pl-hr-week-label strong {
-  color: var(--pl-hr-holiday);
+  color: var(--sc-color-danger);
 }
 
 /* An announcement's text: the console's prose, with what it does not have. */
@@ -1951,7 +1774,7 @@
 .pl-hr-mark {
   padding: 0.05em 0.15em;
   border-radius: var(--sc-radius-sm);
-  background: color-mix(in srgb, var(--pl-hr-highlight) 55%, transparent);
+  background: var(--sc-color-warning-subtle);
   color: inherit;
 }
 
@@ -2015,8 +1838,8 @@
 
 .pl-hr-ann-card:focus-visible,
 .pl-hr-widget-lead:focus-visible {
-  outline: none;
-  box-shadow: var(--sc-focus-ring);
+  outline: var(--sc-focus-ring);
+  outline-offset: 2px;
 }
 
 .pl-hr-ann-card-picture {
@@ -2072,7 +1895,7 @@
 .pl-hr-ann-meta {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
-  font-variant-numeric: var(--sc-numeric);
+  font-feature-settings: var(--sc-numeric);
 }
 
 .pl-hr-ann-card-text > .pl-hr-ann-meta {
@@ -2224,8 +2047,8 @@
 }
 
 .pl-hr-tool:focus-visible {
-  outline: none;
-  box-shadow: var(--sc-focus-ring);
+  outline: var(--sc-focus-ring);
+  outline-offset: 2px;
 }
 
 .pl-hr-tool:disabled {
@@ -2257,7 +2080,7 @@
 .pl-hr-tool-highlight {
   padding: 0.05em 0.25em;
   border-radius: var(--sc-radius-sm);
-  background: color-mix(in srgb, var(--pl-hr-highlight) 70%, transparent);
+  background: var(--sc-color-warning-subtle);
   font-weight: var(--sc-weight-medium);
 }
 
@@ -2529,4 +2352,16 @@
   margin: 0;
   font-size: var(--sc-text-sm);
   color: var(--sc-color-text-muted);
+}
+
+/* The way to add one more to a row of chips: a choice as low as a chip, its line dashed, as the
+   console's own way to add is. */
+.pl-hr-chip-add {
+  width: auto;
+  min-height: 1.75rem;
+  padding-block: 0;
+  border-style: dashed;
+  border-radius: var(--sc-radius-full);
+  background-color: transparent;
+  font-size: var(--sc-text-sm);
 }

@@ -96,7 +96,12 @@ function myLeave(report: OverviewReport, view: View): HTMLElement | null {
   const legend = el("dl", "legend");
   const item = (tone: string, label: string, value: string) => {
     const row = el("div", "legend-item");
-    row.append(el("span", `legend-dot legend-${tone}`), el("dt", "", label), el("dd", "", value));
+    const term = el("dt", "");
+    term.append(
+      el("span", `legend-dot legend-${tone}${tone === "pending" ? " sc-category-yellow" : ""}`),
+      document.createTextNode(label),
+    );
+    row.append(term, el("dd", "", value));
     return row;
   };
   legend.append(

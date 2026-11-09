@@ -18,6 +18,7 @@ import {
   badge,
   button,
   callout,
+  categoryOf,
   dayOfInstant,
   el,
   empty,
@@ -63,7 +64,8 @@ function routeOf(path: string): Route {
   return second === "edit" ? { kind: "edit", id: first } : { kind: "read", id: first };
 }
 
-const SERIES: Readonly<Record<AnnouncementCategory, number>> = {
+/** The colour of each category, as the pages number the console's category colours. */
+const COLOURS: Readonly<Record<AnnouncementCategory, number>> = {
   general: 5,
   policy: 1,
   benefits: 3,
@@ -71,11 +73,13 @@ const SERIES: Readonly<Record<AnnouncementCategory, number>> = {
   appointment: 2,
 };
 
-/** What an announcement is about, as a badge with its colour. */
+/** What an announcement is about, as the console's badge of a category. */
 export function categoryBadge(category: AnnouncementCategory, words: Words): HTMLElement {
-  const node = el("span", "sc-badge sc-badge-neutral type", words.announcementCategory[category]);
-  node.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${SERIES[category]})`);
-  return node;
+  return el(
+    "span",
+    `sc-badge sc-badge-category ${categoryOf(COLOURS[category])}`,
+    words.announcementCategory[category],
+  );
 }
 
 /** The marks of a row: pinned, and new by the date. */
