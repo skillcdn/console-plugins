@@ -33,6 +33,7 @@ export interface ServerWords {
     readonly appUpdated: (url: string) => string;
     readonly appInstalledUpdated: string;
     readonly disconnected: string;
+    readonly disconnectedAppLeft: string;
     readonly testSent: (where: string) => string;
     readonly matched: (matched: string, unmatched: string) => string;
     readonly matchedOne: (name: string) => string;
@@ -148,7 +149,9 @@ const EN: ServerWords = {
       `The Slack app is up to date. To install it in the workspace, open this address: ${url}`,
     appInstalledUpdated: "The Slack app is up to date and installed.",
     disconnected:
-      "The app is uninstalled from the workspace and its token revoked; connect installs it again.",
+      "The app is uninstalled from the workspace and deleted. connect makes a new one, in this workspace or another.",
+    disconnectedAppLeft:
+      "The app is no longer used, but the configuration token could not delete it in Slack: delete it at api.slack.com/apps. connect makes a new one.",
     testSent: (where) => `A test message went to ${where}.`,
     matched: (matched, unmatched) =>
       `Matched ${matched} people to Slack accounts by email; ${unmatched} have none.`,
@@ -275,7 +278,9 @@ const KO: ServerWords = {
       `Slack 앱이 최신입니다. 워크스페이스에 설치하려면 이 주소를 여세요: ${url}`,
     appInstalledUpdated: "Slack 앱이 최신이고 설치되어 있습니다.",
     disconnected:
-      "워크스페이스에서 앱을 제거하고 토큰을 폐기했습니다. connect로 다시 설치할 수 있습니다.",
+      "워크스페이스에서 앱을 제거하고 지웠습니다. connect로 새 앱을 만들 수 있고, 다른 워크스페이스에도 연결할 수 있습니다.",
+    disconnectedAppLeft:
+      "이제 이 앱을 쓰지 않지만, 설정 토큰으로 Slack에서 지우지는 못했습니다. api.slack.com/apps에서 지우세요. connect로 새 앱을 만들 수 있습니다.",
     testSent: (where) => `${where}에 시험 메시지를 보냈습니다.`,
     matched: (matched, unmatched) =>
       `이메일로 ${matched}명을 Slack 계정과 연결했습니다. ${unmatched}명은 계정이 없습니다.`,

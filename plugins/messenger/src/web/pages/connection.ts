@@ -217,21 +217,31 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
   }
   parts.push(panel(w.hr, ...hrParts));
 
-  // A test message, and the way out.
-  if (connected) {
-    const channel = input("text", { placeholder: "C0123ABCD", maxLength: 40 });
-    const testStatus = statusLine();
-    const send = button(w.test, () => {
-      const value = channel.value.trim();
-      void runCommand(
-        frame,
-        send,
+  // A test message where the app is installed, and the way out wherever one is made: to start
+  // again, in this workspace or another.
+  if (connection !== null && connection.appId !== null) {
+    const tryParts: HTMLElement[] = [];
+    if (connected) {
+      const channel = input("text", { placeholder: "C0123ABCD", maxLength: 40 });
+      const testStatus = statusLine();
+      const send = button(w.test, () => {
+        const value = channel.value.trim();
+        void runCommand(
+          frame,
+          send,
+          testStatus,
+          words,
+          "test",
+          value.length > 0 ? { channel: value } : {},
+        );
+      });
+      tryParts.push(
+        field(w.testChannel, channel, w.testChannelHint),
+        toolbar(send),
         testStatus,
-        words,
-        "test",
-        value.length > 0 ? { channel: value } : {},
+        el("hr", "rule"),
       );
-    });
+    }
     const outStatus = statusLine();
     let armed = false;
     const out = button(
@@ -248,11 +258,8 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
     );
     parts.push(
       panel(
-        w.tryIt,
-        field(w.testChannel, channel, w.testChannelHint),
-        toolbar(send),
-        testStatus,
-        el("hr", "rule"),
+        connected ? w.tryIt : w.disconnect,
+        ...tryParts,
         muted(w.disconnectHint),
         toolbar(out),
         outStatus,

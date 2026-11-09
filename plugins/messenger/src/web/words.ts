@@ -228,9 +228,9 @@ const EN: Words = {
     testChannelHint: "A channel's id (C0123ABCD); left empty, a direct message to you.",
     test: "Send a test message",
     disconnect: "Disconnect",
-    disconnectSure: "Press again to uninstall",
+    disconnectSure: "Press again to uninstall and delete",
     disconnectHint:
-      "Uninstalls the app from the workspace and revokes its token; installing it again brings it back.",
+      "Uninstalls the app from the workspace and deletes it. Connecting again makes a new app: in this workspace, the routes and the matched accounts stay; in another, they go, and its people are matched within the hour.",
     failures: (count) => `${count} deliveries failed in the last day; the Activity page says why.`,
   },
   routes: {
@@ -431,8 +431,9 @@ const KO: Words = {
     testChannelHint: "채널 ID(C0123ABCD). 비워 두면 나에게 DM으로 보냅니다.",
     test: "시험 메시지 보내기",
     disconnect: "연결 해제",
-    disconnectSure: "한 번 더 누르면 제거합니다",
-    disconnectHint: "워크스페이스에서 앱을 제거하고 토큰을 폐기합니다. 다시 설치하면 돌아옵니다.",
+    disconnectSure: "한 번 더 누르면 제거하고 지웁니다",
+    disconnectHint:
+      "워크스페이스에서 앱을 제거하고 지웁니다. 다시 연결하면 새 앱을 만듭니다. 같은 워크스페이스면 채널 알림과 계정 연결이 그대로 남고, 다른 워크스페이스면 지워지며 그곳 사람들의 계정은 한 시간 안에 다시 연결됩니다.",
     failures: (count) =>
       `지난 하루 동안 ${count}건을 보내지 못했습니다. 전송 기록에서 이유를 보세요.`,
   },

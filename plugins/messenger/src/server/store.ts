@@ -1,7 +1,13 @@
 // Reading and writing the records the rest of the module shares: the one connection, a person's
 // link to their account, and the line each event heard leaves, by which a delivery repeated is
 // passed over. A hook reads these before it acts, so that doing it twice changes nothing.
-import type { PluginContext, PluginHookEvent, PluginRecord } from "@skillcdn/console/plugin";
+import type {
+  CollectionDefinition,
+  PluginContext,
+  PluginHookEvent,
+  PluginRecord,
+  RecordSchema,
+} from "@skillcdn/console/plugin";
 import type { Language, Outcome } from "../shared/contracts.js";
 import {
   type ConnectionData,
@@ -70,6 +76,29 @@ export async function noteProblem(ctx: PluginContext, problem: string | null): P
     problem: problem === null ? null : problem.slice(0, 500),
     problemAt: problem === null ? null : ctx.now().toISOString(),
   });
+}
+
+/**
+ * Archives every record of a collection not archived yet, a hundred at a time: what belonged to an
+ * app or a workspace the plugin no longer has. Bounded, so that no store holds a command for long.
+ */
+export async function archiveAll<S extends RecordSchema>(
+  ctx: PluginContext,
+  collection: CollectionDefinition<S>,
+): Promise<number> {
+  const records = ctx.records(collection);
+  let archived = 0;
+  for (let round = 0; round < 50; round += 1) {
+    const page = await records.list({ limit: 100 });
+    if (page.items.length === 0) {
+      break;
+    }
+    for (const record of page.items) {
+      await records.archive(record.id);
+      archived += 1;
+    }
+  }
+  return archived;
 }
 
 /** Whether Slack is connected: the app installed in a workspace, a bot token sealed. */

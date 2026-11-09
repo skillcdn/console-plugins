@@ -21,7 +21,7 @@ The messenger carries what the console's plugins have for people to the organiza
 | See how the connection stands: the console's address, the secrets, the app, HR, the role asked of HR | `console plugin messenger status` |
 | Make the Slack app, or bring it up to date, and get the address that installs it | `console plugin messenger connect [--language en|ko]` |
 | Send a test message to yourself, or to a channel | `console plugin messenger test [--channel <id>]` |
-| Uninstall the app from the workspace | `console plugin messenger disconnect` |
+| Uninstall the app from the workspace and delete it, to start again in this workspace or another | `console plugin messenger disconnect` |
 | Match people to their Slack accounts by email now: everyone, or one person | `console plugin messenger match [--person <login>]` |
 | See who is matched, and why the others are not | `console plugin messenger people [--state no_email|no_account|not_checked|matched] [--limit <n>]` |
 | List the channels a route may name | `console plugin messenger channels [--search <words>]` |
@@ -39,6 +39,8 @@ The messenger carries what the console's plugins have for people to the organiza
 5. **The people.** Within the hour the plugin matches everyone by email, and every day after; `match` does it now. `people --state no_email` lists those the console knows no address for, which an administrator writes on the console's People page.
 6. **HR.** For the leave shortcut and the threads, an administrator turns on `plugins:hr` among the plugin's optional capabilities and grants it HR's role `hr` on the plugin's settings page; `status` says what is missing.
 7. **The routes.** `channels` lists the channels; `route <channel>` sends approved leave there. A private channel takes posts only once someone invites the app to it in Slack.
+
+To move to another workspace, as from a workspace kept for trying the plugin to the organization's own: `disconnect`, paste the other workspace's configuration tokens, then `connect` and install there. The routes and the matched accounts of the last workspace go when the new one is installed; in the same workspace they stay.
 
 ## When a message did not go out
 

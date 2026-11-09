@@ -1,6 +1,8 @@
 // The connection: the app made from the manifest with the configuration token, its secrets sealed
 // from Slack's answer; the installation's return; how it stands; a test message; the way out; the
 // hourly job that renews the token and keeps the manifest; and HR's lifecycle moving the shortcut.
+
+import type { TestContext } from "@skillcdn/console/plugin/testing";
 import { describe, expect, it } from "vitest";
 import type { StatusReport } from "../shared/contracts.js";
 import { connect, disconnect, keepConnection, onLifecycle, status, test } from "./index.js";
@@ -13,10 +15,12 @@ import {
   fakeSlack,
   JIHYE,
   linked,
+  MINSU,
   NOW,
   PUBLIC_URL,
   STRANGER,
   setup,
+  TEAM,
 } from "./test-fakes.js";
 
 const created = {
@@ -32,6 +36,34 @@ const created = {
     oauth_authorize_url: "https://slack.com/oauth/v2/authorize?client_id=1234.5678",
   }),
 };
+
+/** A route, an account and a thread of the workspace the app was installed in. */
+async function workspaceRecords(ctx: TestContext): Promise<void> {
+  await linked(ctx, MINSU, "U0MINSU01");
+  await ctx.records("routes").create({
+    kind: "hr:leave-approved",
+    channelId: "C0GENERAL",
+    channelName: "general",
+    language: "ko",
+    as: "person",
+  });
+  await ctx.records("threads").create({
+    plugin: "hr",
+    thing: "0199a000-0000-7000-8000-0000000000aa",
+    personId: MINSU.id,
+    channelId: "G0CONV1",
+    members: ["U0MINSU01"],
+    rootTs: "1794186001.000100",
+    rootAs: "person",
+    language: "ko",
+    steps: [],
+    posts: [],
+    state: "open",
+  });
+}
+
+const kept = (ctx: TestContext, name: string) =>
+  ctx.all(name).filter((record) => record.archivedAt === null).length;
 
 function manifestOf(params: Readonly<Record<string, string>>) {
   return JSON.parse(params.manifest ?? "{}") as {
@@ -222,6 +254,58 @@ describe("the installation's return", () => {
     });
   });
 
+  const installedIn = (team: string) =>
+    fakeSlack({
+      ...exchanged,
+      "oauth.v2.access": () => ({
+        ok: true,
+        access_token: "issued-bot-value",
+        bot_user_id: "U0BOT0002",
+        app_id: "A0NEWAPP1",
+        team: { id: team, name: "Other" },
+      }),
+    });
+
+  it("forgets the last workspace's routes and accounts when installed in another, and matches there", async () => {
+    const { ctx } = setup({ slack: installedIn("T0OTHER01") });
+    await connected(ctx);
+    await workspaceRecords(ctx);
+    await disconnect.run(ctx, {});
+    await connect.run(ctx, {});
+    const state = String(ctx.all("connections")[0]?.data.oauthState ?? "");
+    await slackOauthEndpoint.run(ctx, request({ code: "code-2", state }));
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      phase: "connected",
+      teamId: "T0OTHER01",
+      teamName: "Other",
+      botUserId: "U0BOT0002",
+      matchedAt: null,
+      matched: 0,
+    });
+    expect(kept(ctx, "routes")).toBe(0);
+    expect(kept(ctx, "links")).toBe(0);
+    expect(kept(ctx, "threads")).toBe(0);
+  });
+
+  it("keeps the routes and the accounts when installed again in the same workspace", async () => {
+    const { ctx } = setup({ slack: installedIn(TEAM) });
+    await connected(ctx);
+    await workspaceRecords(ctx);
+    await disconnect.run(ctx, {});
+    await connect.run(ctx, {});
+    const state = String(ctx.all("connections")[0]?.data.oauthState ?? "");
+    await slackOauthEndpoint.run(ctx, request({ code: "code-2", state }));
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      phase: "connected",
+      teamId: TEAM,
+      matchedAt: NOW.toISOString(),
+    });
+    expect(kept(ctx, "routes")).toBe(1);
+    expect(kept(ctx, "links")).toBe(1);
+    // The new app's bot is in none of the old app's conversations.
+    expect(kept(ctx, "threads")).toBe(0);
+  });
+
   it("refuses a state it did not start, or one too old, and says so on the page", async () => {
     const { ctx, slack } = setup({ slack: fakeSlack(exchanged) });
     await connect.run(ctx, {});
@@ -304,17 +388,58 @@ describe("test and disconnect", () => {
     await expect(test.run(ctx, {})).rejects.toMatchObject({ code: "not_matched" });
   });
 
-  it("uninstalls the app and revokes its token", async () => {
-    const { ctx, slack } = setup();
+  it("uninstalls the app, deletes it and forgets its threads; connect then makes a new one", async () => {
+    const { ctx, slack } = setup({ slack: fakeSlack(created) });
     await connected(ctx);
-    await disconnect.run(ctx, {});
+    await workspaceRecords(ctx);
+    const answer = await disconnect.run(ctx, {});
     const call = slack.of("apps.uninstall")[0];
     expect(call?.params.client_id).toBe("1111.2222");
     expect(call?.secrets).toEqual([
       { name: "slackBotToken", as: "bearer" },
       { name: "slackClientSecret", as: "body:client_secret" },
     ]);
-    expect(ctx.all("connections")[0]?.data.phase).toBe("disconnected");
+    const deleted = slack.of("apps.manifest.delete")[0];
+    expect(deleted?.params.app_id).toBe("A0TESTAPP");
+    expect(deleted?.secrets).toEqual([{ name: "slackConfigToken", as: "bearer" }]);
+    expect(answer).toMatchObject({ data: { phase: "disconnected", deleted: true } });
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      phase: "disconnected",
+      appId: null,
+      clientId: null,
+      botUserId: null,
+      teamId: TEAM,
+    });
+    expect(kept(ctx, "threads")).toBe(0);
+    // The workspace's routes and accounts wait for the next installation to say where it is.
+    expect(kept(ctx, "routes")).toBe(1);
+    expect(kept(ctx, "links")).toBe(1);
+    await connect.run(ctx, {});
+    expect(slack.of("apps.manifest.create")).toHaveLength(1);
+    expect(slack.of("apps.manifest.update")).toHaveLength(0);
+  });
+
+  it("deletes an app made and never installed, and leaves one its token cannot reach to Slack's page", async () => {
+    const { ctx, slack } = setup({
+      slack: fakeSlack({
+        ...created,
+        "apps.manifest.delete": () => ({ ok: false, error: "invalid_app_id" }),
+      }),
+    });
+    await connect.run(ctx, {});
+    const answer = await disconnect.run(ctx, {});
+    expect(slack.of("apps.uninstall")).toHaveLength(0);
+    expect(slack.of("apps.manifest.delete")[0]?.params.app_id).toBe("A0NEWAPP1");
+    expect(answer.text).toContain("api.slack.com/apps");
+    expect(answer).toMatchObject({ data: { deleted: false } });
+    expect(ctx.all("connections")[0]?.data).toMatchObject({ phase: "disconnected", appId: null });
+  });
+
+  it("refuses where no app was made, and whoever does not hold the messenger role", async () => {
+    const { ctx } = setup();
+    await expect(disconnect.run(ctx, {})).rejects.toMatchObject({ code: "not_made" });
+    await connected(ctx);
+    await expect(disconnect.run(ctx.as(STRANGER), {})).rejects.toMatchObject({ code: "forbidden" });
   });
 });
 

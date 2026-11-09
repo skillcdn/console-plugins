@@ -2,17 +2,19 @@
 // the console says who came back by their session, and only for whoever holds the messenger role.
 // The state the installation was started with is checked, the code exchanged for the bot's token,
 // which the console seals from Slack's answer before the plugin reads it, and the browser is sent
-// back to the connection page, which says how it went.
+// back to the connection page, which says how it went. An installation in a workspace other than
+// the last one forgets the last one's routes, accounts and threads.
 import {
   defineEndpoint,
   type EndpointResponse,
   type PluginContext,
 } from "@skillcdn/console/plugin";
 import { ROLE } from "./access.js";
+import { links, routes, threads } from "./collections.js";
 import { BOT_TOKEN, CLIENT_SECRET } from "./connection.js";
 import { refusalCode } from "./integrations/hr/contract.js";
 import { SlackError, slackCall, textOf } from "./slack/api.js";
-import { connectionOf, noteProblem, saveConnection } from "./store.js";
+import { archiveAll, connectionOf, noteProblem, saveConnection } from "./store.js";
 import { serverWords } from "./words.js";
 
 async function back(ctx: PluginContext): Promise<EndpointResponse> {
@@ -69,9 +71,20 @@ export const slackOauthEndpoint = defineEndpoint({
         await noteProblem(ctx, words.sealFailed("the bot's token"));
         return back(ctx);
       }
+      const teamId = textOf(answer.body, "team.id");
+      const before = connection.data.teamId;
+      const elsewhere = before !== null && teamId !== null && before !== teamId;
+      if (elsewhere) {
+        // Another workspace: the last one's channels, accounts and threads are not this one's, and
+        // its people are matched here by the hourly job, as after a first installation.
+        await archiveAll(ctx, routes);
+        await archiveAll(ctx, links);
+        await archiveAll(ctx, threads);
+      }
       await saveConnection(ctx, {
+        ...(elsewhere ? { matchedAt: null, matched: 0, unmatched: 0 } : {}),
         phase: "connected",
-        teamId: textOf(answer.body, "team.id"),
+        teamId,
         teamName: textOf(answer.body, "team.name"),
         botUserId: textOf(answer.body, "bot_user_id"),
         connectedAt: ctx.now().toISOString(),

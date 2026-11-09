@@ -22,12 +22,13 @@ import {
 } from "../shared/contracts.js";
 import { callerPerson, ROLE, requireRole } from "./access.js";
 import { addressState } from "./address.js";
-import { deliveries, routes } from "./collections.js";
-import { HR, HR_ROLE, HR_VERSIONS, hrState } from "./integrations/hr/contract.js";
+import { deliveries, routes, threads } from "./collections.js";
+import { HR, HR_ROLE, HR_VERSIONS, hrState, refusalCode } from "./integrations/hr/contract.js";
 import { workspaceLanguage } from "./people.js";
 import { isTokenGone, refusalOf, SlackError, slack, slackCall, textOf } from "./slack/api.js";
 import { appManifest, authorizeUrlOf, digestOf } from "./slack/manifest.js";
 import {
+  archiveAll,
   type ConnectionRecord,
   connectionOf,
   isConnected,
@@ -285,16 +286,17 @@ export const connect = defineCommand({
 });
 
 export const disconnect = defineCommand({
-  about: "Uninstalls the app from the Slack workspace and revokes its token.",
+  about:
+    "Uninstalls the app from the Slack workspace and deletes it; connect then makes a new one.",
   roles: [ROLE],
   async run(ctx) {
     requireRole(ctx);
     const words = serverWords(ctx.language);
     const connection = await connectionOf(ctx);
-    if (connection === null || connection.data.clientId === null) {
+    if (connection === null || connection.data.appId === null) {
       throw new PluginError("not_made", words.refused.notMade);
     }
-    if (isConnected(connection)) {
+    if (isConnected(connection) && connection.data.clientId !== null) {
       try {
         await slackCall(
           ctx,
@@ -308,15 +310,39 @@ export const disconnect = defineCommand({
         }
       }
     }
+    // The app goes as well, so that the next connect makes one with the token pasted then, in
+    // this workspace or another. A token that cannot reach it (one pasted since for another
+    // workspace) leaves it to Slack's own page, and the plugin forgets it all the same.
+    const appId = connection.data.appId;
+    let deleted = true;
+    try {
+      await withConfigToken(ctx, () =>
+        slack(ctx, "apps.manifest.delete", { app_id: appId }, "config"),
+      );
+    } catch (error) {
+      deleted = false;
+      ctx.log.warn("the app was not deleted", {
+        code: error instanceof SlackError ? error.code : refusalCode(error),
+      });
+    }
+    // A thread lives in a conversation of the app's bot, which a new app's bot is not in.
+    await archiveAll(ctx, threads);
     await saveConnection(ctx, {
       phase: "disconnected",
+      appId: null,
+      clientId: null,
       botUserId: null,
+      manifestDigest: null,
+      manifestAt: null,
       oauthState: null,
       oauthUntil: null,
       problem: null,
       problemAt: null,
     });
-    return { text: words.said.disconnected, data: { phase: "disconnected" } };
+    return {
+      text: deleted ? words.said.disconnected : words.said.disconnectedAppLeft,
+      data: { phase: "disconnected", deleted },
+    };
   },
 });
 
