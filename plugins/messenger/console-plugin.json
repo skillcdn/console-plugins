@@ -63,7 +63,7 @@
       },
       "description": {
         "en": "Paste the app configuration token and its refresh token; the console seals the rest from Slack's answers.",
-        "ko": "앱 설정 토큰과 갱신 토큰을 붙여 넣으세요. 나머지는 콘솔이 Slack의 응답에서 봉인합니다."
+        "ko": "앱 설정 토큰과 갱신 토큰을 붙여 넣으세요. 나머지는 콘솔이 Slack의 응답에서 받아 저장합니다."
       }
     }
   ],
@@ -107,7 +107,7 @@
       },
       "description": {
         "en": "Sealed by the console when the plugin makes the app: nothing to paste.",
-        "ko": "플러그인이 앱을 만들 때 콘솔이 봉인합니다. 붙여 넣을 것이 없습니다."
+        "ko": "플러그인이 앱을 만들 때 콘솔이 받아 저장합니다. 붙여 넣을 것이 없습니다."
       }
     },
     {
@@ -122,7 +122,7 @@
       },
       "description": {
         "en": "Verifies that what comes in was sent by Slack. Sealed by the console when the plugin makes the app; it signs nothing.",
-        "ko": "들어오는 요청을 Slack이 보냈는지 확인합니다. 플러그인이 앱을 만들 때 콘솔이 봉인하며, 서명에는 쓰지 않습니다."
+        "ko": "들어오는 요청을 Slack이 보냈는지 확인합니다. 플러그인이 앱을 만들 때 콘솔이 받아 저장하며, 서명에는 쓰지 않습니다."
       }
     },
     {
@@ -136,7 +136,7 @@
       },
       "description": {
         "en": "Sealed by the console when the app is installed in the workspace: nothing to paste.",
-        "ko": "앱을 워크스페이스에 설치할 때 콘솔이 봉인합니다. 붙여 넣을 것이 없습니다."
+        "ko": "앱을 워크스페이스에 설치할 때 콘솔이 받아 저장합니다. 붙여 넣을 것이 없습니다."
       }
     }
   ],
