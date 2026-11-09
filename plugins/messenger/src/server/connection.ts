@@ -16,6 +16,7 @@ import {
   LANGUAGES,
   type Language,
   languageOf,
+  type NextStep,
   SECRETS,
   type SecretName,
   type SecretView,
@@ -26,6 +27,7 @@ import { addressState } from "./address.js";
 import { deliveries, routes, threads } from "./collections.js";
 import { type Chosen, chosenOf, handleOf, manifestRefusal } from "./identity.js";
 import { HR, HR_ROLE, HR_VERSIONS, hrState, refusalCode } from "./integrations/hr/contract.js";
+import { withoutEmail } from "./matching.js";
 import { workspaceLanguage } from "./people.js";
 import { isTokenGone, refusalOf, SlackError, slack, slackCall, textOf } from "./slack/api.js";
 import { appManifest, appNamesOf, authorizeUrlOf, digestOf } from "./slack/manifest.js";
@@ -602,8 +604,67 @@ async function connectionView(
   };
 }
 
+/** The first step of setting up that is not done, in the order they are done. */
+function nextStep(facts: {
+  readonly address: boolean;
+  readonly token: boolean;
+  readonly made: boolean;
+  readonly connected: boolean;
+  readonly hrRoleMissing: boolean;
+  readonly noEmail: number;
+  readonly routes: number;
+}): NextStep {
+  if (!facts.address) {
+    return "address";
+  }
+  if (!facts.token) {
+    return "config_token";
+  }
+  if (!facts.made) {
+    return "app";
+  }
+  if (!facts.connected) {
+    return "install";
+  }
+  if (facts.hrRoleMissing) {
+    return "hr_role";
+  }
+  if (facts.noEmail > 0) {
+    return "no_email";
+  }
+  return facts.routes === 0 ? "no_route" : "ready";
+}
+
+/** The line that says the next step, in the caller's language. */
+function nextText(
+  ctx: PluginContext,
+  step: NextStep,
+  noEmail: number,
+  shortcut: string | null,
+): string {
+  const words = serverWords(ctx.language).next;
+  switch (step) {
+    case "address":
+      return words.address;
+    case "config_token":
+      return words.configToken;
+    case "app":
+      return words.app;
+    case "install":
+      return words.install;
+    case "hr_role":
+      return words.hrRole;
+    case "no_email":
+      return words.noEmail(String(noEmail));
+    case "no_route":
+      return words.noRoute;
+    default:
+      return words.ready(shortcut);
+  }
+}
+
 export const status = defineQuery({
-  about: "How the connection to Slack stands: the address, the secrets, the app, HR.",
+  about: "How the connection to Slack stands, and the next thing to do to set it up.",
   roles: [ROLE],
   async run(ctx): Promise<StatusReport> {
     requireRole(ctx);
@@ -635,7 +696,29 @@ export const status = defineQuery({
       },
       count: true,
     });
+    const secrets = await secretsOf(ctx);
+    const granted = ctx.plugin.grants
+      .filter((grant) => grant.plugin === HR)
+      .map((grant) => grant.role);
+    const noEmail = await withoutEmail(ctx).catch(() => 0);
+    const routeTotal = routeCount[0]?.count ?? 0;
+    const next = nextStep({
+      address: addressState(workspace.url) === "ok",
+      token: secrets.slackConfigToken.set,
+      made: connection !== null && connection.data.appId !== null,
+      connected: isConnected(connection),
+      hrRoleMissing: hr.state === "on" && !granted.includes(HR_ROLE),
+      noEmail,
+      routes: routeTotal,
+    });
+    const shortcut =
+      connection !== null && connection.data.shortcut
+        ? serverWords(connection.data.language).app.shortcutName
+        : null;
     return {
+      next,
+      text: nextText(ctx, next, noEmail, shortcut),
+      noEmail,
       address: { url: workspace.url, state: addressState(workspace.url) },
       workspaceLanguage: workspace.languageSet ? languageOf(workspace.language) : null,
       defaultNames: Object.fromEntries(
@@ -644,19 +727,17 @@ export const status = defineQuery({
           return [language, { app: names.app, bot: names.bot }];
         }),
       ) as StatusReport["defaultNames"],
-      secrets: await secretsOf(ctx),
+      secrets,
       connection: connection === null ? null : await connectionView(ctx, connection),
       authorizeUrl,
       hr: {
         state: hr.state,
         version: hr.version,
         range: HR_VERSIONS,
-        granted: ctx.plugin.grants
-          .filter((grant) => grant.plugin === HR)
-          .map((grant) => grant.role),
+        granted,
         asked: [HR_ROLE],
       },
-      routes: routeCount[0]?.count ?? 0,
+      routes: routeTotal,
       failures: failed[0]?.count ?? 0,
     };
   },

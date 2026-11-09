@@ -151,6 +151,13 @@ function active(person: RestPerson): boolean {
   return person.status === "active";
 }
 
+/** How many of the workspace's people the console knows no email for, whom nobody can match. */
+export async function withoutEmail(ctx: PluginContext): Promise<number> {
+  return (await ctx.console.people.list())
+    .filter(active)
+    .filter((person) => (person.email?.trim() ?? "").length === 0).length;
+}
+
 /** Matches everyone the caller sees; answers how many have an account and how many have none. */
 export async function matchEveryone(
   ctx: PluginContext,

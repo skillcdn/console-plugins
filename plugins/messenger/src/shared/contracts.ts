@@ -90,7 +90,28 @@ export interface ConnectionView {
   readonly rotatedAt: string | null;
 }
 
+/**
+ * What is left to set up, the first in this order: a public address, the configuration token, the
+ * app, its installation, HR's role for the messenger, people with no email, a route; else `ready`.
+ */
+export const NEXT_STEPS = [
+  "address",
+  "config_token",
+  "app",
+  "install",
+  "hr_role",
+  "no_email",
+  "no_route",
+  "ready",
+] as const;
+export type NextStep = (typeof NEXT_STEPS)[number];
+
 export interface StatusReport {
+  /** The next thing to do, and a line saying it in the caller's language. */
+  readonly next: NextStep;
+  readonly text: string;
+  /** The people the console knows no email for, whom no account can be matched to. */
+  readonly noEmail: number;
   readonly address: { readonly url: string | null; readonly state: AddressState };
   /**
    * The workspace's language where an administrator set one, else null: what the app and a route

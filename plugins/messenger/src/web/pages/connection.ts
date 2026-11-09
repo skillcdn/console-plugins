@@ -58,6 +58,9 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
   const connected = connection?.phase === "connected";
   const parts: HTMLElement[] = [pageHead(w.title, w.lead)];
 
+  // What is left to set up, the line `status` says to an agent too.
+  parts.push(callout(status.next === "ready" ? w.ready : w.next, status.text));
+
   if (connection?.problem !== null && connection?.problem !== undefined) {
     parts.push(
       callout(w.problem, `${connection.problem} (${when(connection.problemAt)})`, "warning"),

@@ -23,6 +23,8 @@ export interface Words {
   readonly connection: {
     readonly title: string;
     readonly lead: string;
+    readonly next: string;
+    readonly ready: string;
     readonly problem: string;
     readonly steps: string;
     readonly address: string;
@@ -154,6 +156,8 @@ const EN: Words = {
   connection: {
     title: "Slack",
     lead: "The workspace's Slack, connected through an app the console makes and keeps.",
+    next: "Next",
+    ready: "Ready",
     problem: "Something went wrong",
     steps: "Getting connected",
     address: "The console's address",
@@ -379,6 +383,8 @@ const KO: Words = {
   connection: {
     title: "Slack",
     lead: "콘솔이 만들고 관리하는 앱으로 워크스페이스의 Slack을 연결합니다.",
+    next: "다음 할 일",
+    ready: "준비 완료",
     problem: "문제가 생겼습니다",
     steps: "연결하기",
     address: "콘솔 주소",

@@ -56,6 +56,17 @@ export interface ServerWords {
     readonly routeSaved: (id: string, channel: string) => string;
     readonly routeRemoved: (id: string) => string;
   };
+  /** What `status` says is left to set up, a line for each step. */
+  readonly next: {
+    readonly address: string;
+    readonly configToken: string;
+    readonly app: string;
+    readonly install: string;
+    readonly hrRole: string;
+    readonly noEmail: (count: string) => string;
+    readonly noRoute: string;
+    readonly ready: (shortcut: string | null) => string;
+  };
   readonly app: {
     readonly name: string;
     readonly botName: string;
@@ -217,6 +228,23 @@ const EN: ServerWords = {
     notMatchedOne: (name) => `${name} has no Slack account with their email.`,
     routeSaved: (id, channel) => `Route ${id} sends it to #${channel}.`,
     routeRemoved: (id) => `Route ${id} is removed.`,
+  },
+  next: {
+    address:
+      "Slack cannot reach this console: the deployment gives it a public https address (PUBLIC_URL) first.",
+    configToken:
+      "An administrator puts the app configuration token and its refresh token, made at api.slack.com/apps under Your App Configuration Tokens, on the plugin's settings page or with `console plugin messenger secret slackConfigToken` and `slackConfigRefreshToken` at their own terminal.",
+    app: "Make the app, on the Connection page or with `connect`, its names and icon chosen then.",
+    install:
+      "Someone who may install apps in the Slack workspace opens the address `connect` gives, within fifteen minutes, in the browser they are signed in to the console with, and approves.",
+    hrRole:
+      "Grant HR's role `hr` to the messenger on the plugin's settings page: until then the shortcut works and no thread is begun.",
+    noEmail: (count) =>
+      `${count} people have no email in the console, so no Slack account is matched to them: an administrator writes one with \`console person email <login> <address>\` (\`people --state no_email\`).`,
+    noRoute:
+      "No channel is told of approved leave yet: choose one on the Routes page or with `route <channel>`.",
+    ready: (shortcut) =>
+      shortcut === null ? "Ready." : `Ready: people use the shortcut "${shortcut}" in Slack.`,
   },
   app: {
     name: "Console",
@@ -395,6 +423,25 @@ const KO: ServerWords = {
     notMatchedOne: (name) => `${name} 님의 이메일로 된 Slack 계정이 없습니다.`,
     routeSaved: (id, channel) => `경로 ${id}: #${channel}(으)로 보냅니다.`,
     routeRemoved: (id) => `경로 ${id}를 지웠습니다.`,
+  },
+  next: {
+    address:
+      "Slack이 이 콘솔에 닿을 수 없습니다. 배포에서 먼저 공개 https 주소(PUBLIC_URL)를 정해야 합니다.",
+    configToken:
+      "관리자가 앱 설정 토큰과 갱신 토큰을 넣어야 합니다. api.slack.com/apps의 Your App Configuration Tokens에서 만들어, 플러그인 설정 페이지나 자기 터미널의 `console plugin messenger secret slackConfigToken`과 `slackConfigRefreshToken`으로 넣습니다.",
+    app: "연결 페이지나 `connect`로 앱을 만드세요. 앱 이름, 봇 이름, 아이콘은 그때 정합니다.",
+    install:
+      "워크스페이스에 앱을 설치할 수 있는 사람이 `connect`가 주는 주소를 15분 안에, 콘솔에 로그인한 브라우저에서 열어 승인해야 합니다.",
+    hrRole:
+      "플러그인 설정 페이지에서 HR의 역할 `hr`을 메신저에 부여하세요. 그 전에는 단축키는 되지만 결재 스레드가 시작되지 않습니다.",
+    noEmail: (count) =>
+      `콘솔에 이메일이 없는 사람이 ${count}명이라 Slack 계정과 연결되지 않습니다. 관리자가 \`console person email <login> <address>\`로 적으세요(\`people --state no_email\`).`,
+    noRoute:
+      "승인된 휴가를 알릴 채널이 아직 없습니다. 채널 알림 페이지나 `route <channel>`로 정하세요.",
+    ready: (shortcut) =>
+      shortcut === null
+        ? "준비되었습니다."
+        : `준비되었습니다. Slack에서 "${shortcut}" 단축키를 쓸 수 있습니다.`,
   },
   app: {
     name: "콘솔",

@@ -22,6 +22,7 @@ import {
   connected,
   fakeHr,
   fakeSlack,
+  HANA,
   JIHYE,
   KEEPER_KO,
   linked,
@@ -554,6 +555,42 @@ describe("status", () => {
       granted: ["hr"],
       asked: ["hr"],
     });
+  });
+
+  it("says the next thing to do, a step at a time, in the caller's language", async () => {
+    const nextOf = async (ctx: TestContext) => (await status.run(ctx, {})) as StatusReport;
+    expect((await nextOf(setup({ url: null }).ctx)).next).toBe("address");
+    expect((await nextOf(setup({ secrets: {} }).ctx)).next).toBe("config_token");
+    const fresh = await nextOf(setup({ caller: KEEPER_KO }).ctx);
+    expect(fresh.next).toBe("app");
+    expect(fresh.text).toContain("앱을 만드세요");
+    const made = setup({ slack: fakeSlack(created) });
+    await connect.run(made.ctx, {});
+    const install = await nextOf(made.ctx);
+    expect(install.next).toBe("install");
+    expect(install.text).toContain("fifteen minutes");
+    const ungranted = setup({ grants: [] });
+    await connected(ungranted.ctx);
+    expect((await nextOf(ungranted.ctx)).next).toBe("hr_role");
+    // Octo has no email in the console.
+    const mailless = setup();
+    await connected(mailless.ctx);
+    const noEmail = await nextOf(mailless.ctx);
+    expect(noEmail).toMatchObject({ next: "no_email", noEmail: 1 });
+    expect(noEmail.text).toContain("console person email");
+    const everyone = setup({ people: [MINSU, JIHYE, HANA] });
+    await connected(everyone.ctx);
+    expect((await nextOf(everyone.ctx)).next).toBe("no_route");
+    await everyone.ctx.records("routes").create({
+      kind: "hr:leave-approved",
+      channelId: "C0GENERAL",
+      channelName: "general",
+      language: "ko",
+      as: "person",
+    });
+    const ready = await nextOf(everyone.ctx);
+    expect(ready).toMatchObject({ next: "ready", noEmail: 0 });
+    expect(ready.text).toBe('Ready: people use the shortcut "휴가" in Slack.');
   });
 
   it("says HR is out of reach, in another version, or not granted", async () => {
