@@ -41,6 +41,7 @@ plugins/
 docs/           repository.md (the shape), roadmap.md, adr/ (decisions), guide/ (adding a plugin, conventions, a local console, releasing); served with the plugins' skills
 scripts/        the checks that are part of pnpm check, what packing needs (the license), the plugins directory for a console on this machine
 SKILLCDN.md     what SkillCDN serves of this repository, the documents and every plugin's skills, and the rules for every skill
+PRODUCT.md      who the plugins' pages are for and what they must not break, read by a design session (with .impeccable/config.json)
 ```
 
 Dependencies point one way: a plugin depends on `@skillcdn/console` and its tools, as devDependencies, and on nothing of another plugin. There is no shared package yet; when two plugins need the same code it becomes `packages/<name>`, a workspace bundled into each plugin by its build, added to `pnpm-workspace.yaml` with an ADR. Each plugin's `README.md` carries its design; read it before editing there.
@@ -105,6 +106,7 @@ Documentation is part of the change, not a follow-up. A future session starts wi
 | A plugin added, started, finished or dropped | `docs/roadmap.md`; the table in the root `README.md`; `SKILLCDN.md` where what is served changes |
 | A convention every plugin follows | `docs/guide/conventions.md`; `scripts/check-plugins.mjs` where the rule is mechanical; `plugins/hello` where the example should show it |
 | How a plugin is added, run on a local console or released | The page of `docs/guide/` that says so |
+| Who the pages are for, or what a frame allows them | `PRODUCT.md` |
 | The shape of the repository: workspaces, what is shared, the checks | `docs/repository.md`; the repository map above; an ADR |
 | A decision future contributors might reasonably undo | New ADR in `docs/adr/` (never edit an accepted ADR; supersede it) |
 | Build, CI or the release workflow | `docs/guide/releasing.md`; the workflow's own comments |
