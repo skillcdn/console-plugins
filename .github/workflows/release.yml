@@ -4,9 +4,11 @@ name: Release
 # or updates the pull request that bumps the versions and the changelogs. Once that is merged and
 # nothing is pending, it publishes every version the registry does not have yet, through the
 # registry's trusted publishing: no stored token, a short-lived identity the publish job proves,
-# and a provenance attestation on every published version. A new plugin is published once by a
-# maintainer at 0.0.0, so that its trusted publisher can be named, and its first version is this
-# workflow's (docs/adr/0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md).
+# and a provenance attestation on every published version. A new plugin is published once at
+# 0.0.0, so that its trusted publisher can be named, and its first version is this workflow's
+# (docs/adr/0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md);
+# an agent runs that first publish on a maintainer's machine, the maintainer signing it
+# (docs/adr/0012-an-agent-runs-a-plugins-first-publish-and-the-maintainer-gives-only-what-proves-who-they-are.md).
 
 on:
   push:

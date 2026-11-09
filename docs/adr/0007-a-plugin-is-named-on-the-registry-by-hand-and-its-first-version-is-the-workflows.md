@@ -1,6 +1,6 @@
 # ADR-0007: A plugin is named on the registry by hand, and its first version is the workflow's
 
-- Status: Accepted
+- Status: Accepted; who publishes `0.0.0` (point 1) and who names the publisher superseded by [ADR-0012](0012-an-agent-runs-a-plugins-first-publish-and-the-maintainer-gives-only-what-proves-who-they-are.md)
 - Date: 2026-11-08
 - Supersedes the first publish of point 2 of [ADR-0002](0002-one-package-per-plugin-published-to-the-registry-under-one-scope-and-versioned-on-its-own.md) and who publishes the first version in point 4 of [ADR-0006](0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md); the rest of both stands. The procedure is [guide/releasing.md](../guide/releasing.md).
 

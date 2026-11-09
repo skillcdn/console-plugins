@@ -16,10 +16,11 @@ On every push to `main`, the release workflow (`.github/workflows/release.yml`) 
 
 ## The first version of a plugin
 
-The registry names a trusted publisher only on a package that exists, and a publisher named there expires unless it publishes within two days. So a maintainer makes the package exist, once, and the workflow publishes the first version ([ADR-0007](../adr/0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md)). The maintainer is signed in to the registry as a member of the organization who may publish, with `npm login`, run outside this repository, where `npm` refuses to run; pnpm reads the same login.
+The registry names a trusted publisher only on a package that exists, and a publisher named there expires unless it publishes within two days. So the package is made to exist, once, and the workflow publishes the first version ([ADR-0007](../adr/0007-a-plugin-is-named-on-the-registry-by-hand-and-its-first-version-is-the-workflows.md)). An agent runs each step below from a maintainer's machine. The maintainer is a member of the organization who may publish, and gives only what proves who they are: the registry's sign-in in the browser, and each write's one-time code, typed into a terminal window the agent opens for it so that the code never passes through the agent ([ADR-0012](../adr/0012-an-agent-runs-a-plugins-first-publish-and-the-maintainer-gives-only-what-proves-who-they-are.md)). `npm` refuses to run inside this repository, so its commands run from a directory outside it, with an npm recent enough to have `npm trust`.
 
 1. In one change, the plugin's `package.json` loses `private: true` and gains `publishConfig: { "access": "public" }` (which `pnpm check` holds). Its version stays `0.0.0`, as the adaptation of the template set it, and its pending `minor` changeset, the one that says what the plugin does, lands it on `0.1.0`: no number is chosen by hand. Pushed to `main`, it makes the workflow open the version pull request.
-2. From a clean `main`, up to date with the remote, the package is packed here and published from outside this repository, where `npm` runs and asks for the one-time code in the terminal:
+2. The agent signs in to the registry with `npm login --auth-type=web` and opens the address it prints. The maintainer finishes the sign-in there. pnpm reads the same login.
+3. From a clean `main`, up to date with the remote, the agent packs the package here and publishes it from outside this repository. The publish asks for the one-time code, so the agent runs it in a terminal window of its own, and the maintainer types the code there:
 
    ```sh
    pnpm turbo run build --filter @skillcdn/console-plugin-<key>
@@ -29,9 +30,14 @@ The registry names a trusted publisher only on a package that exists, and a publ
 
    The registry may keep a stub of its own beside it, `0.0.0-stage`, which is harmless.
 
-3. On the registry, the package's settings name its trusted publisher: GitHub Actions, the organization `skillcdn`, the repository `console-plugins`, the workflow `release.yml`, no environment. The registry checks nothing when it is saved: the first publish is what proves it.
-4. The version pull request is merged, the same day. The workflow publishes `0.1.0` with provenance, a tag and a GitHub release, and from then on every version is the workflow's. Where the publisher had expired, it is deleted and named again, and the failed job run again.
-5. The placeholders are deprecated, outside this repository too: `npm deprecate "@skillcdn/console-plugin-<key>@<0.1.0" "A placeholder that named the package; use 0.1.0 or later."`
+4. The agent names the package's trusted publisher: GitHub Actions, the organization `skillcdn`, the repository `console-plugins`, the workflow `release.yml`, no environment. It needs one more code, typed in a window as before. The registry checks nothing when the publisher is saved: the first publish is what proves it. `npm trust list` shows it.
+
+   ```sh
+   npm trust github @skillcdn/console-plugin-<key> --repository skillcdn/console-plugins --file release.yml --allow-publish --allow-stage-publish --yes
+   ```
+
+5. The version pull request is merged, the same day. The workflow publishes `0.1.0` with provenance, a tag and a GitHub release, and from then on every version is the workflow's. Where the publisher had expired, it is deleted and named again, and the failed job run again.
+6. The agent deprecates the placeholders, outside this repository too, with one more code: `npm deprecate "@skillcdn/console-plugin-<key>@<0.1.0" "A placeholder that named the package; use 0.1.0 or later."`
 
 A fork repeats this under its own scope and repository.
 
