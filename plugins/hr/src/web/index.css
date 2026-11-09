@@ -1552,12 +1552,17 @@
   color: var(--sc-color-success);
 }
 
-/* Widgets: they fill the cells the console gives them, and lay out for the size they are told. */
+/* Widgets: laid out by the room the frame has, whatever cells and size the console gave it. The
+   root is the frame's viewport and a size container. Its shape (pages/widgets.ts) places the three
+   parts: the lead, the body under it and the foot at the bottom; the lead and the foot in a column
+   beside the body when the room is wide; the lead alone when it is small. Type and gaps follow the
+   room; a list keeps the rows that fit, each whole. */
 
 .pl-hr-widget {
+  container: pl-hr-widget / size;
   display: flex;
   flex-direction: column;
-  gap: var(--sc-space-2);
+  gap: clamp(var(--sc-space-2), 4cqh, var(--sc-space-4));
   height: 100vh;
   overflow: hidden;
   color: var(--sc-color-text);
@@ -1565,36 +1570,95 @@
   font-size: var(--sc-text-sm);
 }
 
+.pl-hr-widget-lead {
+  display: grid;
+  flex: none;
+  align-content: start;
+  gap: var(--sc-space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.pl-hr-widget-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pl-hr-widget-foot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2);
+  min-width: 0;
+  margin-top: auto;
+}
+
+/* Small: the lead alone, filling the box, its last line at the bottom. */
+.pl-hr-widget-compact .pl-hr-widget-body,
+.pl-hr-widget-compact .pl-hr-widget-foot {
+  display: none;
+}
+
+.pl-hr-widget-compact .pl-hr-widget-lead {
+  flex: 1 1 0;
+  align-content: space-between;
+}
+
+/* Wide: the lead over the foot in a column of their own, the body beside them, full height. */
+.pl-hr-widget-wide:has(> .pl-hr-widget-body) {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, clamp(9rem, 32cqw, 20rem)) minmax(0, 1fr);
+  grid-template-areas:
+    "lead body"
+    "foot body";
+  gap: var(--sc-space-3) clamp(var(--sc-space-4), 4cqw, var(--sc-space-7));
+}
+
+.pl-hr-widget-wide:has(> .pl-hr-widget-body) > .pl-hr-widget-lead {
+  grid-area: lead;
+}
+
+.pl-hr-widget-wide:has(> .pl-hr-widget-body) > .pl-hr-widget-body {
+  grid-area: body;
+}
+
+.pl-hr-widget-wide:has(> .pl-hr-widget-body) > .pl-hr-widget-foot {
+  grid-area: foot;
+  margin-top: 0;
+}
+
+/* The lead with nothing under it takes the box. */
+.pl-hr-widget:not(:has(> .pl-hr-widget-body)) > .pl-hr-widget-lead {
+  flex: 1 1 0;
+}
+
 .pl-hr-widget .pl-hr-meter {
   flex: none;
 }
 
-.pl-hr-widget-foot {
-  display: grid;
-  gap: var(--sc-space-2);
-  margin-top: auto;
-}
-
-.pl-hr-widget-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sc-space-2);
-}
-
+/* A figure at a glance: as large as the room allows, never more than a display size. */
 .pl-hr-widget-figure {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--sc-space-1);
+  gap: 0 var(--sc-space-2);
   min-width: 0;
+  margin: 0;
 }
 
 .pl-hr-widget-value {
-  font-size: clamp(2.25rem, 24vh, 3.5rem);
+  font-size: clamp(1.75rem, min(14cqw, 20cqh), 3.5rem);
   font-weight: var(--sc-weight-bold);
   letter-spacing: var(--sc-tracking-tight);
   font-feature-settings: var(--sc-numeric);
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .pl-hr-widget-unit {
@@ -1603,31 +1667,56 @@
 }
 
 .pl-hr-widget-line {
+  margin: 0;
   font-size: var(--sc-text-xs);
+  line-height: var(--sc-leading-snug);
 }
 
 .pl-hr-widget-facts {
   display: grid;
+  flex: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sc-space-2);
   margin: 0;
 }
 
 .pl-hr-widget-facts dt {
+  overflow: hidden;
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pl-hr-widget-facts dd {
   margin: 0;
+  font-size: var(--sc-text-md);
   font-weight: var(--sc-weight-medium);
   font-feature-settings: var(--sc-numeric);
 }
 
-.pl-hr-widget-rows {
-  display: grid;
+/* A section of the body is as tall as the rows it shows: the page (fitBody) keeps the rows the
+   body has room for, then the sections, each whole. */
+.pl-hr-widget-section {
+  display: flex;
+  flex: none;
+  flex-direction: column;
   gap: var(--sc-space-1);
-  min-height: 0;
+}
+
+.pl-hr-widget-section-title {
+  flex: none;
+  margin: 0;
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-medium);
+}
+
+/* The rows: one height each, a hairline between, as many as the list has room for. */
+.pl-hr-widget-rows {
+  display: flex;
+  flex: none;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1635,25 +1724,22 @@
 
 .pl-hr-widget-row {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--sc-space-2);
   min-width: 0;
-  font-size: var(--sc-text-xs);
+  min-height: 2.25rem;
+  font-size: var(--sc-text-sm);
+}
+
+.pl-hr-widget-row + .pl-hr-widget-row {
+  border-top: var(--sc-hairline);
 }
 
 .pl-hr-widget-row > .pl-hr-who {
   flex: 1;
-}
-
-.pl-hr-widget-medium .pl-hr-widget-rows,
-.pl-hr-widget-large .pl-hr-widget-rows {
-  gap: var(--sc-space-2);
-}
-
-.pl-hr-widget-medium .pl-hr-widget-row,
-.pl-hr-widget-large .pl-hr-widget-row {
-  font-size: var(--sc-text-sm);
+  min-width: 0;
 }
 
 .pl-hr-widget-row-main {
@@ -1671,6 +1757,8 @@
 }
 
 .pl-hr-widget-more {
+  flex: none;
+  padding-top: var(--sc-space-1);
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
 }
@@ -1681,7 +1769,8 @@
   align-items: center;
   gap: var(--sc-space-2);
   min-width: 0;
-  padding: 2px 0;
+  min-height: 2.25rem;
+  padding: 0;
   border: 0;
   background: none;
   color: inherit;
@@ -1689,20 +1778,39 @@
   cursor: pointer;
 }
 
+.pl-hr-widget-open:hover .pl-hr-widget-row-main {
+  color: var(--sc-color-accent);
+}
+
+.pl-hr-widget-open:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: 2px;
+}
+
 .pl-hr-widget .pl-hr-widget-action {
   flex: none;
 }
 
-.pl-hr-widget .pl-hr-eyebrow {
-  margin-top: var(--sc-space-1);
+/* Low rooms: closer together, the quieter lines left out first. */
+@container pl-hr-widget (height < 13rem) {
+  .pl-hr-widget-facts {
+    display: none;
+  }
+}
+
+@container pl-hr-widget (height < 9rem) {
+  .pl-hr-widget-lead .pl-hr-widget-line {
+    display: none;
+  }
 }
 
 .pl-hr-week-strip {
   display: grid;
+  flex: 1 1 0;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   gap: var(--sc-space-1);
-  height: 100%;
+  min-height: 0;
 }
 
 .pl-hr-week-day {
@@ -1837,7 +1945,7 @@
 }
 
 .pl-hr-ann-card:focus-visible,
-.pl-hr-widget-lead:focus-visible {
+.pl-hr-widget-feature:focus-visible {
   outline: var(--sc-focus-ring);
   outline-offset: 2px;
 }
@@ -2153,12 +2261,13 @@
   margin: 0;
 }
 
-/* Announcements on the front page. */
+/* Announcements on the front page: the latest as a feature, its picture where the room has one,
+   the others as rows under it, or beside it when the room is wide. */
 
-.pl-hr-widget-lead {
+.pl-hr-widget-feature {
   display: flex;
   flex-direction: column;
-  gap: var(--sc-space-2);
+  gap: var(--sc-space-3);
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -2172,121 +2281,85 @@
   cursor: pointer;
 }
 
-.pl-hr-widget-lead-picture {
+.pl-hr-widget:not(:has(> .pl-hr-widget-body)) .pl-hr-widget-feature,
+.pl-hr-widget-wide .pl-hr-widget-feature {
   flex: 1 1 0;
+}
+
+.pl-hr-widget-feature-picture {
+  flex: 0 1 auto;
   width: 100%;
-  min-width: 0;
   min-height: 0;
+  max-height: 42cqh;
+  aspect-ratio: 16 / 9;
   border-radius: var(--sc-radius-md);
   object-fit: cover;
 }
 
-.pl-hr-widget-lead-text {
+/* Alone, or beside the rows, a picture takes what the words leave. */
+.pl-hr-widget:not(:has(> .pl-hr-widget-body)) .pl-hr-widget-feature-picture,
+.pl-hr-widget-wide .pl-hr-widget-feature-picture {
+  flex: 1 1 0;
+  max-height: none;
+  aspect-ratio: auto;
+}
+
+.pl-hr-widget-feature-text {
   display: grid;
   flex: none;
   gap: var(--sc-space-1);
   min-width: 0;
 }
 
-.pl-hr-widget-lead-title {
+.pl-hr-widget-feature-title {
   display: -webkit-box;
   overflow: hidden;
-  font-size: var(--sc-text-md);
+  font-size: clamp(var(--sc-text-md), 3.2cqw, var(--sc-text-xl));
   font-weight: var(--sc-weight-bold);
   line-height: var(--sc-leading-snug);
+  text-wrap: balance;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
 
-.pl-hr-widget-small .pl-hr-widget-lead-title {
+.pl-hr-widget-compact .pl-hr-widget-feature-title {
+  font-size: var(--sc-text-md);
   -webkit-line-clamp: 3;
   line-clamp: 3;
 }
 
-.pl-hr-widget-lead-excerpt {
+/* In the smallest boxes the title is the announcement: two lines of it, its day left out. */
+@container pl-hr-widget (height < 8rem) {
+  .pl-hr-widget-feature .pl-hr-ann-meta {
+    display: none;
+  }
+
+  .pl-hr-widget-compact .pl-hr-widget-feature-title {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+}
+
+.pl-hr-widget-feature:hover .pl-hr-widget-feature-title {
+  color: var(--sc-color-accent);
+}
+
+.pl-hr-widget-feature-excerpt {
   display: -webkit-box;
   overflow: hidden;
   color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
+  font-size: var(--sc-text-sm);
   line-height: var(--sc-leading-snug);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
 
-.pl-hr-widget-small .pl-hr-widget-lead,
-.pl-hr-widget-large .pl-hr-widget-lead {
-  flex: 1 1 0;
-}
-
-.pl-hr-widget-split {
-  display: grid;
-  flex: 1;
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sc-space-5);
-  align-items: stretch;
-  min-height: 0;
-}
-
-.pl-hr-widget-split .pl-hr-widget-lead {
-  flex-direction: row;
-  gap: var(--sc-space-3);
-}
-
-.pl-hr-widget-split .pl-hr-widget-lead-picture {
-  flex: 0 0 38%;
-  height: 100%;
-}
-
-.pl-hr-widget-split .pl-hr-widget-lead-text {
-  flex: 1;
-  align-content: start;
-}
-
-/* With rows under it, a picture keeps a band of 5:2, the rows take the room, and it takes what is left. */
-.pl-hr-widget-large .pl-hr-widget-lead:not(:last-child) {
-  flex: none;
-}
-
-.pl-hr-widget-large .pl-hr-widget-lead:not(:last-child):has(.pl-hr-widget-lead-picture) {
-  flex: 1 0 auto;
-}
-
-.pl-hr-widget-large .pl-hr-widget-lead:not(:last-child) .pl-hr-widget-lead-picture {
-  min-height: 40vw;
-}
-
-/* One height, as many as the tile has room for: keepWhatFits in the page hides the rest. */
-.pl-hr-widget .pl-hr-ann-rows {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 0;
-  overflow: hidden;
-}
-
-.pl-hr-ann-rows .pl-hr-widget-row {
-  flex: none;
-  height: 1.875rem;
-  font-size: var(--sc-text-sm);
-}
-
-.pl-hr-ann-rows .pl-hr-widget-row[hidden] {
-  display: none;
-}
-
-.pl-hr-ann-rows .pl-hr-widget-open {
-  padding: 0;
-}
-
-.pl-hr-ann-rows .pl-hr-widget-open:hover .pl-hr-widget-row-main {
-  color: var(--sc-color-accent);
-}
-
-.pl-hr-widget-large .pl-hr-widget-lead:has(.pl-hr-widget-lead-picture) + .pl-hr-ann-rows {
-  flex: 0 1 auto;
+@container pl-hr-widget (height < 16rem) {
+  .pl-hr-widget-feature-excerpt {
+    display: none;
+  }
 }
 
 .pl-hr-rows-open {
