@@ -46,7 +46,7 @@ A delivery is at least once: each hook keeps the event's id in `deliveries` and 
 | `outbound:hooks.slack.com` | Answers the person who pressed a button, through the address Slack gave that press. |
 | `plugins:hr`, optional | Reads HR's kinds of leave and a person's balance, and requests leave for the person who used the form; with HR's role `hr` granted to it (the manifest's `grants`), reads each request whole, its line and its reason, for its thread. |
 
-**HR, as the messenger reads it.** The module `src/server/integrations/hr/` is written against HR's contract ([plugins/hr/README.md](../hr/README.md), "The contract") for the versions `>=0.2.0 <0.3.0`, and leaves any other version alone, saying so on the Connection page. It hears the eight leave events, calls `request-view` as itself and `types`, `balance` and `request` for a person, and answers HR's decisions with the option keys `approve` and `reject`.
+**HR, as the messenger reads it.** The module `src/server/integrations/hr/` is written against HR's contract ([plugins/hr/README.md](../hr/README.md), "The contract") for the versions `>=0.2.0 <0.4.0`, and leaves any other version alone, saying so on the Connection page. It hears the eight leave events, calls `request-view` as itself and `types`, `balance` and `request` for a person, and answers HR's decisions with the option keys `approve` and `reject`.
 
 **Board.** None: the messenger raises no decision and writes no task.
 

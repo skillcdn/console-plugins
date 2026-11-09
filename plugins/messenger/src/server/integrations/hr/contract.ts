@@ -13,8 +13,11 @@ import {
 import type { HrState } from "../../../shared/contracts.js";
 
 export const HR = "hr";
-/** The versions of HR whose contract this module reads (ADR-0010). */
-export const HR_VERSIONS = ">=0.2.0 <0.3.0";
+/**
+ * The versions of HR whose contract this module reads (ADR-0010): 0.3.0 changed how HR cancels
+ * approved leave, kept its events and option keys and only added to its api, so it is read as 0.2.
+ */
+export const HR_VERSIONS = ">=0.2.0 <0.4.0";
 /** The role the messenger asks of HR, to read a request whole for its thread. */
 export const HR_ROLE = "hr";
 export const HR_CAPABILITY = `plugins:${HR}`;
