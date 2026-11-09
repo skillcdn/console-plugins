@@ -1,12 +1,11 @@
-// Setup, how the organization works: the working days as a pill each, how requests are held, who
-// sees what, and the words shown above the request form. One form, one `configure`.
+// Setup, how the organization works: the working days as a pill each, how far back a request may
+// start, who sees what; and, read from the console, the time zone and the language written to
+// whoever has none. How approved leave is cancelled is each kind's, under Leave types.
 import {
   BALANCE_VISIBILITIES,
   type BalanceVisibility,
   CALENDAR_VISIBILITIES,
-  CANCELLATIONS,
   type CalendarVisibility,
-  type Cancellation,
   type ConfigReport,
   HOLIDAY_CALENDARS,
   type HolidayCalendar,
@@ -19,8 +18,8 @@ import {
   errorBlock,
   form,
   input,
+  muted,
   onSubmit,
-  optionCards,
   optionsOf,
   panel,
   pills,
@@ -47,11 +46,6 @@ function generalForm(report: ConfigReport, view: SetupView): HTMLElement[] {
     optionsOf(HOLIDAY_CALENDARS, words.holidayCalendar),
     config.holidayCalendar,
     words.holidayCalendarLabel,
-  );
-  const cancellation = optionCards<Cancellation>(
-    optionsOf(CANCELLATIONS, words.cancellation, words.cancellationHint),
-    config.cancellation,
-    words.cancellationLabel,
   );
   const backdating = input("number", {
     value: String(config.backdatingDays),
@@ -86,6 +80,17 @@ function generalForm(report: ConfigReport, view: SetupView): HTMLElement[] {
     settingRow(words.workDaysLabel, words.workDaysHint, workDays.node),
     settingRow(words.holidayCalendarLabel, words.holidayCalendarHint, holidayCalendar.node),
     settingRow(words.timeZoneLabel, words.timeZoneHint, el("p", "", report.timeZone)),
+    settingRow(
+      words.languageLabel,
+      words.languageHint,
+      el(
+        "p",
+        "",
+        report.languageSet
+          ? words.languageName(report.language)
+          : words.languageUnset(words.languageName(report.language)),
+      ),
+    ),
     actions(workSubmit),
     workStatus,
   );
@@ -100,15 +105,14 @@ function generalForm(report: ConfigReport, view: SetupView): HTMLElement[] {
   const holdSubmit = submitButton(words.save);
   const holdStatus = statusLine();
   const holdForm = form(
-    settingRow(words.cancellationLabel, words.cancellationIntro, cancellation.node),
     settingRow(words.backdatingLabel, words.backdatingHint, backdating),
+    muted(words.cancellingMoved),
     actions(holdSubmit),
     holdStatus,
   );
   onSubmit(
     holdForm,
     send(holdSubmit, holdStatus, () => ({
-      cancellation: cancellation.value(),
       "backdating-days": Number(backdating.value),
     })),
   );

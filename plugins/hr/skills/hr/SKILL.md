@@ -25,9 +25,9 @@ The plugin keeps the workspace's leave as records of the console. You act as the
 | Request leave: a day or a span. `--type` from `types`, `annual` unless said; `--part` `am`, `pm` or `q1` to `q4` where the kind allows; `--reason` where it asks | `console plugin hr request <from> [<to>] [--type <key>] [--part <part>] [--reason <words>]` |
 | The person's requests, newest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>]` |
 | One request in full: where it stands on its line, whom it waits for now | `console plugin hr request-view <id>` |
-| Cancel a request of theirs: one waiting at once, one approved as HR has it | `console plugin hr cancel <id> [--reason <words>]` |
+| Cancel a request of theirs: one waiting at once, one approved as its kind's rule says. `request-view <id>` says first what it comes to, as `cancellation`: `now`, `decision` (with `cancelDeciders`, who is asked), or `null` where only HR may now | `console plugin hr cancel <id> [--reason <words>]` |
 | Who is out, up to three months at a time | `console plugin hr calendar [--from <day>] [--to <day>]` |
-| The kinds of leave; the holidays of a year | `console plugin hr types`, `console plugin hr holidays [--year <n>]` |
+| The kinds of leave, each with how it is requested and cancelled in a sentence (`summary`); the holidays of a year | `console plugin hr types`, `console plugin hr holidays [--year <n>]` |
 | The lines behind the balance; every credit with what is left of it | `console plugin hr ledger [--type <key>]`, `console plugin hr balance --buckets` |
 | All at once: balance, leave to come, what waits for them, who is out today, the next holidays, the latest announcements | `console plugin hr overview` |
 | What HR announced, those on top and the newest; one in full, in Markdown | `console plugin hr announcements [--category <key>] [--search <words>]`, `console plugin hr announcement-view <id>` |

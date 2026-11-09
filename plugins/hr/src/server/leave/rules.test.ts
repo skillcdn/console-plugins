@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Notice, Policy } from "../../shared/contracts.js";
+import type { CancelRule, Notice, Policy } from "../../shared/contracts.js";
 import { serverWords } from "../words.js";
 import { KOREAN_TIERS, presetOf } from "./presets.js";
 import {
   allowanceDue,
   baseDays,
+  cancelOutcome,
   countLeaveDays,
   creditsDue,
   isInTime,
@@ -352,5 +353,53 @@ describe("describing a policy", () => {
     expect(text).toContain("15 days from year 1");
     expect(text).toContain("one day per month in the first year");
     expect(text).toContain("paid out at the period's end");
+  });
+});
+
+describe("what cancelling approved leave comes to", () => {
+  const sameDay: CancelRule = {
+    deadline: { mode: "sameDay", days: 0, time: "09:00" },
+    within: "now",
+    days: 0,
+    after: "decision",
+  };
+  const leave = { from: "2026-11-20", days: 1 };
+
+  it("goes by the deadline, after it through the first day, and is HR's once the first day has gone by", () => {
+    expect(cancelOutcome(sameDay, leave, "2026-11-19", "23:59")).toBe("now");
+    expect(cancelOutcome(sameDay, leave, "2026-11-20", "09:00")).toBe("now");
+    expect(cancelOutcome(sameDay, leave, "2026-11-20", "09:01")).toBe("decision");
+    expect(cancelOutcome(sameDay, leave, "2026-11-20", "23:59")).toBe("decision");
+    expect(cancelOutcome(sameDay, leave, "2026-11-21", "00:00")).toBe("hr");
+    expect(cancelOutcome({ ...sameDay, after: "hr" }, leave, "2026-11-20", "09:01")).toBe("hr");
+  });
+
+  it("reads a deadline of days and of the day before as a notice reads them", () => {
+    const days: CancelRule = { ...sameDay, deadline: { mode: "days", days: 3, time: "18:00" } };
+    expect(cancelOutcome(days, leave, "2026-11-17", "23:00")).toBe("now");
+    expect(cancelOutcome(days, leave, "2026-11-18", "00:00")).toBe("decision");
+    const eve: CancelRule = { ...sameDay, deadline: { mode: "dayBefore", days: 0, time: "18:00" } };
+    expect(cancelOutcome(eve, leave, "2026-11-19", "18:00")).toBe("now");
+    expect(cancelOutcome(eve, leave, "2026-11-19", "18:01")).toBe("decision");
+  });
+
+  it("holds the rule by the deadline through the first day where there is no deadline", () => {
+    const none: CancelRule = { ...sameDay, deadline: { mode: "none", days: 0, time: "18:00" } };
+    expect(cancelOutcome(none, leave, "2026-11-20", "23:59")).toBe("now");
+    expect(cancelOutcome(none, leave, "2026-11-21", "00:00")).toBe("hr");
+  });
+
+  it("cancels at once up to some days and sends longer leave to a decision, or leaves it all to HR", () => {
+    const upTo: CancelRule = { ...sameDay, within: "upTo", days: 1.5 };
+    expect(cancelOutcome(upTo, { from: "2026-11-20", days: 1.5 }, "2026-11-19", "10:00")).toBe(
+      "now",
+    );
+    expect(cancelOutcome(upTo, { from: "2026-11-20", days: 2 }, "2026-11-19", "10:00")).toBe(
+      "decision",
+    );
+    expect(cancelOutcome({ ...sameDay, within: "hr" }, leave, "2026-11-01", "10:00")).toBe("hr");
+    expect(cancelOutcome({ ...sameDay, within: "decision" }, leave, "2026-11-01", "10:00")).toBe(
+      "decision",
+    );
   });
 });

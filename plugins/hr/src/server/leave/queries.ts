@@ -38,6 +38,7 @@ import {
   type RequestView,
   type StepView,
   type TypeBalance,
+  type TypeView,
   waitingDecision,
 } from "../../shared/contracts.js";
 import {
@@ -62,6 +63,7 @@ import {
   reachOf,
   requireHr,
   requirePerson,
+  standingOf,
   teamOf,
 } from "../access.js";
 import { latestAnnouncements, readerOf } from "../announcements.js";
@@ -70,6 +72,7 @@ import { configOf, configRecord, DEFAULT_CONFIG } from "../config.js";
 import {
   allTypes,
   balancedTypes,
+  type Clock,
   clockOf,
   type Directory,
   directoryOf,
@@ -80,13 +83,14 @@ import {
   teamsOf,
 } from "../store.js";
 import { noteIn, serverWords } from "../words.js";
-import { approvedAs, nextOf, waitingIn } from "./approval.js";
+import { approvedAs, cancelDecidersFor, nextOf, waitingIn } from "./approval.js";
 import { counts, type Line, reversalsOf, settle } from "./balance.js";
 import { isHandRef, prepareRequest } from "./commands.js";
 import { boardKey } from "./decisions.js";
 import { ledgerOf, lineOf, typeBalanceOf } from "./engine.js";
 import { PRESETS, policyAbout, policyName } from "./presets.js";
-import { isCounted } from "./rules.js";
+import { cancelOutcome, isCounted } from "./rules.js";
+import { cancelRuleOfKind } from "./types.js";
 
 const CALENDAR_DAYS_AT_MOST = 92;
 /** What a list answers unless told otherwise; a page says how many it wants. */
@@ -174,28 +178,56 @@ function inLine(request: LeaveRequest, id: string): boolean {
   );
 }
 
-function cancellable(actor: Actor, request: LeaveRequest, config: Config, today: string): boolean {
+/**
+ * What a request's view reads beyond the record: the day and the time, the kinds with their rules
+ * of cancelling, and the administrators, who stand in for a manager nobody has.
+ */
+interface Terms {
+  readonly today: string;
+  readonly time: string;
+  readonly kinds: ReadonlyMap<string, LeaveType>;
+  readonly admins: readonly string[];
+}
+
+async function termsOf(ctx: PluginContext, clock: Clock, directoryMap: Directory): Promise<Terms> {
+  const kinds = new Map((await allTypes(ctx)).map((record) => [record.data.key, record.data]));
+  const admins = [...directoryMap.values()]
+    .filter((person) => person.role === "admin" && person.status === "active")
+    .map((person) => person.id);
+  return { today: clock.today, time: clock.time, kinds, admins };
+}
+
+/**
+ * What cancelling a request now comes to for the caller: a request still waiting is its person's
+ * to cancel at once, HR cancels anything at once, and approved leave goes by its kind's rule; the
+ * rule's HR alone is no way for anyone else, and the command refuses it in words.
+ */
+function cancellationOf(
+  actor: Actor,
+  request: LeaveRequest,
+  terms: Terms,
+): "now" | "decision" | null {
   if (!actor.isPerson) {
-    return false;
+    return null;
   }
   const own = request.personId === actor.id;
   if (!own && !actor.hr) {
-    return false;
+    return null;
   }
   switch (request.state) {
     case "requested":
     case "returned":
-      return true;
-    case "approved":
+      return "now";
+    case "approved": {
       if (actor.hr) {
-        return true;
+        return "now";
       }
-      return (
-        config.cancellation === "approval" ||
-        (config.cancellation === "free" && request.from > today)
-      );
+      const rule = cancelRuleOfKind(terms.kinds.get(request.type));
+      const outcome = cancelOutcome(rule, request, terms.today, terms.time);
+      return outcome === "hr" ? null : outcome;
+    }
     default:
-      return false;
+      return null;
   }
 }
 
@@ -224,8 +256,7 @@ function viewOf(
   actor: Actor,
   record: PluginRecord<LeaveRequest>,
   person: PersonBrief,
-  config: Config,
-  today: string,
+  terms: Terms,
   directoryMap: Directory,
   reach: ReadonlySet<string>,
 ): RequestView {
@@ -246,6 +277,15 @@ function viewOf(
         ? waitingIn(current)
         : [];
   const asked = waits ? (data.asked.length > 0 ? data.asked : fallback) : [];
+  const cancellation = cancellationOf(actor, data, terms);
+  // Who a cancellation would ask first; should the console refuse them, it goes on up as any does.
+  const cancelDeciders =
+    cancellation === "decision"
+      ? cancelDecidersFor(data.steps, standingOf(data.personId, directoryMap), {
+          hr: [],
+          admins: terms.admins,
+        })
+      : [];
   return {
     id: record.id,
     person,
@@ -274,7 +314,9 @@ function viewOf(
     mine: asked.includes(actor.id),
     decisionPath: decisionPath(data.decisionId),
     cancelDecisionPath: decisionPath(data.cancelDecisionId),
-    cancellable: cancellable(actor, data, config, today),
+    cancellable: cancellation !== null,
+    cancellation,
+    cancelDeciders: cancelDeciders.map((id) => briefOf(id, directoryMap, null)),
   };
 }
 
@@ -444,13 +486,13 @@ export const requestsQuery = defineQuery({
       where,
       order: { field: "from", descending: true },
     });
+    const terms = await termsOf(ctx, clock, directoryMap);
     const views = items.map((item) =>
       viewOf(
         actor,
         item,
         briefOf(item.data.personId, directoryMap, null, actor),
-        config,
-        clock.today,
+        terms,
         directoryMap,
         reach,
       ),
@@ -490,8 +532,7 @@ export async function requestViewOf(ctx: PluginContext, id: string): Promise<Req
     actor,
     found,
     briefOf(data.personId, directoryMap, null, actor),
-    config,
-    clock.today,
+    await termsOf(ctx, clock, directoryMap),
     directoryMap,
     reach,
   );
@@ -738,12 +779,17 @@ export const presetsQuery = defineQuery({
 });
 
 export const typesQuery = defineQuery({
-  about: "The kinds of leave that may be requested; HR sees the disabled ones too.",
+  about: "The kinds of leave, each with its rules in a sentence; HR sees the disabled ones too.",
   roles: [ROLE_MEMBER, ROLE_HR],
-  async run(ctx): Promise<LeaveType[]> {
+  async run(ctx): Promise<TypeView[]> {
     const actor = actorOf(ctx);
+    const words = serverWords(ctx.language);
+    const clock = await clockOf(ctx);
     const all = (await allTypes(ctx)).map((type) => type.data);
-    return actor.hr ? all : all.filter((type) => type.enabled);
+    return (actor.hr ? all : all.filter((type) => type.enabled)).map((type) => ({
+      ...type,
+      summary: words.readback.type(type, clock.timeZone),
+    }));
   },
 });
 
@@ -859,13 +905,14 @@ export const overview = defineQuery({
       where: { personId: actor.id, to: { gte: clock.today } },
       order: { field: "from" },
     });
+    const terms = await termsOf(ctx, clock, directoryMap);
     const upcoming = await followable(
       ctx,
       actor,
       mine
         .filter((item) => ["requested", "approved", "cancelling"].includes(item.data.state))
         .slice(0, 8)
-        .map((item) => viewOf(actor, item, me, config, clock.today, directoryMap, reach)),
+        .map((item) => viewOf(actor, item, me, terms, directoryMap, reach)),
     );
     const pending = await listAll<LeaveRequest>(ctx.records(requests), {
       where: { state: { in: ["requested", "cancelling"] } },
@@ -877,8 +924,7 @@ export const overview = defineQuery({
           actor,
           item,
           briefOf(item.data.personId, directoryMap, null, actor),
-          config,
-          clock.today,
+          terms,
           directoryMap,
           reach,
         ),
@@ -1128,7 +1174,7 @@ export const preview = defineQuery({
 });
 
 export const configQuery = defineQuery({
-  about: "HR: the configuration: the line, cancelling, who sees what, the working days.",
+  about: "HR: the configuration: the line, how far back, who sees what, the working days.",
   roles: [ROLE_HR],
   async run(ctx): Promise<ConfigReport> {
     const actor = actorOf(ctx);
@@ -1145,6 +1191,8 @@ export const configQuery = defineQuery({
       config,
       timeZone: clock.timeZone,
       timeZoneSet: clock.timeZoneSet,
+      language: clock.language,
+      languageSet: clock.languageSet,
       ready: written.items.length > 0,
       people: ids.map((id) => briefOf(id, directoryMap, null)),
       teams: await teamsOf(ctx),

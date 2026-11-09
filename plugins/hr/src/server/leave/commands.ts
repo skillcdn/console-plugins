@@ -16,7 +16,8 @@ import {
   BALANCE_VISIBILITIES,
   BALANCES,
   CALENDAR_VISIBILITIES,
-  CANCELLATIONS,
+  CANCEL_AFTERS,
+  CANCEL_WITHINS,
   CARRY_OVERS,
   COUNT_DAYS,
   type Config,
@@ -101,8 +102,15 @@ import { balanceOf, creditsOwed, ledgerOf, lineOf, syncPerson } from "./engine.j
 import { builtInHolidays, KR_YEARS } from "./holidays.js";
 import { type PolicyDraft, PRESETS, presetOf } from "./presets.js";
 import { daysOf, lineReadback, policyReadback, setupReadback, writtenOf } from "./readback.js";
-import { countLeaveDays, expiryOf, isInTime, isPolicyRef, periodOf } from "./rules.js";
-import { DEFAULT_TYPES, TYPE_RULES } from "./types.js";
+import {
+  cancelOutcome,
+  countLeaveDays,
+  expiryOf,
+  isInTime,
+  isPolicyRef,
+  periodOf,
+} from "./rules.js";
+import { cancelRuleFor, cancelRuleOfKind, DEFAULT_TYPES, TYPE_RULES } from "./types.js";
 
 const PRESET_KEYS = PRESETS.map((preset) => preset.key) as [string, ...string[]];
 const ON_OFF = ["on", "off"] as const;
@@ -484,7 +492,7 @@ export const request = defineCommand({
 });
 
 export const cancel = defineCommand({
-  about: "Cancels a request: one waiting at once, one approved as HR's configuration says.",
+  about: "Cancels a request: one waiting at once, one approved as its kind's rule says.",
   args: {
     id: arg.record("requests", { about: "the request", positional: true }),
     reason: arg.text({ about: "why", optional: true, max: 2000 }),
@@ -495,7 +503,6 @@ export const cancel = defineCommand({
     requirePerson(actor);
     const words = serverWords(ctx.language);
     const no = words.refused;
-    const config = await configOf(ctx);
     const clock = await clockOf(ctx);
     const found = await ctx.records(requests).get(args.id);
     if (found === null) {
@@ -537,14 +544,20 @@ export const cancel = defineCommand({
     if (actor.hr) {
       return close();
     }
-    switch (config.cancellation) {
-      case "free":
-        if (found.data.from <= clock.today) {
-          throw new PluginError("started", no.started);
-        }
+    const rule = cancelRuleOfKind((await typeByKey(ctx, found.data.type))?.data);
+    switch (cancelOutcome(rule, found.data, clock.today, clock.time)) {
+      case "now":
         return close();
       case "hr":
-        throw new PluginError("hr_only", no.cancelledByHr);
+        if (clock.today > found.data.from) {
+          throw new PluginError("started", no.started);
+        }
+        throw new PluginError(
+          "hr_only",
+          isInTime(rule.deadline, found.data.from, clock.today, clock.time)
+            ? no.cancelledByHr
+            : no.pastCancelDeadline(rule.deadline, clock.timeZone),
+        );
       default:
         break;
     }
@@ -1091,7 +1104,7 @@ function parseNames(
 }
 
 export const type = defineCommand({
-  about: "HR: writes a kind of leave by its key: balance, notice, late requests, approval.",
+  about: "HR: writes a kind of leave by its key: balance, notice, approval, cancelling.",
   args: {
     key: arg.text({ about: "the kind's key, a lowercase word", positional: true, max: 32 }),
     name: arg.list(arg.text({ max: 90 }), {
@@ -1150,6 +1163,38 @@ export const type = defineCommand({
       min: 0,
       max: 366,
     }),
+    "cancel-notice": arg.enum(NOTICE_MODES as unknown as [string, ...string[]], {
+      about:
+        "the deadline for cancelling approved leave, as --notice: none, days (--cancel-notice-days), dayBefore or sameDay (--cancel-notice-time)",
+      optional: true,
+    }),
+    "cancel-notice-days": arg.number({
+      about: "how many days before, for days",
+      optional: true,
+      integer: true,
+      min: 0,
+      max: 366,
+    }),
+    "cancel-notice-time": arg.text({
+      about: "by what time, HH:MM in the workspace's time zone",
+      optional: true,
+      max: 5,
+    }),
+    cancel: arg.enum(CANCEL_WITHINS as unknown as [string, ...string[]], {
+      about:
+        "a cancellation by the deadline: now; upTo, at once up to --cancel-days, longer by a decision; decision; or hr alone",
+      optional: true,
+    }),
+    "cancel-days": arg.number({
+      about: "the most days cancelled at once, for upTo",
+      optional: true,
+      min: 0,
+      max: 366,
+    }),
+    "cancel-late": arg.enum(CANCEL_AFTERS as unknown as [string, ...string[]], {
+      about: "a cancellation past the deadline, through the first day: decision, or hr alone",
+      optional: true,
+    }),
     color: arg.number({
       about: "one of the console's six series colours",
       optional: true,
@@ -1175,8 +1220,10 @@ export const type = defineCommand({
     if (!/^[a-z][a-z0-9-]{0,31}$/.test(args.key)) {
       throw new PluginError("key", no.keyShape);
     }
-    if (args["notice-time"] !== undefined && !TIME.test(args["notice-time"])) {
-      throw new PluginError("time", no.timeShape);
+    for (const time of [args["notice-time"], args["cancel-notice-time"]]) {
+      if (time !== undefined && !TIME.test(time)) {
+        throw new PluginError("time", no.timeShape);
+      }
     }
     const existing = await typeByKey(ctx, args.key);
     const names = parseNames(args.name, words, existing?.data.name);
@@ -1202,6 +1249,13 @@ export const type = defineCommand({
     if (args.key === ANNUAL && args.enabled === "off") {
       throw new PluginError("enabled", no.annualStaysOn);
     }
+    const notice: LeaveType["notice"] = {
+      mode: (args.notice as LeaveType["notice"]["mode"] | undefined) ?? current.notice.mode,
+      days: args["notice-days"] ?? current.notice.days,
+      time: args["notice-time"] ?? current.notice.time,
+    };
+    // A new kind is cancelled by the deadline its requests keep, unless HR says otherwise.
+    const cancelling = existing === null ? cancelRuleFor(notice) : current.cancel;
     const next: LeaveType = {
       ...current,
       name: names ?? current.name,
@@ -1213,16 +1267,25 @@ export const type = defineCommand({
       allowance: args.allowance ?? current.allowance,
       reason: (args.reason as LeaveType["reason"] | undefined) ?? current.reason,
       unit: (args.unit as LeaveType["unit"] | undefined) ?? current.unit,
-      notice: {
-        mode: (args.notice as LeaveType["notice"]["mode"] | undefined) ?? current.notice.mode,
-        days: args["notice-days"] ?? current.notice.days,
-        time: args["notice-time"] ?? current.notice.time,
-      },
+      notice,
       late: (args.late as LeaveType["late"] | undefined) ?? current.late,
       autoApprove: {
         mode:
           (args.auto as LeaveType["autoApprove"]["mode"] | undefined) ?? current.autoApprove.mode,
         days: args["auto-days"] ?? current.autoApprove.days,
+      },
+      cancel: {
+        deadline: {
+          mode:
+            (args["cancel-notice"] as LeaveType["notice"]["mode"] | undefined) ??
+            cancelling.deadline.mode,
+          days: args["cancel-notice-days"] ?? cancelling.deadline.days,
+          time: args["cancel-notice-time"] ?? cancelling.deadline.time,
+        },
+        within: (args.cancel as LeaveType["cancel"]["within"] | undefined) ?? cancelling.within,
+        days: args["cancel-days"] ?? cancelling.days,
+        after:
+          (args["cancel-late"] as LeaveType["cancel"]["after"] | undefined) ?? cancelling.after,
       },
       color: args.color ?? current.color,
       order: args.order ?? current.order,
@@ -1468,10 +1531,6 @@ export const configure = defineCommand({
       optional: true,
       max: 20_000,
     }),
-    cancellation: arg.enum(CANCELLATIONS as unknown as [string, ...string[]], {
-      about: "free before it starts, approval by a decision, or hr alone",
-      optional: true,
-    }),
     "backdating-days": arg.number({
       about: "how many days back a request may start",
       optional: true,
@@ -1514,9 +1573,6 @@ export const configure = defineCommand({
       patch.rules = parsed(args.rules, approvalRules, "rules", words);
     }
     await checkNames(ctx, patch, words);
-    if (args.cancellation !== undefined) {
-      patch.cancellation = args.cancellation as Config["cancellation"];
-    }
     if (args["backdating-days"] !== undefined) {
       patch.backdatingDays = args["backdating-days"];
     }

@@ -94,6 +94,12 @@ export const UNITS: readonly Unit[] = ["day", "half", "quarter"];
 export const NOTICE_MODES: readonly NoticeMode[] = ["none", "days", "dayBefore", "sameDay"];
 export const LATE_RULES: readonly LateRule[] = ["refuse", "mark", "manager"];
 export const AUTO_MODES: readonly AutoMode[] = ["never", "always", "upTo"];
+/** What becomes of a cancellation of approved leave asked by its deadline. */
+export type CancelWithin = "now" | "upTo" | "decision" | "hr";
+/** What becomes of one asked after the deadline, through the leave's first day. */
+export type CancelAfter = "decision" | "hr";
+export const CANCEL_WITHINS: readonly CancelWithin[] = ["now", "upTo", "decision", "hr"];
+export const CANCEL_AFTERS: readonly CancelAfter[] = ["decision", "hr"];
 
 /** The notice a kind asks: `days` for `days`, `time` (HH:MM, the workspace's) for the two others. */
 export interface Notice {
@@ -108,6 +114,23 @@ export interface AutoApprove {
   readonly days: number;
 }
 
+/**
+ * How approved leave of a kind is cancelled by its person: by a deadline of a notice's shape, as
+ * `within` says before it and `after` says from then through the first day. Once the first day has
+ * gone by, HR alone cancels, since the days were used. A request still waiting is always its
+ * person's to cancel at once, and HR cancels anything at once.
+ */
+export interface CancelRule {
+  readonly deadline: Notice;
+  readonly within: CancelWithin;
+  /** The most days cancelled at once by the deadline, for `upTo`; longer leave takes a decision. */
+  readonly days: number;
+  readonly after: CancelAfter;
+}
+
+/** What cancelling approved leave comes to by its kind's rule: at once, a decision, or HR's alone. */
+export type CancelOutcome = "now" | "decision" | "hr";
+
 /** A kind of leave: what a request is of. */
 export interface LeaveType {
   readonly key: string;
@@ -121,6 +144,7 @@ export interface LeaveType {
   readonly notice: Notice;
   readonly late: LateRule;
   readonly autoApprove: AutoApprove;
+  readonly cancel: CancelRule;
   /** One of the console's series colours, 1 to 6. */
   readonly color: number;
   readonly order: number;
@@ -208,12 +232,10 @@ export interface ApprovalRule {
   readonly steps: ApprovalStep[];
 }
 
-export type Cancellation = "free" | "approval" | "hr";
 export type BalanceVisibility = "self" | "manager" | "everyone";
 export type CalendarVisibility = "everyone" | "team" | "hr";
 export type HolidayCalendar = "none" | "kr" | "us";
 
-export const CANCELLATIONS: readonly Cancellation[] = ["free", "approval", "hr"];
 export const BALANCE_VISIBILITIES: readonly BalanceVisibility[] = ["self", "manager", "everyone"];
 export const CALENDAR_VISIBILITIES: readonly CalendarVisibility[] = ["everyone", "team", "hr"];
 export const HOLIDAY_CALENDARS: readonly HolidayCalendar[] = ["none", "kr", "us"];
@@ -224,7 +246,6 @@ export interface Config {
   readonly line: ApprovalStep[];
   /** The exceptions, the first that holds taking the place of the default line. */
   readonly rules: ApprovalRule[];
-  readonly cancellation: Cancellation;
   /** How many days back a request may start; HR is not bound by it. */
   readonly backdatingDays: number;
   readonly balanceVisibility: BalanceVisibility;
@@ -468,8 +489,21 @@ export interface RequestView {
   /** The console's address of the decision the approval waits for, or waited for. */
   readonly decisionPath: string | null;
   readonly cancelDecisionPath: string | null;
-  /** Whether the caller may cancel it now, by the rules. */
+  /** Whether the caller may cancel it now, by the rules: `cancellation` is not null. */
   readonly cancellable: boolean;
+  /**
+   * What cancelling it now comes to for the caller: `now`, cancelled at once; `decision`, a
+   * decision first; null where the caller may not cancel it, HR's alone or nothing left to cancel.
+   */
+  readonly cancellation: "now" | "decision" | null;
+  /** Whom that decision would ask first, for `decision`; nobody otherwise. */
+  readonly cancelDeciders: readonly PersonBrief[];
+}
+
+/** A kind of leave as the query `types` answers it: its rules, and in a sentence of the caller's language. */
+export interface TypeView extends LeaveType {
+  /** How it is requested, approved and cancelled, as HR read it back when the kind was saved. */
+  readonly summary: string;
 }
 
 /** What a request would be, before it is made: the answer of the query `preview`. */
@@ -552,6 +586,10 @@ export interface ConfigReport {
   readonly people: readonly PersonBrief[];
   /** Whether an administrator set the time zone; the console keeps UTC where nobody did. */
   readonly timeZoneSet: boolean;
+  /** The workspace's language, written to whoever has none of their own; `en` where none is set. */
+  readonly language: string;
+  /** Whether an administrator set the workspace's language. */
+  readonly languageSet: boolean;
   /** The teams of the console, for an exception by team and an announcement for teams. */
   readonly teams: readonly TeamBrief[];
 }

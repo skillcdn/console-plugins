@@ -12,6 +12,7 @@ import {
   type PersonBrief,
   type RequestView,
   type TypeBalance,
+  type TypeView,
   waitingDecision,
 } from "../../shared/contracts.js";
 import {
@@ -37,6 +38,7 @@ import {
   pageHead,
   panel,
   panelWith,
+  personLabel,
   pills,
   row,
   runCommand,
@@ -60,7 +62,7 @@ export interface LeaveView {
   readonly words: Words;
   readonly format: Formatters;
   readonly language: string;
-  readonly types: ReadonlyMap<string, LeaveType>;
+  readonly types: ReadonlyMap<string, TypeView>;
 }
 
 /** The lines of a ledger shown before the rest is folded. */
@@ -192,7 +194,18 @@ export function termsFacts(report: BalanceReport, view: LeaveView): HTMLElement 
   return node;
 }
 
-/** The way to cancel a request: a button that unfolds into a reason and a confirmation, in place. */
+/** What cancelling it would come to, said before the person confirms. */
+function cancelOutcome(item: RequestView, words: Words): string {
+  if (item.cancellation === "decision") {
+    return words.cancelOutcomeDecision(item.cancelDeciders.map(personLabel).join(", "));
+  }
+  return words.cancelOutcomeNow;
+}
+
+/**
+ * The way to cancel a request: a button that unfolds, in place, into what cancelling would come to,
+ * a reason and a confirmation.
+ */
 function cancelControl(
   item: RequestView,
   view: LeaveView,
@@ -216,7 +229,9 @@ function cancelControl(
       const back = button(words.close, () => holder.replaceChildren(start), "ghost", true);
       const inline = el("div", "inline-form");
       inline.append(reason, confirm, back);
-      holder.replaceChildren(inline);
+      const box = el("div", "cancel-box");
+      box.append(el("p", "cancel-outcome", cancelOutcome(item, words)), inline);
+      holder.replaceChildren(box);
       async function run(): Promise<void> {
         const why = reason.value.trim();
         const result = await runCommand(

@@ -5,11 +5,11 @@
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
-  type LeaveType,
   type Part,
   type PersonBrief,
   partsOf,
   type RequestPreview,
+  type TypeView,
 } from "../../shared/contracts.js";
 import { isDay } from "../../shared/days.js";
 import {
@@ -46,7 +46,8 @@ export interface RequestFormOptions {
   readonly words: Words;
   readonly format: Formatters;
   readonly language: string;
-  readonly types: readonly LeaveType[];
+  /** The kinds, each with its rules in a sentence, shown under the kind chosen. */
+  readonly types: readonly TypeView[];
   /** The people it may be written for, where it is written for someone else. */
   readonly people?: readonly PersonBrief[];
   /** The one person it is written for, where the page is theirs. */
@@ -64,6 +65,7 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
     start,
     words.typeLabel,
   );
+  const typeRules = el("span", "sc-field-hint type-rules-line");
   const person =
     options.people === undefined
       ? null
@@ -109,6 +111,8 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
     reasonField.hidden = type?.reason === "hidden";
     reason.required = type?.reason === "required";
     reasonHint.hidden = type?.reason !== "required";
+    typeRules.textContent = type?.summary ?? "";
+    typeRules.hidden = typeRules.textContent === "";
   };
 
   const argsOf = (): Record<string, unknown> | null => {
@@ -219,7 +223,7 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
 
   const node = form(
     ...(person === null ? [] : [field(words.personLabel, person)]),
-    group(words.typeLabel, typeControl.node),
+    group(words.typeLabel, typeControl.node, typeRules),
     formRow(field(words.fromLabel, from), field(words.toLabel, to, words.toHint)),
     partHolder,
     reasonField,

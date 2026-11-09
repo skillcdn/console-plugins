@@ -13,17 +13,18 @@ import {
 import {
   type BalanceReport,
   type LeaveRequest,
-  type LeaveType,
   PARTS,
   type PersonBrief,
+  REQUEST_STATES,
   type RequestPreview,
   type RequestView,
+  type TypeView,
 } from "../../shared/contracts.js";
 import { ROLE_HR, ROLE_MEMBER } from "../access.js";
 import { day, slug, wordsOf } from "../collections.js";
 import { serverWords } from "../words.js";
 import { cancel, request } from "./commands.js";
-import { balance, preview, requestViewOf, typesQuery } from "./queries.js";
+import { balance, preview, requestsQuery, requestViewOf, typesQuery } from "./queries.js";
 
 const id = z.string().min(1).max(64);
 
@@ -40,6 +41,15 @@ const asking = z.object({
 
 const INPUTS = {
   "request-view": z.object({ id }),
+  requests: z.object({
+    scope: z.optional(z.enum(["mine", "waiting", "team", "all"])),
+    personId: z.optional(id),
+    state: z.optional(wordsOf(REQUEST_STATES)),
+    from: z.optional(day),
+    to: z.optional(day),
+    type: z.optional(slug),
+    limit: z.optional(z.number().int().min(1).max(200)),
+  }),
   types: z.object({}),
   balance: z.object({
     personId: z.optional(id),
@@ -112,10 +122,24 @@ export const api = {
     INPUTS["request-view"],
     async (ctx, input): Promise<RequestView> => requestViewOf(ctx, input.id),
   ),
+  requests: entry(
+    "Requests of leave, newest first, as the query requests answers them: the caller's unless said.",
+    INPUTS.requests,
+    async (ctx, input) =>
+      (await requestsQuery.run(ctx, {
+        scope: input.scope,
+        person: input.personId === undefined ? undefined : await personBy(ctx, input.personId),
+        state: input.state,
+        from: input.from,
+        to: input.to,
+        type: input.type,
+        limit: input.limit,
+      })) as RequestView[],
+  ),
   types: entry(
     "The kinds of leave that may be requested, as the query types answers them.",
     INPUTS.types,
-    async (ctx) => (await typesQuery.run(ctx, {})) as LeaveType[],
+    async (ctx) => (await typesQuery.run(ctx, {})) as TypeView[],
   ),
   balance: entry(
     "The days left by kind, as the query balance answers them.",

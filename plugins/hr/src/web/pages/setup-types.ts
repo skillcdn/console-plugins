@@ -1,12 +1,17 @@
-// Setup, the kinds of leave: each a card that says in a line how it is taken, and a form in four
-// parts: what it is, what it draws on, how far ahead it is asked and what happens past that, and
-// when it is approved as written.
+// Setup, the kinds of leave: each a card that says in a line how it is taken, and a form in three
+// parts: what it is and what it draws on; its requests, how far ahead they are asked, what happens
+// past that and when one is approved as written; and how its approved leave is cancelled, by a
+// deadline of the same shape as the notice.
 import {
   ANNUAL,
   AUTO_MODES,
   type AutoMode,
   BALANCES,
   type Balance,
+  CANCEL_AFTERS,
+  CANCEL_WITHINS,
+  type CancelAfter,
+  type CancelWithin,
   LATE_RULES,
   type LateRule,
   type LeaveType,
@@ -40,6 +45,7 @@ import {
   settingRow,
   stack,
   statusLine,
+  subheading,
   submitButton,
   swatch,
 } from "../ui.js";
@@ -128,15 +134,90 @@ function typeForm(
   });
   const autoDaysField = field(words.autoDaysLabel, autoDays);
 
+  // A new kind is cancelled by the deadline its requests keep, as the command has it, until HR
+  // chooses another: the deadline follows the notice until it is touched.
+  const deadlineInitial = type?.cancel.deadline ?? { mode: "none", days: 0, time: "18:00" };
+  const deadline = pills<NoticeMode>(
+    optionsOf(NOTICE_MODES, words.cancelDeadlineMode),
+    deadlineInitial.mode,
+    words.cancelDeadlineLabel,
+  );
+  const deadlineDaysInitial = String(deadlineInitial.days);
+  const deadlineDays = input("number", {
+    value: deadlineDaysInitial === "0" ? "7" : deadlineDaysInitial,
+    min: "0",
+    max: "366",
+    step: "1",
+  });
+  const deadlineDaysField = field(words.noticeDaysLabel, deadlineDays);
+  const deadlineTimeInitial = deadlineInitial.time;
+  const deadlineTime = input("time", { value: deadlineTimeInitial });
+  const deadlineTimeField = field(
+    words.noticeTimeLabel,
+    deadlineTime,
+    words.noticeTimeHint(frame.context.workspace?.timeZone ?? "UTC"),
+  );
+  const within = pills<CancelWithin>(
+    optionsOf(CANCEL_WITHINS, words.cancelWithin),
+    type?.cancel.within ?? "now",
+    words.cancelWithinLabel,
+  );
+  const cancelDaysInitial = String(type?.cancel.days ?? 0);
+  const cancelDays = input("number", {
+    value: cancelDaysInitial === "0" ? "1" : cancelDaysInitial,
+    min: "0",
+    max: "366",
+    step: "0.25",
+  });
+  const cancelDaysField = field(words.cancelDaysLabel, cancelDays);
+  const after = pills<CancelAfter>(
+    optionsOf(CANCEL_AFTERS, words.cancelAfter),
+    type?.cancel.after ?? "decision",
+    words.cancelAfterLabel,
+  );
+  const afterRow = settingRow(words.cancelAfterLabel, words.cancelAfterHint, after.node);
+
   const sync = () => {
     allowanceField.hidden = balance.value() !== "own";
     noticeDaysField.hidden = notice.value() !== "days";
     noticeTimeField.hidden = notice.value() !== "dayBefore" && notice.value() !== "sameDay";
     autoDaysField.hidden = auto.value() !== "upTo";
+    deadlineDaysField.hidden = deadline.value() !== "days";
+    deadlineTimeField.hidden = deadline.value() !== "dayBefore" && deadline.value() !== "sameDay";
+    cancelDaysField.hidden = within.value() !== "upTo";
+    // With no deadline the rule by the deadline holds through the first day: nothing comes after.
+    afterRow.hidden = deadline.value() === "none";
+  };
+  const matchNotice = () => {
+    deadline.set(notice.value());
+    deadlineDays.value = noticeDays.value;
+    deadlineTime.value = noticeTime.value;
+    sync();
+  };
+  let followsNotice = creating;
+  const follow = () => {
+    if (followsNotice) {
+      matchNotice();
+    }
+  };
+  const stopFollowing = () => {
+    followsNotice = false;
   };
   balance.onChange(sync);
-  notice.onChange(sync);
+  notice.onChange(() => {
+    sync();
+    follow();
+  });
+  noticeDays.addEventListener("input", follow);
+  noticeTime.addEventListener("input", follow);
+  deadline.onChange(() => {
+    stopFollowing();
+    sync();
+  });
+  deadlineDays.addEventListener("input", stopFollowing);
+  deadlineTime.addEventListener("input", stopFollowing);
   auto.onChange(sync);
+  within.onChange(sync);
   sync();
 
   const asNumber = (value: string): unknown => Number(value);
@@ -165,6 +246,19 @@ function typeForm(
     { arg: "notice", value: () => notice.value(), initial: type?.notice.mode ?? "", parse: same },
     { arg: "late", value: () => late.value(), initial: type?.late ?? "", parse: same },
     { arg: "auto", value: () => auto.value(), initial: type?.autoApprove.mode ?? "", parse: same },
+    {
+      arg: "cancel-notice",
+      value: () => deadline.value(),
+      initial: type?.cancel.deadline.mode ?? "",
+      parse: same,
+    },
+    { arg: "cancel", value: () => within.value(), initial: type?.cancel.within ?? "", parse: same },
+    {
+      arg: "cancel-late",
+      value: () => after.value(),
+      initial: type?.cancel.after ?? "",
+      parse: same,
+    },
   ];
   if (!annual) {
     specs.push({
@@ -190,9 +284,21 @@ function typeForm(
     settingRow(words.balanceLabel, words.balanceHint, balance.node, allowanceField),
     settingRow(words.unitLabel, words.unitHint, unit.node),
     settingRow(words.reasonRuleLabel, "", reason.node),
+    subheading(words.typeRequestsTitle),
     settingRow(words.noticeLabel, words.noticeHint, notice.node, noticeDaysField, noticeTimeField),
     settingRow(words.lateLabel, words.lateHint, late.node),
     settingRow(words.autoLabel, words.autoHint, auto.node, autoDaysField),
+    subheading(words.typeCancelTitle),
+    settingRow(
+      words.cancelDeadlineLabel,
+      words.cancelDeadlineHint,
+      deadline.node,
+      deadlineDaysField,
+      deadlineTimeField,
+      button(words.matchNotice, matchNotice, "ghost", true),
+    ),
+    settingRow(words.cancelWithinLabel, words.cancelWithinHint, within.node, cancelDaysField),
+    afterRow,
     actions(submit, button(words.close, onClose, "ghost")),
     status,
   );
@@ -228,6 +334,15 @@ function typeForm(
     }
     if (auto.value() === "upTo" && autoDays.value !== autoDaysInitial) {
       args["auto-days"] = Number(autoDays.value);
+    }
+    if (deadline.value() === "days" && (creating || deadlineDays.value !== deadlineDaysInitial)) {
+      args["cancel-notice-days"] = Number(deadlineDays.value);
+    }
+    if (!deadlineTimeField.hidden && (creating || deadlineTime.value !== deadlineTimeInitial)) {
+      args["cancel-notice-time"] = deadlineTime.value;
+    }
+    if (within.value() === "upTo" && (creating || cancelDays.value !== cancelDaysInitial)) {
+      args["cancel-days"] = Number(cancelDays.value);
     }
     const result = await runCommand(frame, submit, status, words, "type", args);
     if (result !== null) {
@@ -277,8 +392,32 @@ function typeCard(type: LeaveType, view: SetupView, onEdit: () => void): HTMLEle
   rule(words.noticeLabel, notice);
   rule(words.lateLabel, words.lateRule[type.late]);
   rule(words.autoLabel, auto);
+  rule(words.cancelCardLabel, cancelLine(type, view));
   card.append(head, facts, lines);
   return card;
+}
+
+/** How a kind's approved leave is cancelled, in a line of the card. */
+function cancelLine(type: LeaveType, view: SetupView): string {
+  const { words, format } = view;
+  const { cancel } = type;
+  const within =
+    cancel.within === "upTo"
+      ? words.cancelUpTo(format.number(cancel.days))
+      : words.cancelWithin[cancel.within];
+  const deadline = {
+    none: words.cancelDeadlineMode.none,
+    days: words.noticeDays(format.number(cancel.deadline.days)),
+    dayBefore: words.noticeDayBefore(cancel.deadline.time),
+    sameDay: words.noticeSameDay(cancel.deadline.time),
+  }[cancel.deadline.mode];
+  if (cancel.within === cancel.after) {
+    return within;
+  }
+  if (cancel.deadline.mode === "none") {
+    return words.cancelThrough(within);
+  }
+  return words.cancelCard(deadline, within, words.cancelAfter[cancel.after]);
 }
 
 export async function typesTab(body: HTMLElement, view: SetupView): Promise<void> {

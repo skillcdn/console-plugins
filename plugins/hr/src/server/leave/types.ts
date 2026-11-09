@@ -1,16 +1,30 @@
 // The kinds of leave a workspace starts with, written by `setup` or when the plugin is enabled;
 // HR renames, changes or disables them afterwards, and adds its own. Annual leave is always one
 // of them, since the policies give their days to it.
-import type { LeaveType, Notice } from "../../shared/contracts.js";
+import type { CancelRule, LeaveType, Notice } from "../../shared/contracts.js";
 
 const NO_NOTICE: Notice = { mode: "none", days: 0, time: "18:00" };
 const ASK_ALWAYS = { mode: "never", days: 0 } as const;
+
+/**
+ * How a kind's approved leave is cancelled unless HR says otherwise: by the deadline its requests
+ * keep, at once; after it, through the first day, by a decision.
+ */
+export function cancelRuleFor(notice: Notice): CancelRule {
+  return { deadline: notice, within: "now", days: 0, after: "decision" };
+}
+
+/** The rule of a kind, and for leave of a kind that is no more, HR's alone. */
+export function cancelRuleOfKind(kind: LeaveType | null | undefined): CancelRule {
+  return kind?.cancel ?? { deadline: NO_NOTICE, within: "hr", days: 0, after: "hr" };
+}
 
 /** What a kind asks unless HR says otherwise: no notice, late requests marked, a decision always. */
 export const TYPE_RULES = {
   notice: NO_NOTICE,
   late: "mark",
   autoApprove: ASK_ALWAYS,
+  cancel: cancelRuleFor(NO_NOTICE),
 } as const;
 
 export function DEFAULT_TYPES(country: "kr" | "us" | null): LeaveType[] {

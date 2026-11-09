@@ -2435,3 +2435,23 @@
   gap: var(--sc-space-2);
   min-width: 0;
 }
+
+/* Cancelling a request: what it would come to, then the reason and the confirmation */
+
+.pl-hr-cancel-box {
+  display: grid;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-cancel-outcome {
+  margin: 0;
+  font-size: var(--sc-text-sm);
+  color: var(--sc-text-muted);
+}
+
+/* The rules of the kind chosen, under the kinds of the request form */
+
+.pl-hr-type-rules-line {
+  display: block;
+  margin-top: var(--sc-space-1);
+}

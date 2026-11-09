@@ -10,6 +10,7 @@ import type {
   PresetView,
   RequestState,
   StepView,
+  TypeView,
 } from "../shared/contracts.js";
 import { dayIn, isDay } from "../shared/days.js";
 import type { Words } from "./words.js";
@@ -800,9 +801,9 @@ export function nameIn(names: Readonly<Record<string, string>>, language: string
 }
 
 /** The kinds of leave by key, as the console answers them to the caller; empty where it refuses. */
-export async function loadTypes(frame: PluginFrame): Promise<Map<string, LeaveType>> {
+export async function loadTypes(frame: PluginFrame): Promise<Map<string, TypeView>> {
   try {
-    const types = (await frame.query("types")) as readonly LeaveType[];
+    const types = (await frame.query("types")) as readonly TypeView[];
     return new Map(types.map((type) => [type.key, type]));
   } catch {
     return new Map();
@@ -810,7 +811,7 @@ export async function loadTypes(frame: PluginFrame): Promise<Map<string, LeaveTy
 }
 
 /** The kinds of leave in the order HR gave them. */
-export function sortedTypes(types: ReadonlyMap<string, LeaveType>): LeaveType[] {
+export function sortedTypes<T extends LeaveType>(types: ReadonlyMap<string, T>): T[] {
   return [...types.values()].sort((a, b) => a.order - b.order || (a.key < b.key ? -1 : 1));
 }
 

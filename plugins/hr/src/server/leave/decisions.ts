@@ -30,7 +30,7 @@ import {
   typeByKey,
 } from "../store.js";
 import { daysText, nameIn, OPTION_KEYS, type ServerWords, serverWords, spanOf } from "../words.js";
-import { DECIDERS_AT_MOST, lineFor } from "./approval.js";
+import { cancelDecidersFor, DECIDERS_AT_MOST } from "./approval.js";
 import { balanceOf } from "./engine.js";
 import { taskOnce } from "./leavers.js";
 
@@ -254,17 +254,6 @@ export async function askApproval(
   });
 }
 
-/** Who a line of the manager alone asks for a person: their manager, else who stands in. */
-async function nearestDeciders(ctx: PluginContext, personId: string): Promise<readonly string[]> {
-  const directory = await directoryOf(ctx);
-  const line = lineFor(
-    [{ sources: ["manager"], people: [], mode: "any" }],
-    standingOf(personId, directory),
-    await staffOf(ctx, directory),
-  );
-  return line[0]?.deciderIds ?? [];
-}
-
 /** Raises the decision on cancelling approved leave, for whoever approved it. */
 export async function askCancellation(
   ctx: PluginContext,
@@ -276,8 +265,12 @@ export async function askCancellation(
   const data = request.data;
   const typeRecord = await typeByKey(ctx, data.type);
   // Whoever approved it first; leave nobody had to approve goes to the person's manager.
-  const first = data.steps[0]?.deciderIds ?? [];
-  const deciders = first.length > 0 ? first : await nearestDeciders(ctx, data.personId);
+  const directory = await directoryOf(ctx);
+  const deciders = cancelDecidersFor(
+    data.steps,
+    standingOf(data.personId, directory),
+    await staffOf(ctx, directory),
+  );
   return raise(ctx, clock, data.personId, deciders, async (words, language) => {
     const typeName = typeRecord === null ? data.type : nameIn(typeRecord.data.name, language);
     const span = spanOf(data.from, data.to, data.part, words);

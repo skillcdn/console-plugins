@@ -19,12 +19,14 @@ import type {
   ConfigReport,
   EntryView,
   LeaveRequest,
+  LeaveType,
   OverviewReport,
   PeopleReport,
   Person,
   PresetView,
   RequestPreview,
   RequestView,
+  TypeView,
 } from "../shared/contracts.js";
 import { DEFAULT_CONFIG } from "./config.js";
 import {
@@ -38,6 +40,7 @@ import {
   calendar,
   cancel,
   collections,
+  config,
   configQuery,
   configure,
   enroll,
@@ -64,6 +67,7 @@ import {
   runDaily,
   setup,
   type,
+  types,
   typesQuery,
   upgrades,
 } from "./index.js";
@@ -219,6 +223,8 @@ function contextWith(
   timeZone = "Asia/Seoul",
   teams: readonly RestTeam[] = [],
   timeZoneSet = timeZone !== "UTC",
+  /** The workspace's language where an administrator set one; English, unset, where not given. */
+  language?: string,
 ): TestContext {
   let counter = 0;
   return createTestContext({
@@ -233,9 +239,9 @@ function contextWith(
     console: {
       workspace: async () => ({
         name: "Test",
-        language: "en",
-        languageSet: false,
-        languages: ["en", "ko"],
+        language: language ?? "en",
+        languageSet: language !== undefined,
+        languages: language === "ko" ? ["ko", "en"] : ["en", "ko"],
         timeZone,
         timeZoneSet,
         weekStart: "auto",
@@ -325,6 +331,14 @@ async function korea(
     "hired-on": "2025-03-15",
   });
   return ctx;
+}
+
+/** Annual leave's rule of cancelling, as HR writes it with `type`. */
+async function annualCancelling(
+  ctx: TestContext,
+  args: Omit<Parameters<typeof type.run>[1], "key">,
+): Promise<void> {
+  await type.run(ctx, { key: "annual", ...args });
 }
 
 async function annualOf(ctx: TestContext, who: PluginCaller) {
@@ -781,8 +795,9 @@ describe("cancel", () => {
     expect(ctx.all("requests")[0]?.data).toMatchObject({ state: "cancelled" });
   });
 
-  it("raises a decision where the setting asks for one, and keeps the leave when refused", async () => {
-    const ctx = await korea(theBoard, { cancellation: "approval" });
+  it("raises a decision where the kind's rule asks for one, and keeps the leave when refused", async () => {
+    const ctx = await korea(theBoard);
+    await annualCancelling(ctx, { cancel: "decision" });
     const id = await approved(ctx, "2026-11-10", "2026-11-11");
     const result = await cancel.run(ctx.as(ALICE), { id });
     expect(result.waiting).toBeDefined();
@@ -805,8 +820,9 @@ describe("cancel", () => {
     expect((await annualOf(ctx, ALICE)).available).toBe(13);
   });
 
-  it("refuses another person's request, and HR alone cancels under the hr setting", async () => {
-    const ctx = await korea(theBoard, { cancellation: "hr" });
+  it("refuses another person's request, and HR alone cancels under the kind's hr rule", async () => {
+    const ctx = await korea(theBoard);
+    await annualCancelling(ctx, { cancel: "hr" });
     const id = await approved(ctx, "2026-11-10", "2026-11-11");
     await expect(cancel.run(ctx.as(BOB), { id })).rejects.toMatchObject({
       code: "not_yours",
@@ -1944,13 +1960,14 @@ describe("the configuration", () => {
     expect(before.config.line).toEqual([{ sources: ["manager"], people: [], mode: "any" }]);
     await setup.run(ctx, { country: "kr" });
     await configure.run(ctx, {
-      cancellation: "hr",
+      "backdating-days": 10,
       "work-days": ["tue", "mon"],
     });
     const after = (await configQuery.run(ctx, {})) as ConfigReport;
     expect(after.ready).toBe(true);
+    expect(after).toMatchObject({ language: "en", languageSet: false });
     expect(after.config).toMatchObject({
-      cancellation: "hr",
+      backdatingDays: 10,
       workDays: ["mon", "tue"],
       holidayCalendar: "kr",
     });
@@ -1992,7 +2009,7 @@ describe("the configuration", () => {
 
   it("is HR's alone", async () => {
     const ctx = await korea(board());
-    await expect(configure.run(ctx.as(ALICE), { cancellation: "hr" })).rejects.toMatchObject({
+    await expect(configure.run(ctx.as(ALICE), { "backdating-days": 3 })).rejects.toMatchObject({
       code: "hr_only",
     });
     await expect(configQuery.run(ctx.as(ALICE), {})).rejects.toMatchObject({ code: "hr_only" });
@@ -2002,7 +2019,8 @@ describe("the configuration", () => {
 describe("a cancellation that takes a decision", () => {
   it("waits for whoever approved the leave, and finds its way to their list", async () => {
     const theBoard = board();
-    const ctx = await korea(theBoard, { cancellation: "approval" });
+    const ctx = await korea(theBoard);
+    await annualCancelling(ctx, { cancel: "decision" });
     const asked = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     theBoard.answer(asked.waiting ?? "", "approve", MANAGER);
     await answered(ctx, asked.waiting ?? "");
@@ -2021,7 +2039,8 @@ describe("a cancellation that takes a decision", () => {
 describe("a cancellation of leave nobody had to approve", () => {
   it("goes to the person's manager", async () => {
     const theBoard = board();
-    const ctx = await korea(theBoard, { cancellation: "approval", line: "[]" });
+    const ctx = await korea(theBoard, { line: "[]" });
+    await annualCancelling(ctx, { cancel: "decision" });
     await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     const id = ctx.all("requests")[0]?.id ?? "";
     const cancelling = await cancel.run(ctx.as(ALICE), { id });
@@ -2275,12 +2294,12 @@ describe("whom a decision went to", () => {
   it("follows the line to its next step, and to a cancellation", async () => {
     const theBoard = board();
     const ctx = await korea(theBoard, {
-      cancellation: "approval",
       line: lineWith([
         { sources: ["manager"], people: [], mode: "any" },
         { sources: ["hr"], people: [], mode: "any" },
       ]),
     });
+    await annualCancelling(ctx, { cancel: "decision" });
     const asked = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
     expect(stored(ctx).asked).toEqual([personOf(MANAGER).id]);
     theBoard.answer(asked.waiting ?? "", "approve", MANAGER);
@@ -2951,5 +2970,379 @@ describe("the console's teams", () => {
     }
     expect(ctx.all("config")[0]?.data).toMatchObject({ rules: [{ ...rule, teams: [] }] });
     expect(ctx.all("announcements")[0]?.data).toMatchObject({ audience: [] });
+  });
+});
+
+/** The request of a day as it stands, and what the person reads of it. */
+async function viewAs(ctx: TestContext, who: PluginCaller, id: string): Promise<RequestView> {
+  return (await requestView.run(ctx.as(who), { id })) as RequestView;
+}
+
+/** Alice's leave from a day, approved as it is written: the line asks nobody. */
+async function writtenLeave(ctx: TestContext, from: string, to = from): Promise<string> {
+  await request.run(ctx.as(ALICE), { from, to });
+  const made = ctx.all("requests").find((record) => record.data.from === from);
+  expect(made?.data.state).toBe("approved");
+  return made?.id ?? "";
+}
+
+// NOW is Friday 2026-11-06 09:00 in Seoul: a deadline of 08:00 on the first day has passed for
+// leave of today, one of 10:00 has not; Monday's leave is still ahead.
+describe("cancelling by the rule of a kind", () => {
+  it("cancels at once by the deadline, by a decision after it through the first day, and leaves the day after to HR", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, { line: "[]" });
+    await annualCancelling(ctx, {
+      "cancel-notice": "sameDay",
+      "cancel-notice-time": "08:00",
+      cancel: "now",
+      "cancel-late": "decision",
+    });
+    const tomorrow = await writtenLeave(ctx, "2026-11-09");
+    const today = await writtenLeave(ctx, "2026-11-06");
+    const begun = await writtenLeave(ctx, "2026-11-04", "2026-11-05");
+    expect(await viewAs(ctx, ALICE, tomorrow)).toMatchObject({
+      cancellable: true,
+      cancellation: "now",
+      cancelDeciders: [],
+    });
+    const late = await viewAs(ctx, ALICE, today);
+    expect(late).toMatchObject({ cancellable: true, cancellation: "decision" });
+    expect(late.cancelDeciders.map((person) => person.login)).toEqual(["minho"]);
+    expect(await viewAs(ctx, ALICE, begun)).toMatchObject({
+      cancellable: false,
+      cancellation: null,
+    });
+    expect((await viewAs(ctx, HR, begun)).cancellation).toBe("now");
+
+    expect((await cancel.run(ctx.as(ALICE), { id: tomorrow })).waiting).toBeUndefined();
+    expect(ctx.all("requests").find((item) => item.id === tomorrow)?.data.state).toBe("cancelled");
+    const asked = await cancel.run(ctx.as(ALICE), { id: today, reason: "back early" });
+    // Leave nobody had to approve goes to the person's manager, as the view said.
+    expect(theBoard.decisions.get(asked.waiting ?? "")?.decider.id).toBe(personOf(MANAGER).id);
+    expect(ctx.all("requests").find((item) => item.id === today)?.data.state).toBe("cancelling");
+    await expect(cancel.run(ctx.as(ALICE), { id: begun })).rejects.toMatchObject({
+      code: "started",
+      message: "Leave whose first day has gone by is cancelled by HR.",
+    });
+    await cancel.run(ctx, { id: begun });
+    expect(ctx.all("requests").find((item) => item.id === begun)?.data.state).toBe("cancelled");
+  });
+
+  it("is the rule by the deadline until its time on the first day", async () => {
+    const ctx = await korea(board(), { line: "[]" });
+    await annualCancelling(ctx, {
+      "cancel-notice": "sameDay",
+      "cancel-notice-time": "10:00",
+      cancel: "now",
+      "cancel-late": "decision",
+    });
+    const today = await writtenLeave(ctx, "2026-11-06");
+    expect((await viewAs(ctx, ALICE, today)).cancellation).toBe("now");
+    await cancel.run(ctx.as(ALICE), { id: today });
+    expect(ctx.all("requests")[0]?.data.state).toBe("cancelled");
+  });
+
+  it("leaves leave past the deadline to HR where the rule says so, and says until when it was the person's", async () => {
+    const ctx = await korea(board(), { line: "[]" });
+    await annualCancelling(ctx, {
+      "cancel-notice": "dayBefore",
+      "cancel-notice-time": "18:00",
+      cancel: "now",
+      "cancel-late": "hr",
+    });
+    const today = await writtenLeave(ctx, "2026-11-06");
+    expect((await viewAs(ctx, ALICE, today)).cancellation).toBeNull();
+    await expect(cancel.run(ctx.as(ALICE), { id: today })).rejects.toMatchObject({
+      code: "hr_only",
+      message:
+        "Approved leave of this kind is cancelled by its person until 18:00 the day before, Asia/Seoul time; after that, by HR.",
+    });
+    await expect(cancel.run(ctx.as(KO_ALICE), { id: today })).rejects.toMatchObject({
+      message:
+        "이 종류의 승인된 휴가는 전날 18:00까지(Asia/Seoul 기준) 본인이 취소하고, 그 뒤에는 인사 담당이 취소합니다.",
+    });
+    expect(ctx.all("requests")[0]?.data.state).toBe("approved");
+  });
+
+  it("cancels short leave at once and sends longer leave to a decision, for up to some days", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    await annualCancelling(ctx, { cancel: "upTo", "cancel-days": 1 });
+    const short = await approvedBy(ctx, theBoard, "2026-11-10");
+    const long = await approvedBy(ctx, theBoard, "2026-11-11", "2026-11-12");
+    expect((await viewAs(ctx, ALICE, short)).cancellation).toBe("now");
+    const view = await viewAs(ctx, ALICE, long);
+    expect(view.cancellation).toBe("decision");
+    expect(view.cancelDeciders.map((person) => person.login)).toEqual(["minho"]);
+    expect((await cancel.run(ctx.as(ALICE), { id: short })).waiting).toBeUndefined();
+    expect((await cancel.run(ctx.as(ALICE), { id: long })).waiting).toBeDefined();
+  });
+
+  it("is HR's alone where the rule gives it to HR, and says so", async () => {
+    const ctx = await korea(board(), { line: "[]" });
+    await annualCancelling(ctx, { cancel: "hr", "cancel-late": "hr" });
+    const later = await writtenLeave(ctx, "2026-11-20");
+    expect((await viewAs(ctx, ALICE, later)).cancellation).toBeNull();
+    await expect(cancel.run(ctx.as(ALICE), { id: later })).rejects.toMatchObject({
+      code: "hr_only",
+      message: "Approved leave of this kind is cancelled by HR.",
+    });
+    expect((await viewAs(ctx, HR, later)).cancellation).toBe("now");
+  });
+
+  it("cancels a request still waiting at once, whatever the rule", async () => {
+    const ctx = await korea(board());
+    await annualCancelling(ctx, { cancel: "hr", "cancel-late": "hr" });
+    const made = await request.run(ctx.as(ALICE), { from: "2026-11-20" });
+    const id = (made.data as { id: string }).id;
+    expect((await viewAs(ctx, ALICE, id)).cancellation).toBe("now");
+    await cancel.run(ctx.as(ALICE), { id });
+    expect(ctx.all("requests")[0]?.data.state).toBe("cancelled");
+  });
+});
+
+/** Alice's leave approved by her manager's decision. */
+async function approvedBy(
+  ctx: TestContext,
+  theBoard: Board,
+  from: string,
+  to = from,
+): Promise<string> {
+  const made = await request.run(ctx.as(ALICE), { from, to });
+  theBoard.answer(made.waiting ?? "", "approve", MANAGER);
+  await answered(ctx, made.waiting ?? "");
+  return (made.data as { id: string }).id;
+}
+
+describe("a kind's rule of cancelling, as HR writes it", () => {
+  it("cancels a new kind by the deadline its requests keep, and reads the rule back", async () => {
+    const ctx = await korea(board());
+    const saved = await type.run(ctx, {
+      key: "outing",
+      name: ["en=Outing", "ko=외출"],
+      notice: "sameDay",
+      "notice-time": "09:00",
+    });
+    const written = ctx.all("types").find((record) => record.data.key === "outing")?.data;
+    expect((written as unknown as LeaveType | undefined)?.cancel).toEqual({
+      deadline: { mode: "sameDay", days: 0, time: "09:00" },
+      within: "now",
+      days: 0,
+      after: "decision",
+    });
+    expect(saved.text).toContain(
+      "Approved leave is cancelled at once until 09:00 on its first day, Asia/Seoul time; after that, through its first day, by a decision; once that day has gone by, by HR.",
+    );
+    await type.run(ctx, { key: "outing", "cancel-late": "hr" });
+    const korean = await type.run(ctx.as(KO_HR), { key: "outing" });
+    expect(korean.text).toContain(
+      "승인된 휴가는 당일 09:00까지(Asia/Seoul 기준) 바로 취소하고, 그 뒤에는 인사 담당이 취소합니다.",
+    );
+  });
+
+  it("says each kind's rules in a sentence of the caller's language", async () => {
+    const ctx = await korea(board());
+    await annualCancelling(ctx, { cancel: "upTo", "cancel-days": 2, "cancel-late": "hr" });
+    const english = (await typesQuery.run(ctx.as(ALICE), {})) as TypeView[];
+    const annual = english.find((kind) => kind.key === "annual");
+    expect(annual?.summary).toContain("Requested any time;");
+    expect(annual?.summary).toContain(
+      "Approved leave is cancelled at once up to 2 days, longer leave by a decision through its first day; once that day has gone by, by HR.",
+    );
+    const korean = (await typesQuery.run(ctx.as(KO_ALICE), {})) as TypeView[];
+    expect(korean.find((kind) => kind.key === "annual")?.summary).toContain(
+      "승인된 휴가는 첫날까지 2일 이하는 바로, 그보다 긴 휴가는 결재를 거쳐 취소하고, 첫날이 지나면 인사 담당이 취소합니다.",
+    );
+  });
+
+  it("refuses a time that is no time, and a number past its bounds, writing nothing", async () => {
+    const ctx = await korea(board());
+    const before = ctx.all("types").find((record) => record.data.key === "annual")?.version;
+    await expect(
+      type.run(ctx, { key: "annual", "cancel-notice": "sameDay", "cancel-notice-time": "24:00" }),
+    ).rejects.toMatchObject({ code: "time" });
+    await expect(
+      type.run(ctx, { key: "annual", "cancel-notice-time": `9:00${String.fromCodePoint(0)}` }),
+    ).rejects.toMatchObject({ code: "time" });
+    expect(ctx.all("types").find((record) => record.data.key === "annual")?.version).toBe(before);
+    await expect(type.run(ctx.as(ALICE), { key: "annual", cancel: "now" })).rejects.toMatchObject({
+      code: "hr_only",
+    });
+  });
+});
+
+describe("the upgrade of the rule of cancelling", () => {
+  const oldTypes = defineCollection("types", { schema: types.schema.omit({ cancel: true }) });
+  const oldConfig = defineCollection("config", {
+    schema: config.schema.extend({ cancellation: z.enum(["free", "approval", "hr"]) }),
+  });
+
+  it.each([
+    [
+      "free",
+      {
+        deadline: { mode: "dayBefore", days: 0, time: "23:59" },
+        within: "now",
+        days: 0,
+        after: "hr",
+      },
+    ],
+    [
+      "approval",
+      {
+        deadline: { mode: "none", days: 0, time: "18:00" },
+        within: "decision",
+        days: 0,
+        after: "decision",
+      },
+    ],
+    [
+      "hr",
+      { deadline: { mode: "none", days: 0, time: "18:00" }, within: "hr", days: 0, after: "hr" },
+    ],
+  ])("writes what %s meant on every kind, and the setting goes, once", async (setting, rule) => {
+    const ctx = await korea(board());
+    for (const record of ctx.all("types")) {
+      await ctx.records(oldTypes).update(record.id, {});
+    }
+    const configId = ctx.all("config")[0]?.id ?? "";
+    await ctx.records(oldConfig).update(configId, { cancellation: setting as "free" });
+    expect(ctx.all("types").every((record) => !("cancel" in record.data))).toBe(true);
+    expect(ctx.all("config")[0]?.data).toHaveProperty("cancellation", setting);
+    for (const upgrade of upgrades) {
+      await upgrade.run(ctx.as(CONSOLE));
+      await upgrade.run(ctx.as(CONSOLE));
+    }
+    expect(ctx.all("types").map((record) => (record.data as unknown as LeaveType).cancel)).toEqual(
+      ctx.all("types").map(() => rule),
+    );
+    expect(ctx.all("config")[0]?.data).not.toHaveProperty("cancellation");
+    expect(ctx.all("config")[0]?.data).toMatchObject({ backdatingDays: 30 });
+  });
+
+  it("cancels as the setting free did: at once before the first day, by HR from it", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard, { line: "[]" });
+    for (const record of ctx.all("types")) {
+      await ctx.records(oldTypes).update(record.id, {});
+    }
+    for (const upgrade of upgrades) {
+      await upgrade.run(ctx.as(CONSOLE));
+    }
+    const monday = await writtenLeave(ctx, "2026-11-09");
+    const today = await writtenLeave(ctx, "2026-11-06");
+    expect((await viewAs(ctx, ALICE, monday)).cancellation).toBe("now");
+    expect((await viewAs(ctx, ALICE, today)).cancellation).toBeNull();
+    await expect(cancel.run(ctx.as(ALICE), { id: today })).rejects.toMatchObject({
+      code: "hr_only",
+    });
+  });
+});
+
+describe("one's own requests, through the api", () => {
+  const forAlice: PluginCaller = {
+    kind: "plugin",
+    plugin: "messenger",
+    roles: ["member"],
+    for: { ...personOf(ALICE), language: "ko", admin: false },
+    project: null,
+  };
+  const asItself: PluginCaller = {
+    kind: "plugin",
+    plugin: "messenger",
+    roles: ["member", "hr"],
+    for: null,
+    project: null,
+  };
+
+  it("answers the person's requests as the query does, with what cancelling each comes to", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2025-03-15" });
+    await request.run(ctx.as(BOB), { from: "2026-11-11" });
+    const waiting = await request.run(ctx.as(ALICE), { from: "2026-11-12" });
+    const approvedId = await approvedBy(ctx, theBoard, "2026-11-10");
+    const mine = (await api.requests.run(ctx.as(forAlice), {})) as RequestView[];
+    expect(mine.map((view) => view.request.from)).toEqual(["2026-11-12", "2026-11-10"]);
+    expect(mine.map((view) => [view.cancellable, view.cancellation])).toEqual([
+      [true, "now"],
+      [true, "now"],
+    ]);
+    expect(mine.find((view) => view.id === approvedId)?.request.state).toBe("approved");
+    const ahead = (await api.requests.run(ctx.as(forAlice), {
+      state: "requested",
+      from: "2026-11-12",
+      limit: 1,
+    })) as RequestView[];
+    expect(ahead.map((view) => view.id)).toEqual([(waiting.data as { id: string }).id]);
+    expect(await api.requests.run(ctx.as(ALICE), {})).toEqual(
+      await requestsQuery.run(ctx.as(ALICE), {}),
+    );
+  });
+
+  it("refuses what the query refuses, a plugin as itself, and input it does not take", async () => {
+    const ctx = await korea(board());
+    await expect(api.requests.run(ctx.as(asItself), {})).rejects.toMatchObject({
+      code: "person_only",
+    });
+    await expect(api.requests.run(ctx.as(forAlice), { scope: "all" })).rejects.toMatchObject({
+      code: "hr_only",
+    });
+    await expect(
+      api.requests.run(ctx.as(forAlice), { personId: personOf(BOB).id }),
+    ).rejects.toMatchObject({ code: "not_visible" });
+    for (const input of [
+      { scope: "everyone" },
+      { limit: 201 },
+      { limit: 0 },
+      { from: "2026-02-30" },
+      { type: "Not A Key" },
+      { state: "gone" },
+      { personId: "x".repeat(65) },
+    ]) {
+      await expect(api.requests.run(ctx.as(forAlice), input)).rejects.toThrow();
+    }
+  });
+});
+
+describe("the workspace's language", () => {
+  it("is what the plugin writes to whoever has none of their own, once an administrator set it", async () => {
+    const theBoard = board();
+    const people = everyone().map((person) => ({ ...person, language: null }) as RestPerson);
+    const ctx = contextWith(theBoard, people, "Asia/Seoul", [], true, "ko");
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" });
+    const made = await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(made.waiting ?? "")?.question).toContain("휴가 결재");
+    expect(made.text).toContain("Requested");
+    const report = (await configQuery.run(ctx, {})) as ConfigReport;
+    expect(report).toMatchObject({ language: "ko", languageSet: true });
+  });
+
+  it("leaves the caller's language for whoever has none, where nobody set the workspace's", async () => {
+    const theBoard = board();
+    const people = everyone().map((person) => ({ ...person, language: null }) as RestPerson);
+    const ctx = contextWith(theBoard, people);
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(ALICE), leave: "on", "hired-on": "2025-03-15" });
+    const made = await request.run(ctx.as(KO_ALICE), { from: "2026-11-10" });
+    expect(theBoard.decisions.get(made.waiting ?? "")?.question).toContain("휴가 결재");
+    const english = await request.run(ctx.as(ALICE), { from: "2026-11-12" });
+    expect(theBoard.decisions.get(english.waiting ?? "")?.question).not.toContain("휴가 결재");
+  });
+
+  it("writes HR's task from the daily job in it, for HR who has none", async () => {
+    const theBoard = board();
+    const people = everyone().map((person) =>
+      person.login === "bob"
+        ? ({ ...person, status: "deactivated", language: null } as RestPerson)
+        : ({ ...person, language: null } as RestPerson),
+    );
+    const ctx = contextWith(theBoard, people, "Asia/Seoul", [], true, "ko");
+    await setup.run(ctx, { country: "kr" });
+    await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2024-01-10" });
+    await runDaily(ctx.as(CONSOLE));
+    expect(theBoard.tasks[0]?.title).toContain("퇴직");
   });
 });

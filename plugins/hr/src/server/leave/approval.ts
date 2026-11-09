@@ -124,6 +124,23 @@ export function lineFor(
   return [{ deciderIds: fallback.slice(0, DECIDERS_AT_MOST), mode: "any", approvedBy: [] }];
 }
 
+/**
+ * Whom the cancellation of approved leave asks first: whoever its line's first step asked, else,
+ * for leave nobody had to approve, the person's nearest manager or who stands in for one.
+ */
+export function cancelDecidersFor(
+  steps: readonly RequestStep[],
+  standing: Standing,
+  staff: Staff,
+): readonly string[] {
+  const first = steps[0]?.deciderIds ?? [];
+  if (first.length > 0) {
+    return first;
+  }
+  const line = lineFor([{ sources: ["manager"], people: [], mode: "any" }], standing, staff);
+  return line[0]?.deciderIds ?? [];
+}
+
 function closed(step: RequestStep): boolean {
   if (step.mode === "any" || step.deciderIds.length === 0) {
     return step.approvedBy.length > 0;

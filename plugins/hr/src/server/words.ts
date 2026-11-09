@@ -6,6 +6,8 @@
 import type {
   ApprovalRule,
   ApprovalStep,
+  CancelRule,
+  CancelWithin,
   LeaveType,
   Notice,
   Part,
@@ -27,7 +29,10 @@ export interface Readback {
   /** What the first fixed period start grants someone hired within a period; empty for the anniversary. */
   readonly firstPeriod: (policy: Policy) => string;
   readonly monthly: (policy: Policy) => string;
-  /** How a kind is taken: its notice, in the zone, approval as written, and what a late request meets. */
+  /**
+   * How a kind is taken: its notice, in the zone, approval as written, what a late request meets,
+   * and how its approved leave is cancelled.
+   */
   readonly type: (type: LeaveType, zone: string) => string;
   /** The default line in words, each person named by `named`. */
   readonly line: (steps: readonly ApprovalStep[], named: (id: string) => string) => string;
@@ -84,6 +89,8 @@ export interface Refusals {
   readonly closed: string;
   readonly started: string;
   readonly cancelledByHr: string;
+  /** Past the deadline of its kind, approved leave its rule leaves to HR. */
+  readonly pastCancelDeadline: (deadline: Notice, zone: string) => string;
   readonly daysInQuarters: string;
   readonly payoutTakes: string;
   readonly grantGives: string;
@@ -235,6 +242,76 @@ function range<T extends { fromYears: number; days: number }>(tiers: readonly T[
   return [...tiers].sort((a, b) => a.fromYears - b.fromYears);
 }
 
+/** By when a cancellation is in time, in the zone. */
+function englishDeadline(deadline: Notice, zone: string): string {
+  switch (deadline.mode) {
+    case "days":
+      return `until ${deadline.days} ${deadline.days === 1 ? "day" : "days"} before its first day`;
+    case "dayBefore":
+      return `until ${deadline.time} the day before, ${zone} time`;
+    case "sameDay":
+      return `until ${deadline.time} on its first day, ${zone} time`;
+    default:
+      return "through its first day";
+  }
+}
+
+/** How a kind's approved leave is cancelled, by its person, in one sentence. */
+function englishCancel(rule: CancelRule, zone: string): string {
+  const how: Record<CancelWithin, string> = {
+    now: "cancelled at once",
+    upTo: `cancelled at once up to ${rule.days} ${rule.days === 1 ? "day" : "days"}, longer leave by a decision`,
+    decision: "cancelled by a decision",
+    hr: "cancelled by HR",
+  };
+  const none = rule.deadline.mode === "none";
+  if (rule.within === "hr" && (none || rule.after === "hr")) {
+    return "Approved leave is cancelled by HR alone.";
+  }
+  if (none || (rule.within === "decision" && rule.after === "decision")) {
+    return `Approved leave is ${how[rule.within]} through its first day; once that day has gone by, by HR.`;
+  }
+  const until = englishDeadline(rule.deadline, zone);
+  if (rule.after === "hr") {
+    return `Approved leave is ${how[rule.within]} ${until}; after that, by HR.`;
+  }
+  return `Approved leave is ${how[rule.within]} ${until}; after that, through its first day, by a decision; once that day has gone by, by HR.`;
+}
+
+function koreanDeadline(deadline: Notice, zone: string): string {
+  switch (deadline.mode) {
+    case "days":
+      return `첫날 ${deadline.days}일 전까지`;
+    case "dayBefore":
+      return `전날 ${deadline.time}까지(${zone} 기준)`;
+    case "sameDay":
+      return `당일 ${deadline.time}까지(${zone} 기준)`;
+    default:
+      return "첫날까지";
+  }
+}
+
+function koreanCancel(rule: CancelRule, zone: string): string {
+  const how: Record<CancelWithin, string> = {
+    now: "바로 취소하고",
+    upTo: `${rule.days}일 이하는 바로, 그보다 긴 휴가는 결재를 거쳐 취소하고`,
+    decision: "결재를 거쳐 취소하고",
+    hr: "인사 담당이 취소하고",
+  };
+  const none = rule.deadline.mode === "none";
+  if (rule.within === "hr" && (none || rule.after === "hr")) {
+    return "승인된 휴가는 인사 담당만 취소합니다.";
+  }
+  if (none || (rule.within === "decision" && rule.after === "decision")) {
+    return `승인된 휴가는 첫날까지 ${how[rule.within]}, 첫날이 지나면 인사 담당이 취소합니다.`;
+  }
+  const until = koreanDeadline(rule.deadline, zone);
+  if (rule.after === "hr") {
+    return `승인된 휴가는 ${until} ${how[rule.within]}, 그 뒤에는 인사 담당이 취소합니다.`;
+  }
+  return `승인된 휴가는 ${until} ${how[rule.within]}, 그 뒤 첫날까지는 결재를 거쳐 취소하며, 첫날이 지나면 인사 담당이 취소합니다.`;
+}
+
 const ENGLISH: ServerWords = {
   approve: "Approve",
   reject: "Reject",
@@ -286,10 +363,10 @@ const ENGLISH: ServerWords = {
       none: "",
       am: "morning half",
       pm: "afternoon half",
-      q1: "first quarter",
-      q2: "second quarter",
-      q3: "third quarter",
-      q4: "last quarter",
+      q1: "early-morning quarter",
+      q2: "late-morning quarter",
+      q3: "early-afternoon quarter",
+      q4: "late-afternoon quarter",
     })[part],
   days: (count) => (count === 1 ? "1 day" : `${count} days`),
   noticeText: (notice) => {
@@ -404,7 +481,7 @@ const ENGLISH: ServerWords = {
               : "a later one goes to the line, marked late",
         }[type.late];
       }
-      return `${notice}; ${auto}${late === "" ? "" : `; ${late}`}.`;
+      return `${notice}; ${auto}${late === "" ? "" : `; ${late}`}. ${englishCancel(type.cancel, zone)}`;
     },
     line: (steps, named) => {
       if (steps.length === 0) {
@@ -541,8 +618,10 @@ const ENGLISH: ServerWords = {
     notYours: "The request is another person's.",
     alreadyCancelling: "The cancellation waits for a decision already.",
     closed: "The request is closed.",
-    started: "Leave that has begun is cancelled by HR.",
-    cancelledByHr: "Approved leave is cancelled by HR.",
+    started: "Leave whose first day has gone by is cancelled by HR.",
+    cancelledByHr: "Approved leave of this kind is cancelled by HR.",
+    pastCancelDeadline: (deadline, zone) =>
+      `Approved leave of this kind is cancelled by its person ${englishDeadline(deadline, zone)}; after that, by HR.`,
     daysInQuarters: "Days are a number of quarters other than zero.",
     payoutTakes: "A payout takes days: give a negative number.",
     grantGives: "A grant gives days: give a positive number.",
@@ -646,10 +725,10 @@ const KOREAN: ServerWords = {
       none: "",
       am: "오전 반차",
       pm: "오후 반차",
-      q1: "반반차 오전 전반",
-      q2: "반반차 오전 후반",
-      q3: "반반차 오후 전반",
-      q4: "반반차 오후 후반",
+      q1: "오전 전반 반반차",
+      q2: "오전 후반 반반차",
+      q3: "오후 전반 반반차",
+      q4: "오후 후반 반반차",
     })[part],
   days: (count) => `${count}일`,
   noticeText: (notice) => {
@@ -763,7 +842,7 @@ const KOREAN: ServerWords = {
               : "늦은 신청은 늦음 표시와 함께 결재선으로 갑니다",
         }[type.late];
       }
-      return `${notice}. ${auto}.${late === "" ? "" : ` ${late}.`}`;
+      return `${notice}. ${auto}.${late === "" ? "" : ` ${late}.`} ${koreanCancel(type.cancel, zone)}`;
     },
     line: (steps, named) => {
       if (steps.length === 0) {
@@ -900,8 +979,10 @@ const KOREAN: ServerWords = {
     notYours: "다른 사람의 신청입니다.",
     alreadyCancelling: "취소가 이미 결정을 기다리고 있습니다.",
     closed: "이미 끝난 신청입니다.",
-    started: "시작된 휴가는 인사 담당이 취소합니다.",
-    cancelledByHr: "승인된 휴가는 인사 담당이 취소합니다.",
+    started: "첫날이 지난 휴가는 인사 담당이 취소합니다.",
+    cancelledByHr: "이 종류의 승인된 휴가는 인사 담당이 취소합니다.",
+    pastCancelDeadline: (deadline, zone) =>
+      `이 종류의 승인된 휴가는 ${koreanDeadline(deadline, zone)} 본인이 취소하고, 그 뒤에는 인사 담당이 취소합니다.`,
     daysInQuarters: "일수는 0이 아닌 0.25일 단위 숫자입니다.",
     payoutTakes: "수당 지급은 일수를 차감합니다. 음수로 적으세요.",
     grantGives: "부여는 일수를 더합니다. 양수로 적으세요.",

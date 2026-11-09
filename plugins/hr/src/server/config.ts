@@ -9,7 +9,6 @@ import { config } from "./collections.js";
 export const DEFAULT_CONFIG: Config = {
   line: [{ sources: ["manager"], people: [], mode: "any" }],
   rules: [],
-  cancellation: "free",
   backdatingDays: 30,
   balanceVisibility: "manager",
   calendarVisibility: "everyone",

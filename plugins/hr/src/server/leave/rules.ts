@@ -6,6 +6,8 @@
 import {
   type AccrualMode,
   ANNUAL,
+  type CancelOutcome,
+  type CancelRule,
   type Notice,
   type Part,
   type Policy,
@@ -375,5 +377,35 @@ export function isInTime(notice: Notice, from: string, today: string, time: stri
       return today < from || (today === from && time <= notice.time);
     default:
       return from >= today;
+  }
+}
+
+/**
+ * What cancelling approved leave comes to for its person, by its kind's rule, `today` and `time`
+ * the workspace's: by the deadline as `within` says, after it through the first day as `after`
+ * says, and once the first day has gone by HR's alone, since days were used and someone must say
+ * which. A deadline of `none` holds through the first day, as a notice of `none` does.
+ */
+export function cancelOutcome(
+  rule: CancelRule,
+  leave: { readonly from: string; readonly days: number },
+  today: string,
+  time: string,
+): CancelOutcome {
+  if (today > leave.from) {
+    return "hr";
+  }
+  if (!isInTime(rule.deadline, leave.from, today, time)) {
+    return rule.after;
+  }
+  switch (rule.within) {
+    case "now":
+      return "now";
+    case "upTo":
+      return leave.days <= rule.days ? "now" : "decision";
+    case "decision":
+      return "decision";
+    default:
+      return "hr";
   }
 }

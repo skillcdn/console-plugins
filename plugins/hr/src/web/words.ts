@@ -7,6 +7,11 @@
 
 export type SetupTab = "approval" | "types" | "policies" | "holidays" | "general";
 
+/** A label as it reads inside a sentence: its first letter small, unless it is a name such as HR. */
+function midSentence(label: string): string {
+  return /^[A-Z]{2}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+}
+
 const ENGLISH = {
   failed: "Something went wrong. Try again.",
   days: (count: string) => (count === "1" ? "1 day" : `${count} days`),
@@ -48,10 +53,10 @@ const ENGLISH = {
     none: "Whole day",
     am: "Morning half",
     pm: "Afternoon half",
-    q1: "First quarter",
-    q2: "Second quarter",
-    q3: "Third quarter",
-    q4: "Last quarter",
+    q1: "Early-morning quarter",
+    q2: "Late-morning quarter",
+    q3: "Early-afternoon quarter",
+    q4: "Late-afternoon quarter",
   },
   partShort: { none: "", am: "AM", pm: "PM", q1: "Q1", q2: "Q2", q3: "Q3", q4: "Q4" },
   weekday: { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" },
@@ -95,6 +100,19 @@ const ENGLISH = {
     manager: "Only a manager or HR writes it",
   },
   autoMode: { never: "Never", always: "Always, late or not", upTo: "In time, up to some days" },
+  cancelDeadlineMode: {
+    none: "Through the first day",
+    days: "Days before",
+    dayBefore: "By a time the day before",
+    sameDay: "By a time the same day",
+  },
+  cancelWithin: {
+    now: "At once",
+    upTo: "At once up to some days",
+    decision: "By a decision",
+    hr: "HR alone",
+  },
+  cancelAfter: { decision: "By a decision", hr: "HR alone" },
   source: { manager: "Their manager", admin: "Administrators", hr: "HR" },
   stepMode: { any: "Any one of them is enough", all: "All of them, one after another" },
   holidayKind: { public: "Public", substitute: "Substitute", company: "Company" },
@@ -108,12 +126,6 @@ const ENGLISH = {
   country: { kr: "Korea", us: "United States" },
   setupBasis: { anniversary: "By hire date", fiscal: "By fiscal year" },
   status: { active: "Active", deactivated: "Deactivated" },
-  cancellation: { free: "Free before it starts", approval: "Takes a decision", hr: "HR alone" },
-  cancellationHint: {
-    free: "The person cancels until the first day; HR after it.",
-    approval: "A cancellation goes as a decision to whoever approved the leave.",
-    hr: "Approved leave is cancelled by HR alone.",
-  },
   balanceVisibility: {
     self: "The person and HR",
     manager: "Also their managers",
@@ -239,6 +251,11 @@ const ENGLISH = {
   confirmCancel: "Confirm",
   cancelDone: "Cancelled.",
   cancelWaiting: "The cancellation waits for a decision.",
+  cancelOutcomeNow: "It is cancelled at once, and any days it took come back.",
+  cancelOutcomeDecision: (names: string) =>
+    names === ""
+      ? "The cancellation goes for a decision first; the leave stands until it is answered."
+      : `The cancellation goes to ${names} for a decision; the leave stands until it is answered.`,
   ledgerTitle: "History of days",
   ledgerEmpty: "No lines yet.",
   olderLines: (count: string) => `${count} older lines`,
@@ -401,6 +418,12 @@ const ENGLISH = {
   noticeDaysLabel: "How many days before",
   noticeTimeLabel: "By what time",
   noticeTimeHint: (zone: string) => `In the workspace's time zone, ${zone}.`,
+  languageLabel: "Language for whoever has none",
+  languageHint:
+    "Decisions and tasks reach someone who never chose a language in it. An administrator sets it in the console's settings of the workspace.",
+  languageName: (language: string) =>
+    ({ en: "English", ko: "Korean" })[language as "en" | "ko"] ?? language,
+  languageUnset: (name: string) => `${name}: nobody set the workspace's language`,
   timeZoneLabel: "Time zone",
   timeZoneHint:
     "Today, notice times and the daily job follow it. An administrator sets it in the console's settings of the workspace.",
@@ -411,6 +434,23 @@ const ENGLISH = {
   autoLabel: "Approved as written",
   autoDaysLabel: "Up to how many days",
   autoUpTo: (days: string) => `Up to ${days} days, in time`,
+  typeRequestsTitle: "Requests",
+  typeCancelTitle: "Cancelling approved leave",
+  cancelDeadlineLabel: "Deadline",
+  cancelDeadlineHint:
+    "Until it, the person cancels as the next row says. Once the first day has gone by, HR alone cancels.",
+  matchNotice: "Same as the notice",
+  cancelWithinLabel: "By the deadline",
+  cancelWithinHint: "A request still waiting is always cancelled at once, and HR cancels anything.",
+  cancelDaysLabel: "Up to how many days",
+  cancelAfterLabel: "After it, through the first day",
+  cancelAfterHint:
+    "A decision goes to whoever approved the leave, or the person's manager where nobody had to.",
+  cancelCardLabel: "Cancelling",
+  cancelUpTo: (days: string) => `At once up to ${days} days, longer by a decision`,
+  cancelCard: (deadline: string, within: string, after: string) =>
+    `${deadline}: ${midSentence(within)}; then ${midSentence(after)}`,
+  cancelThrough: (within: string) => `${within}, through the first day`,
 
   policiesHint:
     "How the days of annual leave come about. People without a policy follow the default.",
@@ -469,9 +509,9 @@ const ENGLISH = {
   workDaysHint: "Leave is counted on these days, unless a person has their own.",
   holidayCalendarLabel: "Public holidays",
   holidayCalendarHint: "Whose holidays are written for each year ahead.",
-  generalRequests: "Requests and cancelling",
-  cancellationLabel: "Cancelling approved leave",
-  cancellationIntro: "A request still waiting is always the person's to cancel.",
+  generalRequests: "Requests",
+  cancellingMoved:
+    "How approved leave is cancelled is set for each kind, under Leave types. A request still waiting is always the person's to cancel.",
   backdatingLabel: "How far back a request may start",
   backdatingHint: "In days. HR is not bound by it.",
   generalSee: "Who sees what",
@@ -602,10 +642,10 @@ const KOREAN: Words = {
     none: "종일",
     am: "오전 반차",
     pm: "오후 반차",
-    q1: "오전 전반",
-    q2: "오전 후반",
-    q3: "오후 전반",
-    q4: "오후 후반",
+    q1: "오전 전반 반반차",
+    q2: "오전 후반 반반차",
+    q3: "오후 전반 반반차",
+    q4: "오후 후반 반반차",
   },
   partShort: {
     none: "",
@@ -658,6 +698,19 @@ const KOREAN: Words = {
     always: "기한을 넘겨도 자동 승인",
     upTo: "기한 내 며칠까지만 자동 승인",
   },
+  cancelDeadlineMode: {
+    none: "첫날까지",
+    days: "며칠 전까지",
+    dayBefore: "전날 몇 시까지",
+    sameDay: "당일 몇 시까지",
+  },
+  cancelWithin: {
+    now: "바로 취소",
+    upTo: "며칠 이하만 바로 취소",
+    decision: "결재 필요",
+    hr: "인사 담당만",
+  },
+  cancelAfter: { decision: "결재 필요", hr: "인사 담당만" },
   source: { manager: "매니저", admin: "관리자", hr: "인사 담당자" },
   stepMode: { any: "한 명만 승인하면 됩니다", all: "모두 차례로 승인합니다" },
   holidayKind: { public: "공휴일", substitute: "대체공휴일", company: "회사 휴일" },
@@ -671,12 +724,7 @@ const KOREAN: Words = {
   country: { kr: "한국", us: "미국" },
   setupBasis: { anniversary: "입사일 기준", fiscal: "회계연도 기준" },
   status: { active: "활성", deactivated: "비활성" },
-  cancellation: { free: "시작 전 자유 취소", approval: "결재 필요", hr: "인사 담당만" },
-  cancellationHint: {
-    free: "첫날 전까지 본인이 취소하고, 그 뒤로는 인사 담당이 취소합니다.",
-    approval: "취소가 휴가를 결재한 사람에게 결정으로 올라갑니다.",
-    hr: "승인된 휴가는 인사 담당만 취소합니다.",
-  },
+
   balanceVisibility: { self: "본인과 인사 담당", manager: "매니저까지", everyone: "모든 구성원" },
   calendarVisibility: {
     everyone: "모든 구성원",
@@ -797,6 +845,11 @@ const KOREAN: Words = {
   confirmCancel: "취소 확정",
   cancelDone: "취소했습니다.",
   cancelWaiting: "취소가 결재를 기다립니다.",
+  cancelOutcomeNow: "바로 취소되고, 쓴 일수가 있으면 돌아옵니다.",
+  cancelOutcomeDecision: (names) =>
+    names === ""
+      ? "취소는 결재를 거칩니다. 결재가 날 때까지 휴가는 그대로입니다."
+      : `취소는 ${names} 님의 결재를 거칩니다. 결재가 날 때까지 휴가는 그대로입니다.`,
   ledgerTitle: "일수 변동 내역",
   ledgerEmpty: "내역이 없습니다.",
   olderLines: (count) => `이전 내역 ${count}건`,
@@ -958,6 +1011,11 @@ const KOREAN: Words = {
   noticeDaysLabel: "며칠 전까지",
   noticeTimeLabel: "몇 시까지",
   noticeTimeHint: (zone) => `워크스페이스 시간대(${zone}) 기준입니다.`,
+  languageLabel: "언어를 정하지 않은 사람에게 쓰는 언어",
+  languageHint:
+    "콘솔에서 언어를 고른 적 없는 사람에게 결정과 태스크를 이 언어로 씁니다. 관리자가 콘솔의 작업 공간 설정에서 정합니다.",
+  languageName: (language) => ({ en: "영어", ko: "한국어" })[language as "en" | "ko"] ?? language,
+  languageUnset: (name) => `${name} (작업 공간 언어를 아무도 정하지 않음)`,
   timeZoneLabel: "시간대",
   timeZoneHint:
     "오늘 날짜, 신청 마감 시각, 일일 작업이 이 시간대를 따릅니다. 관리자가 콘솔의 워크스페이스 설정에서 바꿉니다.",
@@ -968,6 +1026,22 @@ const KOREAN: Words = {
   autoLabel: "자동 승인",
   autoDaysLabel: "며칠까지",
   autoUpTo: (days) => `기한 내 ${days}일까지 자동`,
+  typeRequestsTitle: "신청",
+  typeCancelTitle: "승인된 휴가의 취소",
+  cancelDeadlineLabel: "취소 기한",
+  cancelDeadlineHint:
+    "이 기한까지는 본인이 다음 줄의 규칙대로 취소합니다. 첫날이 지나면 인사 담당만 취소합니다.",
+  matchNotice: "신청 기한과 같게",
+  cancelWithinLabel: "기한 안의 취소",
+  cancelWithinHint: "결재 전 신청은 언제나 바로 취소되고, 인사 담당은 무엇이든 바로 취소합니다.",
+  cancelDaysLabel: "며칠 이하",
+  cancelAfterLabel: "기한 뒤 첫날까지",
+  cancelAfterHint:
+    "결재는 그 휴가를 결재한 사람에게, 결재 없이 승인된 휴가는 그 사람의 매니저에게 갑니다.",
+  cancelCardLabel: "취소",
+  cancelUpTo: (days) => `${days}일 이하는 바로, 그보다 길면 결재`,
+  cancelCard: (deadline, within, after) => `${deadline} ${within}, 그 뒤 ${after}`,
+  cancelThrough: (within) => `첫날까지 ${within}`,
 
   policiesHint:
     "연차가 어떻게 생기는지 정합니다. 규정을 지정하지 않은 사람은 기본 규정을 따릅니다.",
@@ -1026,9 +1100,9 @@ const KOREAN: Words = {
   workDaysHint: "이 요일만 휴가 일수로 셉니다. 사람별로 다르게 정할 수 있습니다.",
   holidayCalendarLabel: "공휴일",
   holidayCalendarHint: "해마다 다음 해 공휴일을 자동으로 넣을 나라입니다.",
-  generalRequests: "신청과 취소",
-  cancellationLabel: "승인된 휴가의 취소",
-  cancellationIntro: "대기 중인 신청은 언제나 본인이 취소할 수 있습니다.",
+  generalRequests: "신청",
+  cancellingMoved:
+    "승인된 휴가를 어떻게 취소하는지는 휴가 종류마다 정합니다(휴가 종류 탭). 결재 전 신청은 언제나 본인이 취소할 수 있습니다.",
   backdatingLabel: "며칠 전 날짜까지 신청 가능",
   backdatingHint: "인사 담당은 제한이 없습니다.",
   generalSee: "공개 범위",

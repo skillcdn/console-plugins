@@ -64,7 +64,10 @@ export interface Clock {
   readonly timeZone: string;
   /** Whether an administrator set the zone; the console keeps UTC where nobody did. */
   readonly timeZoneSet: boolean;
-  readonly languages: readonly string[];
+  /** The workspace's language, for whoever has none of their own; `en` where nobody set one. */
+  readonly language: string;
+  /** Whether an administrator set the workspace's language (the console's ADR-0081). */
+  readonly languageSet: boolean;
   /** The console's own origin, from the address its deployment names; null where it names none. */
   readonly origin: string | null;
   readonly now: Date;
@@ -90,7 +93,8 @@ export async function clockOf(ctx: PluginContext): Promise<Clock> {
     time: timeIn(now, workspace.timeZone),
     timeZone: workspace.timeZone,
     timeZoneSet: workspace.timeZoneSet,
-    languages: workspace.languages,
+    language: workspace.language,
+    languageSet: workspace.languageSet,
     origin: originOf(workspace.url),
     now,
   };
@@ -142,8 +146,9 @@ export async function allTypes(ctx: PluginContext): Promise<PluginRecord<LeaveTy
 
 /**
  * The language to write to these people in: the first of them whose language the console knows,
- * else the caller's where a person calls, else the first the console speaks. A plugin writes one
- * text, in the language of whoever it is for (the console's ADR-0065).
+ * else the workspace's where an administrator set one, else the caller's where a person calls,
+ * else the workspace's, English. A plugin writes one text, in the language of whoever it is for
+ * (the console's ADR-0065), and the workspace's language is for whoever has none (ADR-0081).
  */
 export async function languageFor(
   ctx: PluginContext,
@@ -160,9 +165,12 @@ export async function languageFor(
       break;
     }
   }
+  if (clock.languageSet) {
+    return clock.language;
+  }
   const person =
     ctx.caller.kind === "person" || (ctx.caller.kind === "plugin" && ctx.caller.for !== null);
-  return person ? ctx.language : (clock.languages[0] ?? "en");
+  return person ? ctx.language : clock.language;
 }
 
 /** The teams of the console, by name; none where the console cannot say. */

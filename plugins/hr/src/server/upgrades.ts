@@ -2,8 +2,15 @@
 // before the new code serves anything: the contract's lifecycle. Each upgrade writes what the new
 // shape adds to every record that lacks it, and is safe to run again.
 import type { PluginContext, UpgradeDefinition } from "@skillcdn/console/plugin";
-import type { Announcement, Config, LeaveRequest } from "../shared/contracts.js";
-import { announcements, config, requests } from "./collections.js";
+import type {
+  Announcement,
+  CancelRule,
+  Config,
+  LeaveRequest,
+  LeaveType,
+  Notice,
+} from "../shared/contracts.js";
+import { announcements, config, requests, types } from "./collections.js";
 import { waitingIn } from "./leave/approval.js";
 import { listAll } from "./store.js";
 
@@ -37,6 +44,28 @@ async function askedOf(ctx: PluginContext, data: LeaveRequest): Promise<string[]
   return step === undefined ? [] : [...waitingIn(step)];
 }
 
+/**
+ * The rule a kind keeps of the configuration's one rule of cancelling, which held for every kind
+ * until 0.3.0, meaning the same: `free`, at once before the first day and HR's from it; `approval`,
+ * a decision; `hr`, HR's alone. The one change is meant: leave whose first day has gone by is HR's
+ * alone under every rule, where `approval` asked a decision for it too.
+ */
+export function cancelRuleOf(cancellation: unknown, notice: Notice): CancelRule {
+  switch (cancellation) {
+    case "approval":
+      return { deadline: notice, within: "decision", days: 0, after: "decision" };
+    case "hr":
+      return { deadline: notice, within: "hr", days: 0, after: "hr" };
+    default:
+      return {
+        deadline: { mode: "dayBefore", days: 0, time: "23:59" },
+        within: "now",
+        days: 0,
+        after: "hr",
+      };
+  }
+}
+
 export const upgrades: UpgradeDefinition[] = [
   {
     to: 2,
@@ -65,6 +94,28 @@ export const upgrades: UpgradeDefinition[] = [
           asked: Array.isArray(data.asked) ? data.asked : await askedOf(ctx, data),
           requestedVia: data.requestedVia ?? null,
         });
+      }
+    },
+  },
+  {
+    to: 3,
+    about:
+      "Each kind of leave keeps its own rule of cancelling, written from the configuration's one, which goes.",
+    async run(ctx) {
+      const stored = await listAll<Config>(ctx.records(config));
+      const legacy = (stored[0]?.data as { cancellation?: unknown } | undefined)?.cancellation;
+      for (const record of await listAll<LeaveType>(ctx.records(types))) {
+        if ((record.data as Partial<LeaveType>).cancel === undefined) {
+          await ctx.records(types).update(record.id, {
+            cancel: cancelRuleOf(legacy, record.data.notice),
+          });
+        }
+      }
+      // The configuration is written again without the field: the schema keeps none of it.
+      for (const record of stored) {
+        if ("cancellation" in record.data) {
+          await ctx.records(config).update(record.id, {});
+        }
       }
     },
   },

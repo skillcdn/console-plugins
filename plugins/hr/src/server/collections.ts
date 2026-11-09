@@ -12,7 +12,8 @@ import {
   BALANCE_VISIBILITIES,
   BALANCES,
   CALENDAR_VISIBILITIES,
-  CANCELLATIONS,
+  CANCEL_AFTERS,
+  CANCEL_WITHINS,
   CARRY_OVERS,
   COUNT_DAYS,
   EARNINGS,
@@ -61,6 +62,12 @@ export const names = z
 const line = (max: number) => z.string().max(max);
 const days = z.number().finite().min(-1000).max(1000);
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "is a time as HH:MM");
+/** How long before its first day: a kind's notice, and the deadline of its cancelling. */
+const notice = z.object({
+  mode: wordsOf(NOTICE_MODES),
+  days: z.number().int().min(0).max(366),
+  time,
+});
 
 /** One step of a line, as HR writes it: someone is named, by a source or outright. */
 export const step = z
@@ -158,15 +165,17 @@ export const types = defineCollection("types", {
     allowance: z.number().finite().min(0).max(366),
     reason: wordsOf(REASON_RULES),
     unit: wordsOf(UNITS),
-    notice: z.object({
-      mode: wordsOf(NOTICE_MODES),
-      days: z.number().int().min(0).max(366),
-      time,
-    }),
+    notice,
     late: wordsOf(LATE_RULES),
     autoApprove: z.object({
       mode: wordsOf(AUTO_MODES),
       days: z.number().finite().min(0).max(366),
+    }),
+    cancel: z.object({
+      deadline: notice,
+      within: wordsOf(CANCEL_WITHINS),
+      days: z.number().finite().min(0).max(366),
+      after: wordsOf(CANCEL_AFTERS),
     }),
     color: z.number().int().min(1).max(6),
     order: z.number().int().min(0).max(1000),
@@ -255,7 +264,6 @@ export const config = defineCollection("config", {
   schema: z.object({
     line: steps,
     rules,
-    cancellation: wordsOf(CANCELLATIONS),
     backdatingDays: z.number().int().min(0).max(365),
     balanceVisibility: wordsOf(BALANCE_VISIBILITIES),
     calendarVisibility: wordsOf(CALENDAR_VISIBILITIES),
