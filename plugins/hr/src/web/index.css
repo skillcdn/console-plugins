@@ -1596,6 +1596,7 @@
 }
 
 .pl-hr-type-rules dt {
+  flex-shrink: 0;
   color: var(--sc-color-text-muted);
 }
 
@@ -2446,7 +2447,7 @@
 .pl-hr-cancel-outcome {
   margin: 0;
   font-size: var(--sc-text-sm);
-  color: var(--sc-text-muted);
+  color: var(--sc-color-text-muted);
 }
 
 /* The rules of the kind chosen, under the kinds of the request form */

@@ -387,7 +387,8 @@ const ENGLISH = {
   ruleLate: "Timing",
   ruleLine: "The line",
 
-  typesHint: "How each kind is taken: the notice it asks, and when it needs nobody's approval.",
+  typesHint:
+    "How each kind is taken: the notice it asks, when it needs nobody's approval, and how its approved leave is cancelled.",
   typesEmpty: "No kinds of leave yet.",
   newType: "New kind",
   saveType: "Save",
@@ -980,7 +981,8 @@ const KOREAN: Words = {
   ruleLate: "신청 시점",
   ruleLine: "결재선",
 
-  typesHint: "종류마다 언제까지 신청하는지, 언제 결재 없이 승인되는지 정합니다.",
+  typesHint:
+    "종류마다 언제까지 신청하는지, 언제 결재 없이 승인되는지, 승인된 휴가를 어떻게 취소하는지 정합니다.",
   typesEmpty: "휴가 종류가 아직 없습니다.",
   newType: "새 종류",
   saveType: "저장",
@@ -1013,9 +1015,9 @@ const KOREAN: Words = {
   noticeTimeHint: (zone) => `워크스페이스 시간대(${zone}) 기준입니다.`,
   languageLabel: "언어를 정하지 않은 사람에게 쓰는 언어",
   languageHint:
-    "콘솔에서 언어를 고른 적 없는 사람에게 결정과 태스크를 이 언어로 씁니다. 관리자가 콘솔의 작업 공간 설정에서 정합니다.",
+    "콘솔에서 언어를 고른 적 없는 사람에게 결정과 태스크를 이 언어로 씁니다. 관리자가 콘솔의 워크스페이스 설정에서 정합니다.",
   languageName: (language) => ({ en: "영어", ko: "한국어" })[language as "en" | "ko"] ?? language,
-  languageUnset: (name) => `${name} (작업 공간 언어를 아무도 정하지 않음)`,
+  languageUnset: (name) => `${name} (워크스페이스 언어를 아무도 정하지 않음)`,
   timeZoneLabel: "시간대",
   timeZoneHint:
     "오늘 날짜, 신청 마감 시각, 일일 작업이 이 시간대를 따릅니다. 관리자가 콘솔의 워크스페이스 설정에서 바꿉니다.",
