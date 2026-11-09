@@ -133,7 +133,9 @@ export function standingOf(personId: string, directory: Directory): Standing {
  */
 export function reachOf(actor: Actor, directory: Directory): ReadonlySet<string> {
   const reach = new Set<string>();
-  if (!actor.isPerson) {
+  // A plugin calling for a person holds the roles both hold, and `manager`, which follows the
+  // reporting line, is never a plugin's: through a plugin, a manager reaches nobody below them.
+  if (!actor.isPerson || actor.via !== null) {
     return reach;
   }
   const reports = new Map<string, string[]>();
@@ -157,18 +159,26 @@ export function reachOf(actor: Actor, directory: Directory): ReadonlySet<string>
 
 /**
  * Whether the actor stands in a person's line, by any rule: above them in the console, or asked by
- * a step of the default line or of an exception. Such a person may record leave for them.
+ * a step of the default line or of an exception that takes in the person's teams. Such a person
+ * may record leave for them, though not through a plugin, which calls as a member (see `reachOf`).
  */
 export function standsInLine(
   actor: Actor,
   standing: Standing,
+  teams: readonly string[],
   config: Pick<Config, "line" | "rules">,
   staff: Staff,
 ): boolean {
+  if (actor.via !== null) {
+    return false;
+  }
   if (standing.managers.includes(actor.id)) {
     return true;
   }
-  const lines = [config.line, ...config.rules.map((rule) => rule.steps)];
+  const rules = config.rules.filter(
+    (rule) => rule.teams.length === 0 || rule.teams.some((team) => teams.includes(team)),
+  );
+  const lines = [config.line, ...rules.map((rule) => rule.steps)];
   return lines.some((steps) =>
     lineFor(steps, standing, staff).some((step) => step.deciderIds.includes(actor.id)),
   );

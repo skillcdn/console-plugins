@@ -66,12 +66,31 @@ export function cancelRuleOf(cancellation: unknown, notice: Notice): CancelRule 
   }
 }
 
+/**
+ * Writes on every kind without a rule of cancelling the one the configuration held. Run before
+ * anything writes the configuration again, since a write through the current schema drops it.
+ */
+async function keepCancelRules(ctx: PluginContext): Promise<void> {
+  const stored = await listAll<Config>(ctx.records(config));
+  const legacy = (stored[0]?.data as { cancellation?: unknown } | undefined)?.cancellation;
+  for (const record of await listAll<LeaveType>(ctx.records(types))) {
+    if ((record.data as Partial<LeaveType>).cancel === undefined) {
+      await ctx.records(types).update(record.id, {
+        cancel: cancelRuleOf(legacy, record.data.notice),
+      });
+    }
+  }
+}
+
 export const upgrades: UpgradeDefinition[] = [
   {
     to: 2,
     about:
       "A request keeps whom its decision went to and the plugin it came through; an exception and an announcement may name teams.",
     async run(ctx) {
+      // Run by a later version, this writes the configuration through a schema without its rule
+      // of cancelling, so each kind takes the rule first, as the upgrade to 3 would.
+      await keepCancelRules(ctx);
       for (const record of await listAll<Config>(ctx.records(config))) {
         if (record.data.rules.some((rule) => !Array.isArray(rule.teams))) {
           await ctx.records(config).update(record.id, {
@@ -102,17 +121,9 @@ export const upgrades: UpgradeDefinition[] = [
     about:
       "Each kind of leave keeps its own rule of cancelling, written from the configuration's one, which goes.",
     async run(ctx) {
-      const stored = await listAll<Config>(ctx.records(config));
-      const legacy = (stored[0]?.data as { cancellation?: unknown } | undefined)?.cancellation;
-      for (const record of await listAll<LeaveType>(ctx.records(types))) {
-        if ((record.data as Partial<LeaveType>).cancel === undefined) {
-          await ctx.records(types).update(record.id, {
-            cancel: cancelRuleOf(legacy, record.data.notice),
-          });
-        }
-      }
+      await keepCancelRules(ctx);
       // The configuration is written again without the field: the schema keeps none of it.
-      for (const record of stored) {
+      for (const record of await listAll<Config>(ctx.records(config))) {
         if ("cancellation" in record.data) {
           await ctx.records(config).update(record.id, {});
         }

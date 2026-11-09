@@ -123,7 +123,7 @@ export const api = {
     async (ctx, input): Promise<RequestView> => requestViewOf(ctx, input.id),
   ),
   requests: entry(
-    "Requests of leave, newest first, as the query requests answers them: the caller's unless said.",
+    "Requests of leave by first day, latest first, as the query requests answers them: the caller's unless said.",
     INPUTS.requests,
     async (ctx, input) =>
       (await requestsQuery.run(ctx, {
@@ -137,7 +137,7 @@ export const api = {
       })) as RequestView[],
   ),
   types: entry(
-    "The kinds of leave that may be requested, as the query types answers them.",
+    "The kinds of leave, each with its rules in a sentence, as the query types answers them.",
     INPUTS.types,
     async (ctx) => (await typesQuery.run(ctx, {})) as TypeView[],
   ),

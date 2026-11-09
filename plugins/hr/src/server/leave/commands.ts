@@ -59,8 +59,10 @@ import {
 import {
   type Actor,
   actorOf,
+  maySeeBalance,
   ROLE_HR,
   ROLE_MEMBER,
+  reachOf,
   requireHr,
   requirePerson,
   standingOf,
@@ -279,7 +281,12 @@ export async function prepareRequest(
   const staff = await staffOf(ctx, directory);
   const standing = standingOf(target.id, directory);
   // The first question, so that a person who may not act for someone learns nothing of them.
-  if (forOther && !actor.hr && (found === null || !standsInLine(actor, standing, config, staff))) {
+  const teams = directory.get(target.id)?.teams ?? [];
+  if (
+    forOther &&
+    !actor.hr &&
+    (found === null || !standsInLine(actor, standing, teams, config, staff))
+  ) {
     throw new PluginError("not_their_manager", no.notTheirManager);
   }
   const to = asked.to ?? asked.from;
@@ -297,8 +304,6 @@ export async function prepareRequest(
   if (record.data.leftOn !== null && to > record.data.leftOn) {
     throw new PluginError("after_leaving", no.afterLeaving(record.data.leftOn));
   }
-  // HR, and a manager writing for their people, write what the person may not.
-  const privileged = actor.hr || forOther;
   if (!actor.hr && asked.from < addDays(clock.today, -config.backdatingDays)) {
     throw new PluginError("too_far_back", no.tooFarBack(config.backdatingDays));
   }
@@ -312,7 +317,10 @@ export async function prepareRequest(
     throw new PluginError("part", no.partNotTaken(typeName));
   }
   const late = !isInTime(type.notice, asked.from, clock.today, clock.time);
-  if (late && !privileged && type.late !== "mark") {
+  // Past the notice HR writes anything, and a manager writing for their people what `manager`
+  // leaves to them; under `refuse`, nobody else.
+  const unbound = actor.hr || (type.late === "manager" && forOther);
+  if (late && !unbound && type.late !== "mark") {
     const notice = words.noticeText(type.notice);
     if (type.late === "refuse") {
       throw new PluginError("too_late", notice === "" ? no.afterTheFact : no.tooLate(notice));
@@ -348,6 +356,10 @@ export async function prepareRequest(
     available = balance.available;
     const advance = type.key === ANNUAL ? policy.data.advanceDays : 0;
     if (days > roundDays(balance.available + advance)) {
+      // Whoever writes for someone learns the figures only where the balance is theirs to see.
+      if (forOther && !maySeeBalance(actor, target.id, reachOf(actor, directory), config)) {
+        throw new PluginError("insufficient", no.insufficientHidden);
+      }
       throw new PluginError(
         "insufficient",
         no.insufficient(
@@ -399,12 +411,13 @@ export const request = defineCommand({
       max: 32,
     }),
     part: arg.enum(PARTS as unknown as [Part, ...Part[]], {
-      about: "a part of one day, as the kind allows: am, pm, or the quarters q1 to q4",
+      about:
+        "a part of one day, as the kind allows: am or pm a half, q1 to q4 a quarter; the whole day unless said",
       optional: true,
     }),
     reason: arg.text({ about: "why; some kinds of leave ask for it", optional: true, max: 2000 }),
     person: arg.person({
-      about: "whose leave, for their manager or HR; the caller's otherwise",
+      about: "whose leave, for their manager or HR; the caller's unless said",
       optional: true,
     }),
     approved: arg.boolean({
@@ -492,9 +505,12 @@ export const request = defineCommand({
 });
 
 export const cancel = defineCommand({
-  about: "Cancels a request: one waiting at once, one approved as its kind's rule says.",
+  about: "Cancels a request: one waiting or returned at once, one approved by its kind's rule.",
   args: {
-    id: arg.record("requests", { about: "the request", positional: true }),
+    id: arg.record("requests", {
+      about: "the request, your own unless you are HR",
+      positional: true,
+    }),
     reason: arg.text({ about: "why", optional: true, max: 2000 }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
@@ -514,7 +530,8 @@ export const cancel = defineCommand({
     }
     const reason = (args.reason ?? "").trim();
     const close = async () => {
-      await reverseUse(ctx, found, actor.id);
+      // The request first: a call that loses to another one leaves the days where they are. The
+      // days come back after it, by a reversal written once however often it is asked for.
       const updated = await ctx.records(requests).update(
         found.id,
         {
@@ -524,6 +541,7 @@ export const cancel = defineCommand({
         },
         { baseVersion: found.version },
       );
+      await reverseUse(ctx, found, actor.id);
       await emit(ctx, "leave-cancelled", {
         requestId: found.id,
         personId: found.data.personId,
@@ -554,7 +572,7 @@ export const cancel = defineCommand({
         }
         throw new PluginError(
           "hr_only",
-          isInTime(rule.deadline, found.data.from, clock.today, clock.time)
+          rule.within === "hr" || isInTime(rule.deadline, found.data.from, clock.today, clock.time)
             ? no.cancelledByHr
             : no.pastCancelDeadline(rule.deadline, clock.timeZone),
         );
@@ -586,7 +604,7 @@ export const adjust = defineCommand({
     type: arg.text({ about: "the kind of leave; annual unless said", optional: true, max: 32 }),
     on: arg.day({ about: "the day it takes effect; today unless said", optional: true }),
     expires: arg.day({
-      about: "the last day a credit may be used; the period's end unless said",
+      about: "the last day a credit may be used; as the policy's credits expire unless said",
       optional: true,
     }),
     kind: arg.enum(["adjust", "grant", "payout"], {
@@ -661,6 +679,7 @@ export const adjust = defineCommand({
         daysText(args.days, words),
         nameIn(typeRecord.data.name, ctx.language),
         args.person.name ?? args.person.login,
+        created.id,
       ),
       data: created,
     };
@@ -1104,7 +1123,7 @@ function parseNames(
 }
 
 export const type = defineCommand({
-  about: "HR: writes a kind of leave by its key: balance, notice, approval, cancelling.",
+  about: "HR: writes a kind of leave by its key: balance, notice, approval, cancellation.",
   args: {
     key: arg.text({ about: "the kind's key, a lowercase word", positional: true, max: 32 }),
     name: arg.list(arg.text({ max: 90 }), {
@@ -1128,7 +1147,7 @@ export const type = defineCommand({
       optional: true,
     }),
     unit: arg.enum(UNITS as unknown as [string, ...string[]], {
-      about: "the smallest part of a day it is taken in: day, half or quarter",
+      about: "the smallest part of a day it is taken in",
       optional: true,
     }),
     notice: arg.enum(NOTICE_MODES as unknown as [string, ...string[]], {
@@ -1149,7 +1168,7 @@ export const type = defineCommand({
     }),
     late: arg.enum(LATE_RULES as unknown as [string, ...string[]], {
       about:
-        "a request past the notice: refuse; mark, taken and marked late, then as --auto says; manager, recorded by a manager or HR alone",
+        "a request past the notice, days gone by included: refuse, HR alone writes it; mark, taken and marked late, then as --auto says; manager, a manager or HR writes it",
       optional: true,
     }),
     auto: arg.enum(AUTO_MODES as unknown as [string, ...string[]], {
@@ -1165,7 +1184,7 @@ export const type = defineCommand({
     }),
     "cancel-notice": arg.enum(NOTICE_MODES as unknown as [string, ...string[]], {
       about:
-        "the deadline for cancelling approved leave, as --notice: none, days (--cancel-notice-days), dayBefore or sameDay (--cancel-notice-time)",
+        "the deadline for cancelling approved leave, read as --notice, with --cancel-notice-days or --cancel-notice-time; a new kind's notice unless said, the day before where it has none",
       optional: true,
     }),
     "cancel-notice-days": arg.number({
@@ -1182,7 +1201,7 @@ export const type = defineCommand({
     }),
     cancel: arg.enum(CANCEL_WITHINS as unknown as [string, ...string[]], {
       about:
-        "a cancellation by the deadline: now; upTo, at once up to --cancel-days, longer by a decision; decision; or hr alone",
+        "a cancellation by the deadline: now, at once (a new kind's unless said); upTo, at once up to --cancel-days and by a decision beyond; decision; hr, HR alone",
       optional: true,
     }),
     "cancel-days": arg.number({
@@ -1192,7 +1211,8 @@ export const type = defineCommand({
       max: 366,
     }),
     "cancel-late": arg.enum(CANCEL_AFTERS as unknown as [string, ...string[]], {
-      about: "a cancellation past the deadline, through the first day: decision, or hr alone",
+      about:
+        "a cancellation past the deadline, through the first day: decision (a new kind's unless said), or hr, HR alone",
       optional: true,
     }),
     color: arg.number({
@@ -1291,6 +1311,9 @@ export const type = defineCommand({
       order: args.order ?? current.order,
       enabled: on(args.enabled) ?? current.enabled,
     };
+    if (next.cancel.within === "upTo" && next.cancel.days <= 0) {
+      throw new PluginError("cancel_days", no.cancelDays);
+    }
     const saved =
       existing === null
         ? await ctx.records(types).create(next)

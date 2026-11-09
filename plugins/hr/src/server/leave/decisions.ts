@@ -199,6 +199,18 @@ async function askToMendTheLine(
   );
 }
 
+/**
+ * What a person wrote, as literal words on one line of a decision's Markdown: its breaks made
+ * spaces and its marks escaped, so that nothing written reads as the plugin's own line, a link or
+ * emphasis.
+ */
+export function literal(text: string): string {
+  return text
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[\\`*_[\]<>~]/g, "\\$&");
+}
+
 /** Raises the decision of the step a request waits at, for those it waits for. */
 export async function askApproval(
   ctx: PluginContext,
@@ -233,16 +245,16 @@ export async function askApproval(
         total > 1 ? `${done + 1}/${total}` : "",
       ),
       body: words.requestBody({
-        who,
-        type: typeName,
+        who: literal(who),
+        type: literal(typeName),
         span,
         days: daysText(data.days, words),
-        reason: data.reason.length === 0 ? words.noReason : data.reason,
+        reason: data.reason.length === 0 ? words.noReason : literal(data.reason),
         available: figures.available === null ? "" : daysText(figures.available, words),
         pending: figures.pending > 0 ? daysText(figures.pending, words) : "",
         late: data.late && type !== null ? words.lateNote(words.noticeText(type.notice)) : "",
-        recordedBy,
-        before,
+        recordedBy: literal(recordedBy),
+        before: literal(before),
         last: done + 1 >= total,
       }),
       options: [
@@ -277,10 +289,10 @@ export async function askCancellation(
     return {
       question: words.cancelRequest(who, typeName, span),
       body: words.cancelBody({
-        who,
-        type: typeName,
+        who: literal(who),
+        type: literal(typeName),
         span,
-        reason: reason.length === 0 ? words.noReason : reason,
+        reason: reason.length === 0 ? words.noReason : literal(reason),
       }),
       options: [
         { label: words.cancelApprove, key: OPTION_KEYS.approve },

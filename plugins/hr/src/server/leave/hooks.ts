@@ -264,6 +264,21 @@ export async function onDecisionAnswered(
     return;
   }
   if (found.data.state === "cancelling" && found.data.cancelDecisionId === decisionId) {
+    // Nobody allows the cancellation of their own leave, unless nobody else was asked. The
+    // decision is answered and cannot be asked again, so the leave stands and they ask again.
+    const others = found.data.asked.filter((id) => id !== found.data.personId);
+    if (answer.verdict === "approve" && answer.by === found.data.personId && others.length > 0) {
+      const language = await languageFor(ctx, clock, [found.data.personId]);
+      await ctx
+        .records(requests)
+        .update(
+          found.id,
+          { state: "approved", note: serverWords(language).ownCancelAnswer },
+          { baseVersion: found.version },
+        );
+      await emit(ctx, "leave-kept", { requestId: found.id, personId: found.data.personId });
+      return;
+    }
     if (answer.verdict === "approve") {
       await reverseUse(ctx, found, by);
       await ctx

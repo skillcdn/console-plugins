@@ -111,8 +111,9 @@ export const people = defineCollection("people", {
   indexes: ["personId", "leave", "policy", "leftOn", "hiredOn"],
   search: ["login", "name", "title"],
   owner: "personId",
+  // HR's alone through the console's routes, since `note` is HR's: a person reads what is theirs
+  // of it through the queries, which leave the note out.
   read: ["hr"],
-  readOwn: ["member"],
 });
 
 export const policies = defineCollection("policies", {

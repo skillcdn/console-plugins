@@ -4,14 +4,21 @@
 import type { CancelRule, LeaveType, Notice } from "../../shared/contracts.js";
 
 const NO_NOTICE: Notice = { mode: "none", days: 0, time: "18:00" };
+const DAY_BEFORE: Notice = { mode: "dayBefore", days: 0, time: "23:59" };
 const ASK_ALWAYS = { mode: "never", days: 0 } as const;
 
 /**
- * How a kind's approved leave is cancelled unless HR says otherwise: by the deadline its requests
- * keep, at once; after it, through the first day, by a decision.
+ * How a kind's approved leave is cancelled unless HR says otherwise: at once by the deadline its
+ * requests keep, or until the day before where they keep none, so that a day begun is never given
+ * back unseen; after it, through the first day, by a decision.
  */
 export function cancelRuleFor(notice: Notice): CancelRule {
-  return { deadline: notice, within: "now", days: 0, after: "decision" };
+  return {
+    deadline: notice.mode === "none" ? DAY_BEFORE : notice,
+    within: "now",
+    days: 0,
+    after: "decision",
+  };
 }
 
 /** The rule of a kind, and for leave of a kind that is no more, HR's alone. */

@@ -5,7 +5,7 @@
     "ko": "인사"
   },
   "description": {
-    "en": "Leave and announcements for the workspace: requests that go to each person's manager, balances from a policy for Korea, the US or your own rules, and what HR tells everyone. Attendance to come.",
+    "en": "Leave and announcements for the workspace: requests that go to each person's manager, balances under Korean, US or your own rules, and what HR tells everyone. Attendance and people's records next.",
     "ko": "워크스페이스 구성원의 휴가와 공지사항: 각자의 매니저에게 가는 신청, 한국·미국 법규나 자체 규정에 따른 잔여 일수, 인사 담당이 전하는 공지. 근태와 구성원 기록은 다음에 더합니다."
   },
   "agentNote": {

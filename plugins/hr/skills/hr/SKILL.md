@@ -23,12 +23,12 @@ The plugin keeps the workspace's leave as records of the console. You act as the
 | Days left, by kind | `console plugin hr balance` |
 | What a request would come to: its days, the balance, who approves, the refusal it would meet | `console plugin hr preview <from> [<to>] [--type <key>] [--part <part>]` |
 | Request leave: a day or a span. `--type` from `types`, `annual` unless said; `--part` `am`, `pm` or `q1` to `q4` where the kind allows; `--reason` where it asks | `console plugin hr request <from> [<to>] [--type <key>] [--part <part>] [--reason <words>]` |
-| The person's requests, newest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>]` |
+| The person's requests, by first day, latest first; `--state requested` for those waiting | `console plugin hr requests [--state <state>]` |
 | One request in full: where it stands on its line, whom it waits for now | `console plugin hr request-view <id>` |
-| Cancel a request of theirs: one waiting at once, one approved as its kind's rule says. `request-view <id>` says first what it comes to, as `cancellation`: `now`, `decision` (with `cancelDeciders`, who is asked), or `null` where only HR may now | `console plugin hr cancel <id> [--reason <words>]` |
+| Cancel a request of theirs: one waiting or sent back at once, one approved as its kind's rule says. `request-view <id>` says first what it comes to, as `cancellation`: `now`, `decision` (with `cancelDeciders`, who is asked; wait for it as for a request's), or `null` where they may not: HR's alone now, a cancellation already waiting, or nothing left to cancel | `console plugin hr cancel <id> [--reason <words>]` |
 | Who is out, up to three months at a time | `console plugin hr calendar [--from <day>] [--to <day>]` |
 | The kinds of leave, each with how it is requested and cancelled in a sentence (`summary`); the holidays of a year | `console plugin hr types`, `console plugin hr holidays [--year <n>]` |
-| The lines behind the balance; every credit with what is left of it | `console plugin hr ledger [--type <key>]`, `console plugin hr balance --buckets` |
+| The lines behind the balance, each with `after`, the days left after it, the plugin's figure; every credit with what is left of it | `console plugin hr ledger [--type <key>]`, `console plugin hr balance --buckets` |
 | All at once: balance, leave to come, what waits for them, who is out today, the next holidays, the latest announcements | `console plugin hr overview` |
 | What HR announced, those on top and the newest; one in full, in Markdown | `console plugin hr announcements [--category <key>] [--search <words>]`, `console plugin hr announcement-view <id>` |
 
@@ -48,7 +48,7 @@ Whoever someone reports to in the console holds the role `manager`, which nobody
 |---|---|
 | What waits for them; the requests of everyone below them; those people | `console plugin hr requests --scope waiting`, `console plugin hr requests --scope team`, `console plugin hr people` |
 | Answer a request as they tell you, in the board project or not. Its decision is `request.decisionId`, or `request.cancelDecisionId` where it is `cancelling`; `console decision <id>` prints the options by number. Their own words send a request back to the person, and leave the leave as it was where a cancellation was asked. The record names you beside them | `console answer <id> --option <n> [--note <words>]`, `console answer <id> --own "<words>"` |
-| Record leave for someone below them, approved as it is written; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
+| Record leave for someone below them, their own approval given as they write it; steps they do not stand in are still asked | `console plugin hr request <from> [<to>] --person <login> [--type <key>] [--reason <words>]` |
 | The balance or the ledger of someone below them | `console plugin hr balance --person <login>`, `console plugin hr ledger --person <login>` |
 
 ## Rules

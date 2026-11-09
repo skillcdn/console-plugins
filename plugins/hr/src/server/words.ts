@@ -80,6 +80,8 @@ export interface Refusals {
   readonly noDays: string;
   readonly overlap: string;
   readonly insufficient: (asked: string, available: string, day: string, advance: string) => string;
+  /** The same, to someone writing for a person whose balance is not theirs to see. */
+  readonly insufficientHidden: string;
   readonly notTheirManager: string;
   readonly ownLeave: string;
   readonly noDecision: (why: string) => string;
@@ -91,6 +93,7 @@ export interface Refusals {
   readonly cancelledByHr: string;
   /** Past the deadline of its kind, approved leave its rule leaves to HR. */
   readonly pastCancelDeadline: (deadline: Notice, zone: string) => string;
+  readonly cancelDays: string;
   readonly daysInQuarters: string;
   readonly payoutTakes: string;
   readonly grantGives: string;
@@ -165,6 +168,7 @@ export interface ServerWords {
   readonly lateNote: (notice: string) => string;
   /** Why an answer did not count, in the words of the person who gave it. */
   readonly ownAnswer: string;
+  readonly ownCancelAnswer: string;
   readonly part: (part: Part) => string;
   readonly days: (count: number) => string;
   readonly noticeText: (notice: Notice) => string;
@@ -175,7 +179,7 @@ export interface ServerWords {
   readonly recordedWaiting: (who: string, id: string) => string;
   readonly cancelled: (id: string) => string;
   readonly cancellationRequested: (id: string) => string;
-  readonly adjusted: (days: string, type: string, who: string) => string;
+  readonly adjusted: (days: string, type: string, who: string, id: string) => string;
   readonly enrolled: (who: string, leave: boolean) => string;
   readonly recounted: (who: string, policy: string) => string;
   readonly reversedLine: (days: string, type: string, who: string) => string;
@@ -358,6 +362,8 @@ const ENGLISH: ServerWords = {
   lateNote: (notice) =>
     notice === "" ? "It is for days gone by." : `It is late: this kind is requested ${notice}.`,
   ownAnswer: "A person's own answer does not approve their leave; ask again.",
+  ownCancelAnswer:
+    "A person's own answer does not allow the cancellation of their leave, which stands; ask again.",
   part: (part) =>
     ({
       none: "",
@@ -421,7 +427,7 @@ const ENGLISH: ServerWords = {
   recordedWaiting: (who, id) => `Recorded for ${who}; the next decision is waiting. Request ${id}.`,
   cancelled: (id) => `Cancelled. Request ${id}.`,
   cancellationRequested: (id) => `The cancellation waits for a decision. Request ${id}.`,
-  adjusted: (days, type, who) => `${days} of ${type} written for ${who}.`,
+  adjusted: (days, type, who, id) => `${days} of ${type} written for ${who}. Line ${id}.`,
   enrolled: (who, leave) => `${who}: record saved; leave ${leave ? "on" : "off"}.`,
   recounted: (who, policy) => `${who}: recounted by the policy ${policy}.`,
   reversedLine: (days, type, who) => `Reversed a line of ${days} of ${type} for ${who}.`,
@@ -429,14 +435,14 @@ const ENGLISH: ServerWords = {
   accrued: (count, people) =>
     `${count} ${count === 1 ? "line" : "lines"} written for ${people} ${people === 1 ? "person" : "people"}.`,
   policySaved: (key) => `Policy ${key} saved.`,
-  typeSaved: (key) => `Leave type ${key} saved.`,
+  typeSaved: (key) => `Kind of leave ${key} saved.`,
   configSaved: "The configuration is saved.",
   holidaySaved: (day) => `Holiday ${day} saved.`,
   holidayRemoved: (day) => `Holiday ${day} removed.`,
   holidaysWritten: (count, year, calendar) =>
     `${count} holidays of ${year} written from the ${calendar} calendar.`,
   setupDone: (types, policy, holidays) =>
-    `Set up: ${types} leave types, the policy ${policy} as the default, ${holidays} holidays.`,
+    `Set up: ${types} kinds of leave, the policy ${policy} as the default, ${holidays} holidays.`,
   zoneIsUtc:
     "The workspace keeps UTC, so today and every notice time are counted in UTC. If you work elsewhere, an administrator sets it: console workspace edit --time-zone <zone>, for example Asia/Seoul.",
   readback: {
@@ -470,18 +476,17 @@ const ENGLISH: ServerWords = {
         always: "approved as written, nobody asked",
         upTo: `approved as written in time up to ${type.autoApprove.days} ${type.autoApprove.days === 1 ? "day" : "days"}, the rest going to the line`,
       }[type.autoApprove.mode];
-      let late = "";
-      if (type.notice.mode !== "none") {
-        late = {
-          refuse: "a later request is refused",
-          manager: "a later one only a manager or HR records",
-          mark:
-            type.autoApprove.mode === "always"
-              ? "a later one is approved as written too, and marked late"
-              : "a later one goes to the line, marked late",
-        }[type.late];
-      }
-      return `${notice}; ${auto}${late === "" ? "" : `; ${late}`}. ${englishCancel(type.cancel, zone)}`;
+      // With no notice, a request is late only for days gone by.
+      const later = type.notice.mode === "none" ? "a request for days gone by" : "a later request";
+      const late = {
+        refuse: `${later} is refused`,
+        manager: `${later} is written by a manager or HR alone`,
+        mark:
+          type.autoApprove.mode === "always"
+            ? `${later} is approved as written too, and marked late`
+            : `${later} goes to the line, marked late`,
+      }[type.late];
+      return `${notice}; ${auto}; ${late}. ${englishCancel(type.cancel, zone)}`;
     },
     line: (steps, named) => {
       if (steps.length === 0) {
@@ -550,7 +555,7 @@ const ENGLISH: ServerWords = {
     `Days of leave that expire on ${on} (${daysBefore} days from now) and are not used yet. Tell each person, in writing where the law asks for it, and plan the days.\n\n${rows.map((row) => `- ${row.who}: ${row.days}`).join("\n")}`,
   manualTaskTitle: (period) => `Leave period from ${period}: grant this period's days by hand`,
   manualTaskBody: (period, rows) =>
-    `The policy gives nothing by itself. Credit each person's days for the period starting ${period} with \`console plugin hr adjust --person <login> --type annual --days <n> --expires <day> --note <why>\`.\n\n${rows.map((row) => `- ${row}`).join("\n")}`,
+    `The policy gives nothing by itself. Credit each person's days for the period starting ${period} with \`console plugin hr adjust <login> --type annual --days <n> --note <why>\`; a credit expires as the policy's credits do.\n\n${rows.map((row) => `- ${row}`).join("\n")}`,
   leftTaskTitle: (who) => `${who} left: settle their leave`,
   leftTaskBody: (who, day, remaining) =>
     `${who} was deactivated in the console on ${day}; their leave is now off and nothing accrues. Days left unused: ${remaining}. Settle them as the policy and the law say (a payout, or nothing), with \`console plugin hr adjust\`.`,
@@ -611,6 +616,7 @@ const ENGLISH: ServerWords = {
     overlap: "The span overlaps a request of this person.",
     insufficient: (asked, available, day, advance) =>
       `${asked} asked, ${available} available on ${day}${advance === "" ? "" : ` (${advance} may be taken in advance)`}.`,
+    insufficientHidden: "There are not enough days of leave for that.",
     notTheirManager: "You record leave for the people you manage; HR records it for anyone.",
     ownLeave: "Nobody approves their own leave: request it, and it goes to your line.",
     noDecision: (why) => `The decision could not be raised: ${why}.`,
@@ -621,7 +627,8 @@ const ENGLISH: ServerWords = {
     started: "Leave whose first day has gone by is cancelled by HR.",
     cancelledByHr: "Approved leave of this kind is cancelled by HR.",
     pastCancelDeadline: (deadline, zone) =>
-      `Approved leave of this kind is cancelled by its person ${englishDeadline(deadline, zone)}; after that, by HR.`,
+      `Approved leave of this kind may be cancelled ${englishDeadline(deadline, zone)}; after that, only by HR.`,
+    cancelDays: "Cancelling at once up to a number of days needs the number: give --cancel-days.",
     daysInQuarters: "Days are a number of quarters other than zero.",
     payoutTakes: "A payout takes days: give a negative number.",
     grantGives: "A grant gives days: give a positive number.",
@@ -720,6 +727,8 @@ const KOREAN: ServerWords = {
       ? "지난 날짜의 신청입니다."
       : `기한이 지난 신청입니다. 이 종류는 ${notice} 신청합니다.`,
   ownAnswer: "본인의 답으로는 자기 휴가가 승인되지 않습니다. 다시 신청하세요.",
+  ownCancelAnswer:
+    "본인의 답으로는 자기 휴가의 취소가 허락되지 않습니다. 휴가는 그대로이며, 다시 취소를 신청하세요.",
   part: (part) =>
     ({
       none: "",
@@ -783,7 +792,7 @@ const KOREAN: ServerWords = {
   recordedWaiting: (who, id) => `${who}의 휴가를 등록했습니다. 다음 결재를 기다립니다. 신청 ${id}.`,
   cancelled: (id) => `취소되었습니다. 신청 ${id}.`,
   cancellationRequested: (id) => `취소가 결재를 기다립니다. 신청 ${id}.`,
-  adjusted: (days, type, who) => `${who}의 ${type} ${days}을 기록했습니다.`,
+  adjusted: (days, type, who, id) => `${who}의 ${type} ${days}을 기록했습니다. 줄 ${id}.`,
   enrolled: (who, leave) => `${who}: 기록을 저장했습니다. 휴가 ${leave ? "켜짐" : "꺼짐"}.`,
   recounted: (who, policy) => `${who}: 규정 ${policy}에 맞춰 원장을 다시 셌습니다.`,
   reversedLine: (days, type, who) => `${who}의 ${type} ${days} 줄을 되돌렸습니다.`,
@@ -831,18 +840,17 @@ const KOREAN: ServerWords = {
         always: "결재 없이 바로 승인합니다",
         upTo: `기한 안의 ${type.autoApprove.days}일 이하는 바로 승인하고, 그 밖은 결재선으로 갑니다`,
       }[type.autoApprove.mode];
-      let late = "";
-      if (type.notice.mode !== "none") {
-        late = {
-          refuse: "늦은 신청은 거절합니다",
-          manager: "늦은 신청은 매니저나 인사 담당만 등록합니다",
-          mark:
-            type.autoApprove.mode === "always"
-              ? "늦은 신청도 바로 승인하고 늦음 표시만 남깁니다"
-              : "늦은 신청은 늦음 표시와 함께 결재선으로 갑니다",
-        }[type.late];
-      }
-      return `${notice}. ${auto}.${late === "" ? "" : ` ${late}.`} ${koreanCancel(type.cancel, zone)}`;
+      // 기한이 없으면 지난 날짜의 신청만 늦은 신청입니다.
+      const later = type.notice.mode === "none" ? "지난 날짜 신청" : "늦은 신청";
+      const late = {
+        refuse: `${later}은 거절합니다`,
+        manager: `${later}은 매니저나 인사 담당만 등록합니다`,
+        mark:
+          type.autoApprove.mode === "always"
+            ? `${later}도 바로 승인하고 기한 후 표시를 남깁니다`
+            : `${later}은 기한 후 표시와 함께 결재선으로 갑니다`,
+      }[type.late];
+      return `${notice}. ${auto}. ${late}. ${koreanCancel(type.cancel, zone)}`;
     },
     line: (steps, named) => {
       if (steps.length === 0) {
@@ -911,7 +919,7 @@ const KOREAN: ServerWords = {
     `${on}에 소멸하는(${daysBefore}일 뒤) 미사용 휴가입니다. 법이 요구하는 경우 서면으로 각자에게 알리고 사용 시기를 정하세요.\n\n${rows.map((row) => `- ${row.who}: ${row.days}`).join("\n")}`,
   manualTaskTitle: (period) => `${period} 시작 기간: 이번 기간의 연차를 직접 부여`,
   manualTaskBody: (period, rows) =>
-    `규정이 자동으로 주는 일수가 없습니다. ${period}에 시작하는 기간의 일수를 \`console plugin hr adjust --person <login> --type annual --days <n> --expires <day> --note <사유>\`로 각자에게 넣으세요.\n\n${rows.map((row) => `- ${row}`).join("\n")}`,
+    `규정이 자동으로 주는 일수가 없습니다. ${period}에 시작하는 기간의 일수를 \`console plugin hr adjust <login> --type annual --days <n> --note <사유>\`로 각자에게 넣으세요. 만료는 규정을 따릅니다.\n\n${rows.map((row) => `- ${row}`).join("\n")}`,
   leftTaskTitle: (who) => `${who} 퇴직: 휴가 정산`,
   leftTaskBody: (who, day, remaining) =>
     `${who}은(는) ${day}에 콘솔에서 비활성화되었습니다. 휴가는 꺼졌고 더 발생하지 않습니다. 미사용 잔여: ${remaining}. 규정과 법에 따라(수당 또는 없음) \`console plugin hr adjust\`로 정산하세요.`,
@@ -924,15 +932,15 @@ const KOREAN: ServerWords = {
   noReason: "(사유 없음)",
   notes: {
     month: (month) => `입사 ${month}개월째에 받은 일수`,
-    period: "이번 기간이 시작되며 받은 일수",
+    period: "기간이 시작되며 받은 일수",
     served: (days, of) => `근무한 만큼 계산: ${of}일 중 ${days}일 근무`,
     ahead: (days, of) => `남은 기간만큼 계산: ${of}일 중 ${days}일 남음`,
     firstFull: "첫 기간치를 모두 받음",
-    accrual: (index, of) => `매달 받는 일수, ${of}번 중 ${index}번째`,
+    accrual: (index, of) => `나눠 받는 일수, ${of}번 중 ${index}번째`,
     allowance: "이번 기간에 쓸 수 있는 일수",
     cancelled: "취소됨",
     expired: "기한이 지나 사라짐",
-    payout: "기한이 지나 수당으로 받음",
+    payout: "기한이 지나 수당으로 정산할 일수",
     carried: (day) => `${day}에 끝난 기간에서 넘어옴`,
     recount: "지금 규정으로는 받지 않는 일수라 되돌림",
   },
@@ -971,18 +979,20 @@ const KOREAN: ServerWords = {
     overlap: "이 사람의 다른 신청과 기간이 겹칩니다.",
     insufficient: (asked, available, day, advance) =>
       `${asked}을 신청했지만 ${day} 기준 사용 가능 일수는 ${available}입니다${advance === "" ? "" : ` (미리 쓸 수 있는 일수 ${advance})`}.`,
+    insufficientHidden: "그만큼 쓸 수 있는 휴가 일수가 없습니다.",
     notTheirManager:
       "내가 매니저인 사람의 휴가만 대신 등록할 수 있습니다. 인사 담당은 누구든 등록합니다.",
     ownLeave: "자기 휴가는 직접 승인할 수 없습니다. 신청하면 결재선으로 갑니다.",
     noDecision: (why) => `결정을 올리지 못했습니다: ${why}.`,
     noSuchRequest: "그런 신청이 없습니다.",
     notYours: "다른 사람의 신청입니다.",
-    alreadyCancelling: "취소가 이미 결정을 기다리고 있습니다.",
+    alreadyCancelling: "취소가 이미 결재를 기다리고 있습니다.",
     closed: "이미 끝난 신청입니다.",
     started: "첫날이 지난 휴가는 인사 담당이 취소합니다.",
     cancelledByHr: "이 종류의 승인된 휴가는 인사 담당이 취소합니다.",
     pastCancelDeadline: (deadline, zone) =>
-      `이 종류의 승인된 휴가는 ${koreanDeadline(deadline, zone)} 본인이 취소하고, 그 뒤에는 인사 담당이 취소합니다.`,
+      `이 종류의 승인된 휴가는 ${koreanDeadline(deadline, zone)} 취소할 수 있고, 그 뒤에는 인사 담당이 취소합니다.`,
+    cancelDays: "며칠 이하만 바로 취소하려면 그 일수가 필요합니다. --cancel-days로 정하세요.",
     daysInQuarters: "일수는 0이 아닌 0.25일 단위 숫자입니다.",
     payoutTakes: "수당 지급은 일수를 차감합니다. 음수로 적으세요.",
     grantGives: "부여는 일수를 더합니다. 양수로 적으세요.",

@@ -28,6 +28,7 @@ import type {
   RequestView,
   TypeView,
 } from "../shared/contracts.js";
+import { rule as exceptionRule } from "./collections.js";
 import { DEFAULT_CONFIG } from "./config.js";
 import {
   accrue,
@@ -71,6 +72,7 @@ import {
   typesQuery,
   upgrades,
 } from "./index.js";
+import { noteIn, serverWords } from "./words.js";
 
 type RestPerson = Awaited<ReturnType<PluginContext["console"]["people"]["list"]>>[number];
 type RestDecision = NonNullable<Awaited<ReturnType<PluginContext["console"]["decisions"]["get"]>>>;
@@ -354,7 +356,7 @@ describe("setup", () => {
   it("writes the kinds of leave, a default policy from the country's preset and the holidays of this and next year", async () => {
     const ctx = contextWith(board());
     const result = await setup.run(ctx, { country: "kr" });
-    expect(result.text).toContain("5 leave types");
+    expect(result.text).toContain("5 kinds of leave");
     expect(ctx.all("types").map((record) => record.data.key)).toEqual(
       expect.arrayContaining(["annual", "sick", "unpaid", "family", "compensatory"]),
     );
@@ -1947,7 +1949,7 @@ describe("the language of what the plugin writes", () => {
   it("says the ledger's own lines in the reader's language", async () => {
     const ctx = await korea(board());
     const lines = (await ledgerQuery.run(ctx.as(KO_ALICE), {})) as EntryView[];
-    expect(lines.map((line) => line.note).join(" ")).toContain("이번 기간");
+    expect(lines.map((line) => line.note).join(" ")).toContain("기간이 시작되며 받은 일수");
     expect(lines.every((line) => !line.note.startsWith("~"))).toBe(true);
   });
 });
@@ -2438,7 +2440,9 @@ describe("what a setting command reads back", () => {
     expect(said).toContain("A year from 1/1");
     expect(said).toContain("someone hired within a period gets days prorated");
     expect(said).toContain("First year: a day for each month completed, 11 at most");
-    expect(said).toContain("Requested any time; every request goes to the line.");
+    expect(said).toContain(
+      "Requested any time; every request goes to the line; a request for days gone by goes to the line, marked late.",
+    );
     expect(said).toContain("Approval: 1. the person's manager.");
     expect(said).toContain("Time zone: Asia/Seoul.");
     expect(said).toContain("before enrolling anyone");
@@ -2466,11 +2470,11 @@ describe("what a setting command reads back", () => {
       auto: "always",
     });
     expect(always.text).toContain(
-      "Requested by 09:00 the same day, Asia/Seoul time; approved as written, nobody asked; a later one is approved as written too, and marked late.",
+      "Requested by 09:00 the same day, Asia/Seoul time; approved as written, nobody asked; a later request is approved as written too, and marked late.",
     );
     const upTo = await type.run(ctx, { key: "annual", auto: "upTo", "auto-days": 30 });
     expect(upTo.text).toContain("approved as written in time up to 30 days");
-    expect(upTo.text).toContain("a later one goes to the line, marked late");
+    expect(upTo.text).toContain("a later request goes to the line, marked late");
     const refused = await type.run(ctx, { key: "annual", late: "refuse" });
     expect(refused.text).toContain("a later request is refused");
   });
@@ -3043,7 +3047,7 @@ describe("cancelling by the rule of a kind", () => {
     expect(ctx.all("requests")[0]?.data.state).toBe("cancelled");
   });
 
-  it("leaves leave past the deadline to HR where the rule says so, and says until when it was the person's", async () => {
+  it("leaves leave past the deadline to HR where the rule says so, and says until when it could be cancelled", async () => {
     const ctx = await korea(board(), { line: "[]" });
     await annualCancelling(ctx, {
       "cancel-notice": "dayBefore",
@@ -3056,11 +3060,11 @@ describe("cancelling by the rule of a kind", () => {
     await expect(cancel.run(ctx.as(ALICE), { id: today })).rejects.toMatchObject({
       code: "hr_only",
       message:
-        "Approved leave of this kind is cancelled by its person until 18:00 the day before, Asia/Seoul time; after that, by HR.",
+        "Approved leave of this kind may be cancelled until 18:00 the day before, Asia/Seoul time; after that, only by HR.",
     });
     await expect(cancel.run(ctx.as(KO_ALICE), { id: today })).rejects.toMatchObject({
       message:
-        "이 종류의 승인된 휴가는 전날 18:00까지(Asia/Seoul 기준) 본인이 취소하고, 그 뒤에는 인사 담당이 취소합니다.",
+        "이 종류의 승인된 휴가는 전날 18:00까지(Asia/Seoul 기준) 취소할 수 있고, 그 뒤에는 인사 담당이 취소합니다.",
     });
     expect(ctx.all("requests")[0]?.data.state).toBe("approved");
   });
@@ -3143,7 +3147,12 @@ describe("a kind's rule of cancelling, as HR writes it", () => {
 
   it("says each kind's rules in a sentence of the caller's language", async () => {
     const ctx = await korea(board());
-    await annualCancelling(ctx, { cancel: "upTo", "cancel-days": 2, "cancel-late": "hr" });
+    await annualCancelling(ctx, {
+      "cancel-notice": "none",
+      cancel: "upTo",
+      "cancel-days": 2,
+      "cancel-late": "hr",
+    });
     const english = (await typesQuery.run(ctx.as(ALICE), {})) as TypeView[];
     const annual = english.find((kind) => kind.key === "annual");
     expect(annual?.summary).toContain("Requested any time;");
@@ -3344,5 +3353,273 @@ describe("the workspace's language", () => {
     await enroll.run(ctx, { person: personOf(BOB), leave: "on", "hired-on": "2024-01-10" });
     await runDaily(ctx.as(CONSOLE));
     expect(theBoard.tasks[0]?.title).toContain("퇴직");
+  });
+});
+
+describe("what the review before 0.3.0 found", () => {
+  const forPerson = (who: PluginCaller): PluginCaller => ({
+    kind: "plugin",
+    plugin: "messenger",
+    roles: ["member"],
+    for: { ...personOf(who), language: "en", admin: false },
+    project: null,
+  });
+  const rulesOf = (ctx: TestContext) =>
+    (ctx.all("config")[0]?.data as unknown as { rules: Record<string, unknown>[] } | undefined)
+      ?.rules ?? [];
+  const kindOf = (ctx: TestContext, key: string) =>
+    ctx.all("types").find((record) => record.data.key === key)?.data as unknown as
+      | LeaveType
+      | undefined;
+
+  it("keeps the rule of cancelling of a configuration brought up from 0.1.0, its exceptions without teams", async () => {
+    const oldTypes = defineCollection("types", { schema: types.schema.omit({ cancel: true }) });
+    const oldConfig = defineCollection("config", {
+      schema: config.schema.extend({
+        rules: z.array(exceptionRule.omit({ teams: true })).max(20),
+        cancellation: z.enum(["free", "approval", "hr"]),
+      }),
+    });
+    const ctx = await korea(board());
+    for (const record of ctx.all("types")) {
+      await ctx.records(oldTypes).update(record.id, {});
+    }
+    await ctx.records(oldConfig).update(ctx.all("config")[0]?.id ?? "", {
+      rules: [
+        {
+          name: "Long leave",
+          kinds: [],
+          daysAtLeast: 5,
+          lateOnly: false,
+          steps: [{ sources: ["hr"], people: [], mode: "any" }],
+        },
+      ],
+      cancellation: "hr",
+    });
+    expect(rulesOf(ctx)[0]).not.toHaveProperty("teams");
+    for (const upgrade of upgrades) {
+      await upgrade.run(ctx.as(CONSOLE));
+    }
+    const rules = ctx.all("types").map((record) => (record.data as unknown as LeaveType).cancel);
+    expect(rules.map((rule) => [rule.within, rule.after])).toEqual(rules.map(() => ["hr", "hr"]));
+    expect(ctx.all("config")[0]?.data).not.toHaveProperty("cancellation");
+    expect(rulesOf(ctx)[0]).toMatchObject({ teams: [] });
+  });
+
+  it("keeps the leave where its person allows their own cancellation, and lets anyone asked allow it", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    await annualCancelling(ctx, { cancel: "decision" });
+    const id = await approvedBy(ctx, theBoard, "2026-11-10");
+    const first = await cancel.run(ctx.as(ALICE), { id });
+    theBoard.answer(first.waiting ?? "", "approve", ALICE);
+    await answered(ctx, first.waiting ?? "");
+    expect(stored(ctx)).toMatchObject({ state: "approved" });
+    expect(stored(ctx).note).toContain("own answer");
+    expect(ctx.all("ledger").filter((line) => line.data.kind === "reverse")).toHaveLength(0);
+    const second = await cancel.run(ctx.as(ALICE), { id });
+    theBoard.answer(second.waiting ?? "", "approve", MANAGER);
+    await answered(ctx, second.waiting ?? "");
+    expect(stored(ctx)).toMatchObject({ state: "cancelled" });
+    expect(ctx.all("ledger").filter((line) => line.data.kind === "reverse")).toHaveLength(1);
+  });
+
+  it("cancels a kind's leave at once only until the day before where its requests keep no notice", async () => {
+    const ctx = await korea(board(), { line: "[]" });
+    expect(kindOf(ctx, "annual")?.cancel).toEqual({
+      deadline: { mode: "dayBefore", days: 0, time: "23:59" },
+      within: "now",
+      days: 0,
+      after: "decision",
+    });
+    await type.run(ctx, { key: "outing", name: ["en=Outing"] });
+    expect(kindOf(ctx, "outing")?.cancel.deadline.mode).toBe("dayBefore");
+    const today = await writtenLeave(ctx, "2026-11-06");
+    const monday = await writtenLeave(ctx, "2026-11-09");
+    expect((await viewAs(ctx, ALICE, today)).cancellation).toBe("decision");
+    expect((await viewAs(ctx, ALICE, monday)).cancellation).toBe("now");
+  });
+
+  it("gives a plugin calling for a manager nothing of the people below them", async () => {
+    const ctx = await korea(board());
+    await request.run(ctx.as(ALICE), { from: "2026-11-10", reason: "family" });
+    expect(
+      ((await requestsQuery.run(ctx.as(MANAGER), { scope: "team" })) as RequestView[]).length,
+    ).toBe(1);
+    expect(await api.requests.run(ctx.as(forPerson(MANAGER)), { scope: "team" })).toEqual([]);
+    await expect(
+      api.request.run(ctx.as(forPerson(MANAGER)), {
+        from: "2026-11-12",
+        personId: personOf(ALICE).id,
+      }),
+    ).rejects.toMatchObject({ code: "not_their_manager" });
+  });
+
+  it("answers HR's team as the people below them, everyone's being all", async () => {
+    const ctx = await korea(board());
+    await request.run(ctx.as(ALICE), { from: "2026-11-10" });
+    expect(await requestsQuery.run(ctx.as(HR), { scope: "team" })).toEqual([]);
+    expect(((await requestsQuery.run(ctx.as(HR), { scope: "all" })) as RequestView[]).length).toBe(
+      1,
+    );
+  });
+
+  it("counts an exception's approver in the line of the people of its teams alone", async () => {
+    const team = {
+      id: "00000000-0000-7000-8000-0000000000e3",
+      key: "night-shift",
+      name: "Night shift",
+      memberIds: [personOf(MANAGER).id],
+      createdAt: "",
+    };
+    const people = everyone().map((person) =>
+      person.login === "minho" ? { ...person, teams: ["night-shift"] } : person,
+    );
+    const ctx = contextWith(board(), people, "Asia/Seoul", [team]);
+    await setup.run(ctx, { country: "kr" });
+    await configure.run(ctx, {
+      rules: JSON.stringify([
+        {
+          name: "Night",
+          kinds: [],
+          daysAtLeast: null,
+          lateOnly: false,
+          teams: ["night-shift"],
+          steps: [{ sources: [], people: [personOf(BOB).id], mode: "any" }],
+        },
+      ]),
+    });
+    for (const who of [ALICE, MANAGER]) {
+      await enroll.run(ctx, { person: personOf(who), leave: "on", "hired-on": "2025-03-15" });
+    }
+    await expect(
+      request.run(ctx.as(BOB), { from: "2026-11-10", person: personOf(ALICE) }),
+    ).rejects.toMatchObject({ code: "not_their_manager" });
+    await expect(
+      request.run(ctx.as(BOB), { from: "2026-11-10", person: personOf(MANAGER) }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("shows a manager writing for someone the balance only where the configuration shows it them", async () => {
+    const ctx = await korea(board(), { "balance-visibility": "self" });
+    const hidden = (await preview.run(ctx.as(MANAGER), {
+      from: "2026-11-10",
+      person: personOf(ALICE),
+    })) as RequestPreview;
+    expect(hidden).toMatchObject({ refusal: null, available: null });
+    await expect(
+      request.run(ctx.as(MANAGER), {
+        from: "2026-11-10",
+        to: "2027-01-29",
+        person: personOf(ALICE),
+      }),
+    ).rejects.toMatchObject({
+      code: "insufficient",
+      message: "There are not enough days of leave for that.",
+    });
+    await configure.run(ctx, { "balance-visibility": "manager" });
+    const shown = (await preview.run(ctx.as(MANAGER), {
+      from: "2026-11-10",
+      person: personOf(ALICE),
+    })) as RequestPreview;
+    expect(shown.available).toBeGreaterThan(0);
+  });
+
+  it("refuses late leave a manager writes under refuse, and takes it from them under manager", async () => {
+    const ctx = await korea(board());
+    await type.run(ctx, { key: "annual", notice: "days", "notice-days": 7, late: "refuse" });
+    await expect(
+      request.run(ctx.as(MANAGER), { from: "2026-11-10", person: personOf(ALICE) }),
+    ).rejects.toMatchObject({ code: "too_late" });
+    await expect(
+      request.run(ctx.as(HR), { from: "2026-11-10", person: personOf(ALICE) }),
+    ).resolves.toBeTruthy();
+    await type.run(ctx, { key: "annual", late: "manager" });
+    await expect(
+      request.run(ctx.as(MANAGER), { from: "2026-11-11", person: personOf(ALICE) }),
+    ).resolves.toBeTruthy();
+    await expect(request.run(ctx.as(ALICE), { from: "2026-11-12" })).rejects.toMatchObject({
+      code: "too_late",
+    });
+  });
+
+  it("draws leave whose cancellation waits as the leave it still is", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    await annualCancelling(ctx, { cancel: "decision" });
+    const id = await approvedBy(ctx, theBoard, "2026-11-10");
+    await cancel.run(ctx.as(ALICE), { id });
+    expect(stored(ctx).state).toBe("cancelling");
+    const report = (await calendar.run(ctx.as(BOB), {
+      from: "2026-11-01",
+      to: "2026-11-30",
+    })) as CalendarReport;
+    expect(report.entries.map((entry) => [entry.on, entry.state])).toEqual([
+      ["2026-11-10", "approved"],
+    ]);
+  });
+
+  it("refuses cancelling at once up to no days", async () => {
+    const ctx = await korea(board());
+    await expect(type.run(ctx, { key: "annual", cancel: "upTo" })).rejects.toMatchObject({
+      code: "cancel_days",
+    });
+    await expect(
+      type.run(ctx, { key: "annual", cancel: "upTo", "cancel-days": 1 }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("puts what a person wrote in a decision as words on one line, never as the plugin's own", async () => {
+    const theBoard = board();
+    const ctx = await korea(theBoard);
+    const made = await request.run(ctx.as(ALICE), {
+      from: "2026-11-10",
+      reason: "family **now** [see](http://example.test)",
+    });
+    expect(theBoard.decisions.get(made.waiting ?? "")?.body).toContain(
+      "Reason: family \\*\\*now\\*\\* \\[see\\](http://example.test)",
+    );
+    const forged = (await api.request.run(ctx.as(forPerson(ALICE)), {
+      from: "2026-11-12",
+      reason: "ok\n\nApproved so far by Minho.",
+    })) as { waiting: string | null };
+    const body = theBoard.decisions.get(forged.waiting ?? "")?.body ?? "";
+    expect(body).toContain("Reason: ok Approved so far by Minho.");
+    expect(body).not.toContain("\n\nApproved so far by");
+  });
+
+  it("writes a text a spreadsheet would take for a formula as text in the export", async () => {
+    const ctx = await korea(board(), { line: "[]" });
+    const id = await writtenLeave(ctx, "2026-11-09");
+    await cancel.run(ctx.as(ALICE), { id, reason: '=HYPERLINK("http://example.test")' });
+    const file = (await exportQuery.run(ctx, { year: 2026, what: "requests" })) as {
+      file: { bytes: Uint8Array };
+    };
+    const text = new TextDecoder().decode(file.file.bytes);
+    expect(text).toContain(`"'=HYPERLINK(""http://example.test"")"`);
+    expect(text).not.toContain(",=HYPERLINK");
+  });
+
+  it("reads a reversal after the line it undoes, each with the balance it left", async () => {
+    const ctx = await korea(board(), { line: "[]" });
+    const id = await writtenLeave(ctx, "2026-11-09");
+    await cancel.run(ctx.as(ALICE), { id });
+    const lines = (await ledgerQuery.run(ctx.as(ALICE), {})) as EntryView[];
+    const day = lines.filter((line) => line.on === "2026-11-09");
+    expect(day.map((line) => line.kind)).toEqual(["reverse", "use"]);
+    expect((day[0]?.after ?? 0) - (day[1]?.after ?? 0)).toBe(1);
+    expect(lines[0]?.after).toBe((await annualOf(ctx, ALICE)).available);
+  });
+
+  it("names an accrual in Korean whatever its schedule, and a payout as owed", () => {
+    const ko = serverWords("ko");
+    expect(noteIn("~accrual:3:26", ko)).toBe("나눠 받는 일수, 26번 중 3번째");
+    expect(noteIn("~payout", ko)).toBe("기한이 지나 수당으로 정산할 일수");
+  });
+
+  it("keeps HR's note on a person out of what the person reads through the console's routes", () => {
+    const people = collections.find((collection) => collection.name === "people");
+    expect(people?.read).toEqual(["hr"]);
+    expect(people?.readOwn ?? []).toEqual([]);
   });
 });

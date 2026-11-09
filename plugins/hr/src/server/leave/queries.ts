@@ -417,11 +417,11 @@ export const balance = defineQuery({
 });
 
 export const requestsQuery = defineQuery({
-  about: "Requests of leave, newest first: the caller's, or by --scope or --person.",
+  about: "Requests of leave by first day, latest first: the caller's, or by --scope or --person.",
   args: {
     scope: arg.enum(["mine", "waiting", "team", "all"], {
       about:
-        "mine unless said; waiting, those waiting for the caller's decision; team, the people below them; all, for HR",
+        "mine unless said; waiting, those waiting for the caller's decision; team, the people below them; all, everyone's, for HR",
       optional: true,
     }),
     person: arg.person({ about: "one person's", optional: true }),
@@ -471,12 +471,11 @@ export const requestsQuery = defineQuery({
     } else if (scope === "mine") {
       where.personId = actor.id;
     } else if (scope === "team") {
-      if (reach.size === 0 && !actor.hr) {
+      // The people below the caller, HR's too: everyone's is `all`.
+      if (reach.size === 0) {
         return [];
       }
-      if (!actor.hr) {
-        where.personId = { in: [...reach] };
-      }
+      where.personId = { in: [...reach] };
     } else if (scope === "waiting") {
       where.state = args.state ?? { in: ["requested", "cancelling"] };
     } else {
@@ -541,7 +540,7 @@ export async function requestViewOf(ctx: PluginContext, id: string): Promise<Req
 }
 
 export const requestView = defineQuery({
-  about: "One request in full: where it stands, whom it waits for, what you may read of it.",
+  about: "One request in full: where it stands, whom it waits for, what cancelling it comes to.",
   args: {
     id: arg.record("requests", { about: "the request", positional: true }),
   },
@@ -566,8 +565,9 @@ async function calendarEntries(
   const spanning = await listAll<LeaveRequest>(ctx.records(requests), {
     where: { from: { lte: to }, to: { gte: from } },
   });
-  const active = spanning.filter(
-    (item) => item.data.state === "approved" || item.data.state === "requested",
+  // Leave whose cancellation waits stands until it is decided.
+  const active = spanning.filter((item) =>
+    ["approved", "requested", "cancelling"].includes(item.data.state),
   );
   const recordsById = new Map<string, Person>();
   const ids = [...new Set(active.map((item) => item.data.personId))];
@@ -600,7 +600,7 @@ async function calendarEntries(
         person: briefOf(item.data.personId, directoryMap, record, actor),
         type: showsType ? item.data.type : null,
         part: item.data.part,
-        state: item.data.state === "approved" ? "approved" : "requested",
+        state: item.data.state === "requested" ? "requested" : "approved",
         requestId: item.id,
       });
     }
@@ -817,7 +817,7 @@ export const holidaysQuery = defineQuery({
 });
 
 export const ledgerQuery = defineQuery({
-  about: "A person's ledger of leave, newest first: every grant, use, adjustment and expiry.",
+  about: "A person's ledger of leave, newest first, each line with the days left after it.",
   args: {
     person: arg.person({ about: "whose; the caller's unless said", optional: true }),
     type: arg.text({ about: "one kind of leave; annual unless said", optional: true, max: 32 }),
@@ -849,11 +849,18 @@ export const ledgerQuery = defineQuery({
     const lines = items.map(lineOf);
     const { closed } = settle(lines);
     const reversals = reversalsOf(lines);
-    // Within a day, what closes the old period's credits comes before what the new one gives, and
-    // what gives before what takes, so that the lines of the day read in the order they happened;
-    // newest first over all, as a statement is read.
-    const rank = (line: Line): number =>
-      line.kind === "expire" || line.kind === "payout" ? 0 : line.days > 0 ? 1 : 2;
+    // Within a day, what closes the old period's credits comes before what the new one gives, what
+    // gives before what takes, and a reversal after what it undoes, which shares its day, so that
+    // the lines of the day read in the order they happened; newest first over all, as a statement.
+    const rank = (line: Line): number => {
+      if (line.kind === "reverse") {
+        return 3;
+      }
+      if (line.kind === "expire" || line.kind === "payout") {
+        return 0;
+      }
+      return line.days > 0 ? 1 : 2;
+    };
     const shown = lines
       .filter((line) => closed.get(line.id) !== 0)
       .sort((a, b) => (a.on === b.on ? rank(b) - rank(a) : a.on < b.on ? 1 : -1));
@@ -986,7 +993,13 @@ export const overview = defineQuery({
 function csvLine(values: readonly (string | number | null)[]): string {
   return values
     .map((value) => {
-      const text = value === null ? "" : String(value);
+      // A text a spreadsheet would take for a formula stays text: what a person wrote is in it.
+      const text =
+        value === null
+          ? ""
+          : typeof value === "string" && /^[=+\-@\t\r]/.test(value)
+            ? `'${value}`
+            : String(value);
       return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     })
     .join(",");
@@ -1124,14 +1137,26 @@ export const preview = defineQuery({
   about: "What a request would come to, the refusal included, with nothing written.",
   args: {
     from: arg.day({ about: "the first day", positional: true }),
-    to: arg.day({ about: "the last day", optional: true, positional: true }),
-    type: arg.text({ about: "the kind of leave", optional: true, max: 32 }),
+    to: arg.day({
+      about: "the last day; the first day unless said",
+      optional: true,
+      positional: true,
+    }),
+    type: arg.text({
+      about: "the kind of leave, by its key; annual unless said",
+      optional: true,
+      max: 32,
+    }),
     part: arg.enum(PARTS as unknown as [Part, ...Part[]], {
-      about: "a part of one day",
+      about:
+        "a part of one day, as the kind allows: am or pm a half, q1 to q4 a quarter; the whole day unless said",
       optional: true,
     }),
-    reason: arg.text({ about: "why", optional: true, max: 2000 }),
-    person: arg.person({ about: "whose leave, for their manager or HR", optional: true }),
+    reason: arg.text({ about: "why; some kinds of leave ask for it", optional: true, max: 2000 }),
+    person: arg.person({
+      about: "whose leave, for their manager or HR; the caller's unless said",
+      optional: true,
+    }),
   },
   roles: [ROLE_MEMBER, ROLE_HR],
   async run(ctx, args): Promise<RequestPreview> {
@@ -1152,7 +1177,11 @@ export const preview = defineQuery({
         days: prepared.days,
         late: prepared.late,
         notice: words.noticeText(prepared.type.notice),
-        available: prepared.available,
+        // The balance only to whoever may see it: a manager writing for someone sees it as the
+        // configuration lets them.
+        available: maySeeBalance(actor, prepared.target.id, reachOf(actor, directoryMap), config)
+          ? prepared.available
+          : null,
         automatic: nextOf(steps) === null,
         line: stepViews(steps, directoryMap, true),
       };
