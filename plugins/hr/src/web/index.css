@@ -1202,6 +1202,58 @@
   overflow: hidden;
 }
 
+/* The month between its arrows, the name wide enough that the arrows stay where they are. */
+.pl-hr-month-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+}
+
+.pl-hr-month-nav > button {
+  min-width: 2rem;
+  font-size: var(--sc-text-lg);
+  line-height: 1;
+}
+
+.pl-hr-month-nav > h2 {
+  min-width: 8rem;
+  margin: 0;
+  text-align: center;
+  font-variant-numeric: var(--sc-numeric);
+}
+
+/* The month in the wide column and, beside it, an aside of the console's width. */
+.pl-hr-calendar-columns {
+  grid-template-columns: minmax(0, 1fr) var(--sc-width-aside);
+}
+
+.pl-hr-calendar-legend {
+  display: grid;
+  gap: var(--sc-space-3);
+}
+
+.pl-hr-calendar-legend .pl-hr-rows-item {
+  gap: var(--sc-space-2);
+  padding: var(--sc-space-1) 0;
+}
+
+.pl-hr-calendar-samples {
+  padding-top: var(--sc-space-3);
+  border-top: var(--sc-hairline);
+}
+
+/* Today: its number on a disc of the accent, where the console colours the number alone. */
+.pl-hr-month-today .pl-hr-day-number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-accent-solid);
+  color: var(--sc-color-accent-contrast);
+}
+
 .pl-hr-month-off {
   background: color-mix(in srgb, var(--sc-color-bg-inset) 60%, transparent);
 }
@@ -1225,12 +1277,13 @@
   align-items: center;
   gap: var(--sc-space-1);
   margin-top: 2px;
-  padding: 1px var(--sc-space-1);
+  padding: 1px var(--sc-space-2) 1px 2px;
   overflow: hidden;
-  /* As the console's own bars on its calendar: a thin edge and a fill of the kind's colour. */
-  border: 1px solid color-mix(in srgb, var(--pl-hr-series) 60%, transparent);
-  border-radius: var(--sc-radius-sm);
-  background: color-mix(in srgb, var(--pl-hr-series) 12%, transparent);
+  /* A pill of the kind's colour, a face at its start, no stroke; a request not yet approved is
+     drawn dashed. */
+  border: 1px solid transparent;
+  border-radius: var(--sc-radius-full);
+  background: color-mix(in srgb, var(--pl-hr-series) 16%, transparent);
   font-size: var(--sc-text-xs);
   white-space: nowrap;
 }
@@ -1242,6 +1295,7 @@
 }
 
 .pl-hr-chip-requested {
+  border-color: color-mix(in srgb, var(--pl-hr-series) 60%, transparent);
   border-style: dashed;
   background: transparent;
 }
@@ -1279,12 +1333,14 @@
 }
 
 .pl-hr-legend-approved {
-  border: 1px solid color-mix(in srgb, var(--sc-color-accent) 60%, transparent);
-  background: color-mix(in srgb, var(--sc-color-accent) 12%, transparent);
+  border: 1px solid transparent;
+  border-radius: var(--sc-radius-full);
+  background: color-mix(in srgb, var(--sc-color-accent) 16%, transparent);
 }
 
 .pl-hr-legend-requested {
-  border: 1px dashed var(--sc-color-accent);
+  border: 1px dashed color-mix(in srgb, var(--sc-color-accent) 60%, transparent);
+  border-radius: var(--sc-radius-full);
 }
 
 .pl-hr-legend-holiday {

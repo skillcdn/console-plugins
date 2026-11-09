@@ -34,7 +34,9 @@ import {
   personLabel,
   sequenced,
   seriesOf,
+  sortedTypes,
   stack,
+  swatch,
   todayDay,
   watch,
 } from "../ui.js";
@@ -113,7 +115,7 @@ function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: V
     const off = !workDays.has(weekdayOf(day)) || dayHolidays.length > 0;
     const cell = el(
       "td",
-      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today" : ""}${off ? " month-off" : ""}${dayHolidays.length > 0 ? " month-holiday" : ""}`,
+      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today month-today" : ""}${off ? " month-off" : ""}${dayHolidays.length > 0 ? " month-holiday" : ""}`,
     );
     cell.append(el("span", "sc-calendar-day day-number", String(dateOf(day))));
     for (const holiday of dayHolidays) {
@@ -142,21 +144,31 @@ function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: V
   return node;
 }
 
-function legend(words: Words): HTMLElement {
-  const node = el("dl", "sc-calendar-legend");
-  const item = (sample: string, label: string) => {
+/** What the colours on the month mean: each kind of leave by its colour, then how a day is drawn. */
+function legend(view: View): HTMLElement {
+  const { words, language, types } = view;
+  const node = el("div", "calendar-legend");
+  const kinds = el("ul", "rows");
+  for (const type of sortedTypes(types).filter((type) => type.enabled)) {
+    const item = el("li", "rows-item");
+    item.append(swatch(type.color), el("span", "rows-main", nameIn(type.name, language)));
+    kinds.append(item);
+  }
+  const samples = el("dl", "sc-calendar-legend calendar-samples");
+  const sample = (kind: string, label: string) => {
     const wrapper = el("div", "");
     const term = el("dt", "");
-    term.append(el("span", `legend-sample ${sample}`));
+    term.append(el("span", `legend-sample ${kind}`));
     wrapper.append(term, el("dd", "", label));
     return wrapper;
   };
-  node.append(
-    item("legend-approved", words.legendApproved),
-    item("legend-requested", words.legendRequested),
-    item("legend-holiday", words.legendHoliday),
-    item("legend-off", words.legendOff),
+  samples.append(
+    sample("legend-approved", words.legendApproved),
+    sample("legend-requested", words.legendRequested),
+    sample("legend-holiday", words.legendHoliday),
+    sample("legend-off", words.legendOff),
   );
+  node.append(kinds, samples);
   return node;
 }
 
@@ -207,26 +219,28 @@ export async function renderCalendar(
 
   const title = el("h2", "sc-calendar-month");
   const body = stack();
+  const legendBox = stack();
+  const holidayBox = stack();
   const scope = muted("");
   const mineHolder = el("div", "sc-subtabs");
-  const nav = el("div", "sc-calendar-nav");
-  nav.append(
-    button(words.previousMonth, () => move(-1), "secondary", true),
-    button(
-      words.thisMonth,
-      () => {
-        month = thisMonth;
-        void refresh();
-      },
-      "ghost",
-      true,
-    ),
-    button(words.nextMonth, () => move(1), "secondary", true),
-  );
+  // The month between its arrows, as the year stands on the holidays page.
+  const previous = button("‹", () => move(-1), "ghost", true);
+  previous.setAttribute("aria-label", words.previousMonth);
+  previous.title = words.previousMonth;
+  const next = button("›", () => move(1), "ghost", true);
+  next.setAttribute("aria-label", words.nextMonth);
+  next.title = words.nextMonth;
+  const nav = el("div", "month-nav");
+  nav.append(previous, title, next);
   const head = el("div", "sc-calendar-head");
-  head.append(title, nav);
+  head.append(nav);
+  // The month in the wide column; beside it, what its colours mean and the month's holidays.
+  const columns = el("div", "columns calendar-columns");
+  const aside = stack();
+  aside.append(panel(words.typeLabel, legendBox), panel(words.holidaysOfMonth, holidayBox));
+  columns.append(panel(null, head, scope, body), aside);
   const node = page();
-  node.append(pageHead(words.calendarTitle, ""), mineHolder, panel(null, head, scope, body));
+  node.append(pageHead(words.calendarTitle, ""), mineHolder, columns);
   root.replaceChildren(node);
   frame.setTitle(words.calendarTitle);
 
@@ -259,13 +273,11 @@ export async function renderCalendar(
     } else {
       mineHolder.replaceChildren();
     }
-    body.replaceChildren(
-      el("div", "scroll"),
-      legend(words),
-      el("h3", "subheading", words.holidaysOfMonth),
-      holidayList(current.holidays, view),
-    );
-    body.firstElementChild?.append(grid(current, entries, view));
+    const scroll = el("div", "scroll");
+    scroll.append(grid(current, entries, view));
+    body.replaceChildren(scroll);
+    legendBox.replaceChildren(legend(view));
+    holidayBox.replaceChildren(holidayList(current.holidays, view));
   }
 
   const refresh = sequenced(async (fresh) => {
