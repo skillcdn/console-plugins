@@ -20,7 +20,6 @@ import {
   el,
   empty,
   errorBlock,
-  eyebrow,
   type Formatters,
   formattersFor,
   holds,
@@ -112,11 +111,7 @@ function myLeave(report: OverviewReport, view: View): HTMLElement | null {
     ),
   );
   const others = (report.balance?.types ?? []).filter((type) => type.type !== ANNUAL);
-  const parts: HTMLElement[] = [
-    eyebrow(nameIn(annual.name, language)),
-    balanceFigure(annual, view),
-    legend,
-  ];
+  const parts: HTMLElement[] = [balanceFigure(annual, view), legend];
   if (others.length > 0) {
     const list = el("ul", "kinds");
     for (const other of others) {
@@ -129,7 +124,7 @@ function myLeave(report: OverviewReport, view: View): HTMLElement | null {
     }
     parts.push(list);
   }
-  return panel(null, ...parts);
+  return panel(nameIn(annual.name, language), ...parts);
 }
 
 function upcoming(views: readonly RequestView[], view: View): HTMLElement {
@@ -137,7 +132,7 @@ function upcoming(views: readonly RequestView[], view: View): HTMLElement {
   if (views.length === 0) {
     return panel(words.upcomingTitle, muted(words.upcomingEmpty));
   }
-  const list = el("ul", "rows");
+  const list = el("ul", "rows rows-grid");
   for (const item of views) {
     const row = el("li", "rows-item");
     row.append(
@@ -160,7 +155,7 @@ function upcoming(views: readonly RequestView[], view: View): HTMLElement {
 
 function waiting(views: readonly RequestView[], view: View): HTMLElement {
   const { words, format, language, types, frame } = view;
-  const list = el("ul", "rows");
+  const list = el("ul", "rows rows-grid");
   for (const item of views.slice(0, 5)) {
     const row = el("li", "rows-item");
     const path = waitingDecision(item);
@@ -260,51 +255,51 @@ function announcementsPanel(rows: readonly AnnouncementRow[], view: View): HTMLE
 }
 
 function build(report: OverviewReport, view: View, hr: boolean): HTMLElement[] {
-  const { words, format } = view;
+  const { words } = view;
   const parts: HTMLElement[] = [];
   if (!report.enrolled) {
     parts.push(notEnrolled(report, view, hr));
   }
-  const main = stack();
+  const main: HTMLElement[] = [];
   const mine = myLeave(report, view);
   if (mine !== null) {
-    main.append(mine);
+    main.push(mine);
   }
   if (report.waiting.length > 0) {
-    main.append(waiting(report.waiting, view));
+    main.push(waiting(report.waiting, view));
   }
   if (report.enrolled) {
-    main.append(upcoming(report.upcoming, view));
+    main.push(upcoming(report.upcoming, view));
   }
-  const side = stack();
-  if (report.announcements.length > 0) {
-    side.append(announcementsPanel(report.announcements, view));
+  if (main.length === 0) {
+    main.push(panel(null, empty(words.overviewEmpty)));
   }
-  side.append(
+  // The side in the order that sits best beside the main column: who is out by the balance, the
+  // holidays by the requests that wait, the announcements by the leave to come.
+  const side: HTMLElement[] = [
     panel(words.outTodayTitle, outTodayList(report.outToday, view)),
     panel(words.nextHolidaysTitle, holidayList(report.nextHolidays, view)),
-  );
-  if (report.counts !== null) {
-    side.append(
-      panel(
-        words.hrAtAGlance,
-        el(
-          "p",
-          "line",
-          words.hrCounts(
-            format.number(report.counts.enrolled),
-            format.number(report.counts.waiting),
-          ),
-        ),
-      ),
-    );
+  ];
+  if (report.announcements.length > 0) {
+    side.push(announcementsPanel(report.announcements, view));
   }
-  const columns = el("div", "columns");
-  if (main.childElementCount === 0) {
-    main.append(panel(null, empty(words.overviewEmpty)));
+  // The panes stand in rows, one of each column side by side, so that the two in a row share their
+  // top and their bottom; on a narrow page they read down in the same order.
+  const grid = el("div", "board");
+  const rows = Math.max(main.length, side.length);
+  for (let index = 0; index < rows; index += 1) {
+    const left = main[index];
+    const right = side[index];
+    if (left !== undefined) {
+      left.classList.add("pl-hr-board-main");
+      grid.append(left);
+    }
+    if (right !== undefined) {
+      right.classList.add("pl-hr-board-side");
+      grid.append(right);
+    }
   }
-  columns.append(main, side);
-  parts.push(columns);
+  parts.push(grid);
   return parts;
 }
 
@@ -320,14 +315,13 @@ export async function renderOverview(
   const content = stack();
   const node = page();
   const person = frame.context.person;
-  node.append(
-    pageHead(
-      words.hello(personLabel({ id: person.id, login: person.login, name: person.name })),
-      format.day(todayDay(frame)),
-      button(words.requestLeave, () => frame.navigate("/plugins/hr/leave"), "primary"),
-    ),
-    content,
+  const today = format.day(todayDay(frame));
+  const head = pageHead(
+    words.hello(personLabel({ id: person.id, login: person.login, name: person.name })),
+    today,
+    button(words.requestLeave, () => frame.navigate("/plugins/hr/leave"), "primary"),
   );
+  node.append(head, content);
   root.replaceChildren(node);
   frame.setTitle(words.overviewTitle);
 
@@ -336,6 +330,17 @@ export async function renderOverview(
       const report = (await frame.query("overview")) as OverviewReport;
       if (fresh()) {
         content.replaceChildren(...build(report, view, hr));
+        // HR's counts are one line, said beside the day in the head rather than in a pane.
+        const lead = head.querySelector(".sc-page-lead");
+        if (lead !== null) {
+          lead.textContent =
+            report.counts === null
+              ? today
+              : `${today} · ${words.hrCounts(
+                  format.number(report.counts.enrolled),
+                  format.number(report.counts.waiting),
+                )}`;
+        }
       }
     } catch (error) {
       if (fresh()) {

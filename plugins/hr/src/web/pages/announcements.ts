@@ -24,7 +24,6 @@ import {
   errorBlock,
   errorText,
   type Formatters,
-  fold,
   formattersFor,
   holds,
   input,
@@ -75,7 +74,7 @@ const SERIES: Readonly<Record<AnnouncementCategory, number>> = {
 /** What an announcement is about, as a badge with its colour. */
 export function categoryBadge(category: AnnouncementCategory, words: Words): HTMLElement {
   const node = el("span", "sc-badge sc-badge-neutral type", words.announcementCategory[category]);
-  node.style.setProperty("--pl-hr-series", `var(--sc-series-${SERIES[category]})`);
+  node.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${SERIES[category]})`);
   return node;
 }
 
@@ -113,12 +112,13 @@ function metaOf(row: AnnouncementRow, view: View): string {
   ].join(" · ");
 }
 
-function card(row: AnnouncementRow, view: View): HTMLElement {
+/** An announcement as a card: its picture where it has one, its marks, title, opening and byline. */
+function card(row: AnnouncementRow, view: View, path: string): HTMLElement {
   const { frame, words } = view;
   const node = el("button", "ann-card");
   node.type = "button";
   node.addEventListener("click", () => {
-    frame.navigate(`${BASE}/${row.id}`);
+    frame.navigate(path);
   });
   if (row.cover !== null) {
     node.append(picture(frame, row.cover, "", "ann-card-picture"));
@@ -134,34 +134,6 @@ function card(row: AnnouncementRow, view: View): HTMLElement {
   );
   node.append(text);
   return node;
-}
-
-function rowItem(row: AnnouncementRow, view: View, path: string): HTMLElement {
-  const { frame, words } = view;
-  const item = el("li", "ann-item");
-  const open = el("button", "ann-row");
-  open.type = "button";
-  open.addEventListener("click", () => {
-    frame.navigate(path);
-  });
-  const main = el("span", "ann-row-main");
-  const top = el("span", "ann-row-top");
-  top.append(
-    categoryBadge(row.category, words),
-    el("span", "ann-row-title", titleOf(row, words)),
-    ...rowMarks(row, words),
-  );
-  main.append(top);
-  if (row.excerpt.length > 0) {
-    main.append(el("span", "ann-row-excerpt", row.excerpt));
-  }
-  main.append(el("span", "ann-meta", metaOf(row, view)));
-  open.append(main);
-  if (row.cover !== null) {
-    open.append(picture(frame, row.cover, "", "ann-row-picture"));
-  }
-  item.append(open);
-  return item;
 }
 
 /** A way to do something that cannot be undone, with a question between. */
@@ -294,23 +266,15 @@ export async function renderAnnouncements(
 
   function listParts(report: AnnouncementList, drafts: readonly AnnouncementRow[]): HTMLElement[] {
     const parts: HTMLElement[] = [];
-    if (drafts.length > 0) {
-      const list = el("ul", "ann-list");
-      list.append(...drafts.map((row) => rowItem(row, view, `${BASE}/${row.id}/edit`)));
-      parts.push(
-        panel(null, fold(words.announcementDraftsTitle(format.number(drafts.length)), list)),
-      );
-    }
-    if (report.pinned.length > 0) {
-      const cards = el("div", "ann-cards");
-      cards.append(...report.pinned.map((row) => card(row, view)));
-      parts.push(cards);
-    }
     const rows = [...report.items, ...extra];
-    if (rows.length > 0) {
-      const list = el("ul", "ann-list");
-      list.append(...rows.map((row) => rowItem(row, view, `${BASE}/${row.id}`)));
-      const pane = panel(null, list);
+    // Every announcement a card, the pinned first, as many side by side as the width holds.
+    if (report.pinned.length > 0 || rows.length > 0) {
+      const pane = panel(null);
+      const cards = el("div", "ann-cards");
+      cards.append(
+        ...[...report.pinned, ...rows].map((row) => card(row, view, `${BASE}/${row.id}`)),
+      );
+      pane.append(cards);
       if (after !== null) {
         pane.append(
           button(
@@ -324,11 +288,17 @@ export async function renderAnnouncements(
         );
       }
       parts.push(pane);
-    } else if (report.pinned.length === 0) {
+    } else {
       const filtered = category !== "all" || searching.length > 0;
       parts.push(
         panel(null, empty(filtered ? words.announcementsNothing : words.announcementsEmpty)),
       );
+    }
+    // HR's own drafts, after what everyone reads: a pane of their own, titled with how many.
+    if (drafts.length > 0) {
+      const cards = el("div", "ann-cards");
+      cards.append(...drafts.map((row) => card(row, view, `${BASE}/${row.id}/edit`)));
+      parts.push(panel(words.announcementDraftsTitle(format.number(drafts.length)), cards));
     }
     return parts;
   }
@@ -382,7 +352,7 @@ export async function renderAnnouncements(
       : [];
     body.replaceChildren(
       pageHead(words.announcementsTitle, words.announcementsLead, ...add),
-      toolbar(categories.node, search),
+      toolbar(search, categories.node),
       listBox,
     );
   }

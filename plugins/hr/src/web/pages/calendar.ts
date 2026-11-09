@@ -78,7 +78,7 @@ function chip(entry: CalendarEntry, view: View): HTMLDivElement {
   const type = entry.type === null ? undefined : types.get(entry.type);
   node.style.setProperty(
     "--pl-hr-series",
-    type === undefined ? "var(--sc-color-accent)" : `var(--sc-series-${seriesOf(type.color)})`,
+    type === undefined ? "var(--sc-color-accent)" : `var(--pl-hr-series-${seriesOf(type.color)})`,
   );
   node.title =
     type === undefined
@@ -113,9 +113,9 @@ function grid(report: CalendarReport, entries: readonly CalendarEntry[], view: V
     const off = !workDays.has(weekdayOf(day)) || dayHolidays.length > 0;
     const cell = el(
       "td",
-      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today" : ""}${off ? " month-off" : ""}`,
+      `sc-calendar-cell month-cell${day === today ? " sc-calendar-cell-today" : ""}${off ? " month-off" : ""}${dayHolidays.length > 0 ? " month-holiday" : ""}`,
     );
-    cell.append(el("span", "sc-calendar-day", String(dateOf(day))));
+    cell.append(el("span", "sc-calendar-day day-number", String(dateOf(day))));
     for (const holiday of dayHolidays) {
       cell.append(el("div", "holiday", nameIn(holiday.name, view.language)));
     }

@@ -81,7 +81,7 @@ import {
 } from "../store.js";
 import { noteIn, serverWords } from "../words.js";
 import { approvedAs, nextOf, waitingIn } from "./approval.js";
-import { counts, reversalsOf, settle } from "./balance.js";
+import { counts, type Line, reversalsOf, settle } from "./balance.js";
 import { isHandRef, prepareRequest } from "./commands.js";
 import { boardKey } from "./decisions.js";
 import { ledgerOf, lineOf, typeBalanceOf } from "./engine.js";
@@ -803,24 +803,39 @@ export const ledgerQuery = defineQuery({
     const lines = items.map(lineOf);
     const { closed } = settle(lines);
     const reversals = reversalsOf(lines);
-    return lines
+    // Within a day, what closes the old period's credits comes before what the new one gives, and
+    // what gives before what takes, so that the lines of the day read in the order they happened;
+    // newest first over all, as a statement is read.
+    const rank = (line: Line): number =>
+      line.kind === "expire" || line.kind === "payout" ? 0 : line.days > 0 ? 1 : 2;
+    const shown = lines
       .filter((line) => closed.get(line.id) !== 0)
-      .slice(0, args.limit ?? LINES)
-      .map((line) => {
-        const took = closed.get(line.id);
-        const reversed = line.kind !== "reverse" && !counts(line, reversals);
-        return {
-          id: line.id,
-          on: line.on,
-          kind: line.kind,
-          days: took === undefined ? line.days : 0 - took,
-          expiresOn: line.expiresOn,
-          note: noteIn(line.note, words),
-          requestId: line.requestId,
-          reversed,
-          reversible: actor.hr && !reversed && isHandRef(line.ref),
-        };
-      });
+      .sort((a, b) => (a.on === b.on ? rank(b) - rank(a) : a.on < b.on ? 1 : -1));
+    // What was left after each line: the shown days summed from the oldest line up, so that the
+    // lines read as a statement does, each with the balance it left.
+    const after = new Map<string, number>();
+    let running = 0;
+    for (const line of [...shown].reverse()) {
+      const took = closed.get(line.id);
+      running += took === undefined ? line.days : 0 - took;
+      after.set(line.id, running);
+    }
+    return shown.slice(0, args.limit ?? LINES).map((line) => {
+      const took = closed.get(line.id);
+      const reversed = line.kind !== "reverse" && !counts(line, reversals);
+      return {
+        id: line.id,
+        on: line.on,
+        kind: line.kind,
+        days: took === undefined ? line.days : 0 - took,
+        expiresOn: line.expiresOn,
+        note: noteIn(line.note, words),
+        requestId: line.requestId,
+        reversed,
+        reversible: actor.hr && !reversed && isHandRef(line.ref),
+        after: after.get(line.id) ?? 0,
+      };
+    });
   },
 });
 

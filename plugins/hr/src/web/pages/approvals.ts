@@ -61,29 +61,33 @@ function requestRow(
   language: string,
   types: ReadonlyMap<string, LeaveType>,
 ): HTMLElement {
+  // A card: who and where it stands at the top, what it is under it, then why, the line, and at
+  // the foot when it was asked and the way to the decision.
   const line = el("li", "request-row");
-  const main = el("div", "request-main");
-  const title = el("div", "request-title");
-  title.append(
+  const head = el("div", "request-head");
+  head.append(
     who(
       frame,
       view.person,
       spanText(view.request.from, view.request.to, view.request.part, format, words),
       "md",
     ),
-    typeBadge(types.get(view.request.type), view.request.type, language),
-    el("span", "request-days", format.days(view.request.days)),
     stateBadge(view.request.state, words),
   );
+  const meta = el("div", "request-meta");
+  meta.append(
+    typeBadge(types.get(view.request.type), view.request.type, language),
+    el("span", "request-days", format.days(view.request.days)),
+  );
   if (view.request.late) {
-    title.append(badge(words.lateBadge, "warning"));
+    meta.append(badge(words.lateBadge, "warning"));
   }
-  main.append(title);
+  line.append(head, meta);
   if (view.request.reason.length > 0) {
-    main.append(el("p", "request-note prose", view.request.reason));
+    line.append(el("p", "request-reason prose", view.request.reason));
   }
   if (view.line.length > 0 && view.request.state === "requested") {
-    main.append(lineSteps(frame, view.line, words, view.asked));
+    line.append(lineSteps(frame, view.line, words, view.asked));
   }
   const notes: string[] = [];
   if (view.recordedBy !== null) {
@@ -96,11 +100,11 @@ function requestRow(
     notes.push(words.byRule(view.request.rule));
   }
   notes.push(format.dateTime(view.request.requestedAt));
-  main.append(el("p", "request-note sc-muted", notes.join(" · ")));
-  const side = el("div", "request-actions");
+  const foot = el("div", "request-foot");
+  foot.append(el("p", "request-note sc-muted", notes.join(" · ")));
   const path = waitingDecision(view);
   if (path !== null) {
-    side.append(
+    foot.append(
       button(
         view.mine ? words.decide : words.openDecision,
         () => frame.navigate(path),
@@ -109,7 +113,7 @@ function requestRow(
       ),
     );
   }
-  line.append(main, side);
+  line.append(foot);
   return line;
 }
 

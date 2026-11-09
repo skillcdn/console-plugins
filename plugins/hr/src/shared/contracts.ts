@@ -570,6 +570,8 @@ export interface EntryView {
   readonly reversed: boolean;
   /** Whether the caller may reverse it by hand: HR, for a line written with `adjust`. */
   readonly reversible: boolean;
+  /** The days left once this line was written: the lines before it and this one, summed. */
+  readonly after: number;
 }
 
 export const ANNOUNCEMENT_STATES = ["draft", "published"] as const;

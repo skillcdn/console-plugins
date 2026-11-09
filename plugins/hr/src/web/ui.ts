@@ -472,7 +472,12 @@ export function stateTone(state: RequestState): Tone {
 }
 
 export function stateBadge(state: RequestState, words: Words): HTMLSpanElement {
-  return badge(words.requestState[state], stateTone(state));
+  const node = badge(words.requestState[state], stateTone(state));
+  // What waits is painted in the pages' amber, a wash with no stroke, as every waiting thing is.
+  if (stateTone(state) === "warning") {
+    node.classList.add(`${PREFIX}state-waiting`);
+  }
+  return node;
 }
 
 /** The number of a series colour, held to the six the console has. */
@@ -491,13 +496,13 @@ export function typeBadge(
     "sc-badge sc-badge-neutral type",
     type === undefined ? key : nameIn(type.name, language),
   );
-  node.style.setProperty("--pl-hr-series", `var(--sc-series-${seriesOf(type?.color ?? 1)})`);
+  node.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${seriesOf(type?.color ?? 1)})`);
   return node;
 }
 
 export function swatch(color: number): HTMLSpanElement {
   const node = el("span", "swatch");
-  node.style.setProperty("--pl-hr-series", `var(--sc-series-${seriesOf(color)})`);
+  node.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${seriesOf(color)})`);
   return node;
 }
 
@@ -518,25 +523,25 @@ export function pageHead(title: string, lead: string, ...buttons: HTMLElement[])
   return node;
 }
 
-/** A section of a page, a pane of its own, set apart from the next. */
+/** A section of a page, a pane of its own, set apart from the next; titled as the console's panes are. */
 export function panel(title: string | null, ...children: HTMLElement[]): HTMLElement {
   const node = el("section", "sc-panel panel");
   if (title !== null) {
-    node.append(el("h2", "panel-title", title));
+    node.append(el("h2", "sc-section-title panel-title", title));
   }
   node.append(...children);
   return node;
 }
 
-/** A panel with controls at the right of its title. */
+/** A panel with controls at the right of its title, as the console's section head has them. */
 export function panelWith(
   title: string,
   controls: readonly HTMLElement[],
   ...children: HTMLElement[]
 ): HTMLElement {
   const node = el("section", "sc-panel panel");
-  const head = el("div", "panel-head");
-  head.append(el("h2", "panel-title", title), ...controls);
+  const head = el("div", "sc-section-head panel-head");
+  head.append(el("h2", "sc-section-title panel-title", title), ...controls);
   node.append(head, ...children);
   return node;
 }
@@ -544,6 +549,11 @@ export function panelWith(
 /** A small heading above a block of a panel. */
 export function eyebrow(text: string): HTMLElement {
   return el("p", "sc-eyebrow eyebrow", text);
+}
+
+/** The heading of a part of a pane, a step under the pane's own title. */
+export function subheading(text: string): HTMLElement {
+  return el("h3", "subheading", text);
 }
 
 /** What folds away until it is asked for. */
@@ -566,9 +576,19 @@ export function empty(text: string, title?: string): HTMLDivElement {
 }
 
 export function callout(title: string, body?: string, warning = false): HTMLDivElement {
-  const node = el("div", `sc-callout callout${warning ? " sc-callout-warning" : ""}`);
+  // A warning is a wash of the pages' amber with no stroke, an amber dot before its title: the
+  // console's class names it for a reader, the pages' own paints it.
+  const node = el(
+    "div",
+    `sc-callout callout${warning ? " sc-callout-warning callout-warning" : ""}`,
+  );
   const text = el("div", "");
-  text.append(el("p", "sc-callout-title", title));
+  const heading = el("p", "sc-callout-title");
+  if (warning) {
+    heading.append(el("span", "callout-dot"));
+  }
+  heading.append(document.createTextNode(title));
+  text.append(heading);
   if (body !== undefined) {
     text.append(el("p", "sc-callout-body", body));
   }
@@ -865,9 +885,13 @@ export function formattersFor(language: string, words: Words): Formatters {
     month: "long",
     timeZone: "UTC",
   });
+  // The day written as every other day on the pages is, the time after it.
   const dateTimeFormat = new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
   const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
   const signedFormat = new Intl.NumberFormat(locale, {
@@ -994,8 +1018,9 @@ export function stack(): HTMLDivElement {
   return el("div", "stack");
 }
 
+/** The console's quiet row of filters: the words first, the choices after them. */
 export function toolbar(...children: HTMLElement[]): HTMLDivElement {
-  const node = el("div", "toolbar");
+  const node = el("div", "sc-filters toolbar");
   node.append(...children);
   return node;
 }

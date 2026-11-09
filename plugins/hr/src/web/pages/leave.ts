@@ -18,17 +18,14 @@ import {
   badge,
   button,
   callout,
-  cell,
   DASH,
   el,
   empty,
   errorBlock,
   type Formatters,
   faces,
-  factsRow,
   fold,
   formattersFor,
-  headChoice,
   input,
   lineSteps,
   loadTypes,
@@ -40,11 +37,12 @@ import {
   pageHead,
   panel,
   panelWith,
+  pills,
   row,
   runCommand,
   say,
-  select,
   sequenced,
+  seriesOf,
   sortedTypes,
   spanText,
   stack,
@@ -86,15 +84,24 @@ function bucketsTable(buckets: readonly Bucket[], view: LeaveView): HTMLElement 
 
 function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
   const { words, format, language, types } = view;
+  const type = types.get(balance.type);
+  // The card carries its kind's colour: a wash over its head, the dot by its name, the bar's fill.
   const card = el("article", "sc-panel kind");
-  const head = el("div", "kind-head");
-  head.append(typeBadge(types.get(balance.type), balance.type, language));
+  card.style.setProperty("--pl-hr-series", `var(--pl-hr-series-${seriesOf(type?.color ?? 1)})`);
+  const head = el("div", "sc-section-head panel-head");
+  // The wash over the head says the kind's colour; the title is the name alone.
+  const title = el(
+    "h2",
+    "sc-section-title panel-title",
+    type === undefined ? balance.type : nameIn(type.name, language),
+  );
+  head.append(title);
   if (balance.period !== null) {
     head.append(
       el(
         "span",
         "kind-period",
-        `${format.monthDay(balance.period.start)} ~ ${format.monthDay(balance.period.end)}`,
+        `${format.day(balance.period.start)} ~ ${format.day(balance.period.end)}`,
       ),
     );
   }
@@ -104,6 +111,25 @@ function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
     el("span", "balance-unit", words.daysLeft),
   );
   const total = balance.available + balance.used + balance.pending;
+  // The figures under the bar, each a small stat, a dot in the bar's colour before the ones it draws.
+  const stats = el("dl", "kind-stats");
+  const stat = (label: string, value: string, tone?: string) => {
+    const item = el("div", "kind-stat");
+    const term = el("dt", "");
+    if (tone !== undefined) {
+      term.append(el("span", `legend-dot legend-${tone}`));
+    }
+    term.append(document.createTextNode(label));
+    item.append(term, el("dd", "", value));
+    stats.append(item);
+  };
+  stat(words.granted, format.days(balance.granted + balance.carriedIn));
+  stat(words.used, format.days(balance.used), "used");
+  stat(words.pending, format.days(balance.pending), "pending");
+  stat(words.expired, format.days(balance.expired));
+  if (balance.adjusted !== 0) {
+    stat(words.kind.adjust, format.signed(balance.adjusted));
+  }
   card.append(
     head,
     figure,
@@ -112,20 +138,15 @@ function typeCard(balance: TypeBalance, view: LeaveView): HTMLElement {
       { value: balance.pending, tone: "pending" },
       { value: balance.available, tone: "left" },
     ]),
-    factsRow([
-      [words.granted, format.number(balance.granted + balance.carriedIn)],
-      [words.used, format.number(balance.used)],
-      [words.pending, format.number(balance.pending)],
-      [words.expired, format.number(balance.expired)],
-      ...(balance.adjusted === 0
-        ? []
-        : [[words.kind.adjust, format.number(balance.adjusted)] as const]),
-    ]),
+    stats,
   );
   for (const item of balance.expiring.slice(0, 2)) {
-    card.append(
-      el("p", "kind-note", words.expiringBy(format.days(item.days), format.day(item.on))),
+    const note = el("p", "kind-expiry");
+    note.append(
+      el("span", "legend-dot legend-expiring"),
+      document.createTextNode(words.expiringBy(format.days(item.days), format.day(item.on))),
     );
+    card.append(note);
   }
   if (balance.buckets !== undefined && balance.buckets.length > 0) {
     card.append(fold(words.showBuckets, bucketsTable(balance.buckets, view)));
@@ -219,6 +240,19 @@ function cancelControl(
   return holder;
 }
 
+/**
+ * The form in the wide column and, beside it, the person's requests, exactly as tall as the form:
+ * they take its height and scroll within it, so that neither column ends short of the other.
+ */
+function besideTheForm(form: HTMLElement, requests: HTMLElement): HTMLElement {
+  const columns = el("div", "columns columns-paired");
+  const side = el("div", "pair-side");
+  requests.classList.add("pl-hr-pair-grow");
+  side.append(requests);
+  columns.append(form, side);
+  return columns;
+}
+
 /** A person's requests, newest first, each with where it stands. */
 export function requestsList(
   items: readonly RequestView[],
@@ -232,84 +266,162 @@ export function requestsList(
   }
   const list = el("ul", "requests");
   for (const item of items) {
+    // A card, as on Approvals: the days and where they stand, what they are, then the rest.
     const line = el("li", "request-row");
-    const main = el("div", "request-main");
-    const title = el("div", "request-title");
-    title.append(
+    const head = el("div", "request-head");
+    head.append(
       el(
         "span",
         "request-span",
         spanText(item.request.from, item.request.to, item.request.part, format, words),
       ),
-      typeBadge(types.get(item.request.type), item.request.type, language),
-      el("span", "request-days", format.days(item.request.days)),
       stateBadge(item.request.state, words),
     );
+    const meta = el("div", "request-meta");
+    meta.append(
+      typeBadge(types.get(item.request.type), item.request.type, language),
+      el("span", "request-days", format.days(item.request.days)),
+    );
     if (item.request.late) {
-      title.append(badge(words.lateBadge, "warning"));
+      meta.append(badge(words.lateBadge, "warning"));
     }
-    main.append(title);
+    line.append(head, meta);
     if (item.recordedBy !== null) {
-      main.append(
+      line.append(
         el("p", "request-note", words.recordedBy(item.recordedBy.name ?? item.recordedBy.login)),
       );
     }
     if (item.request.requestedVia !== null) {
-      main.append(el("p", "request-note", words.requestedVia(item.request.requestedVia)));
+      line.append(el("p", "request-note", words.requestedVia(item.request.requestedVia)));
     }
     if (item.request.state === "requested" && item.line.length > 0) {
-      main.append(lineSteps(frame, item.line, words, item.asked));
+      line.append(lineSteps(frame, item.line, words, item.asked));
     }
     if ((item.request.note ?? "").length > 0) {
-      main.append(el("p", "request-note prose", item.request.note ?? ""));
+      line.append(el("p", "request-note prose", item.request.note ?? ""));
     }
-    const side = el("div", "request-actions");
+    const actions = el("div", "request-actions");
     const path = waitingDecision(item);
     if (
       path !== null &&
       (item.request.state === "requested" || item.request.state === "cancelling")
     ) {
-      side.append(button(words.openDecision, () => frame.navigate(path), "ghost", true));
+      actions.append(button(words.openDecision, () => frame.navigate(path), "ghost", true));
     }
     if (item.cancellable) {
-      side.append(cancelControl(item, view, status, refresh));
+      actions.append(cancelControl(item, view, status, refresh));
     }
-    line.append(main, side);
+    if (actions.childElementCount > 0) {
+      const foot = el("div", "request-foot");
+      foot.append(actions);
+      line.append(foot);
+    }
     list.append(line);
   }
   return list;
 }
 
-/** The lines of a ledger, newest first, the older ones folded away. */
-export function ledgerTable(entries: readonly EntryView[], view: LeaveView): HTMLElement {
+/** What a line was, as the title of its row: "Annual leave granted", "Unused annual leave paid out". */
+function rowTitle(entry: EntryView, typeName: string, words: Words): string {
+  switch (entry.kind) {
+    case "grant":
+    case "accrual":
+      return words.ledgerRow.given(typeName);
+    case "carry":
+      return words.ledgerRow.carried(typeName);
+    case "use":
+      return words.ledgerRow.used(typeName);
+    case "expire":
+      return words.ledgerRow.expired(typeName);
+    case "payout":
+      return words.ledgerRow.paidOut(typeName);
+    case "reverse":
+      return words.ledgerRow.reversed(typeName);
+    default:
+      return words.ledgerRow.adjusted(typeName);
+  }
+}
+
+/**
+ * The lines of a ledger as a bank's statement reads: each day a heading, and under it a row per
+ * line, what it was as its title with the detail under it at the left, and at the right the days
+ * it moved, signed, with the balance it left beneath. A line given back is struck through. The
+ * older days fold away.
+ */
+export function ledgerTable(
+  entries: readonly EntryView[],
+  view: LeaveView,
+  typeName: string,
+): HTMLElement {
   const { words, format } = view;
   if (entries.length === 0) {
     return empty(words.ledgerEmpty);
   }
-  const headers = [words.bucketOn, words.bucketKind, words.daysHeader, words.expiresOn, words.note];
-  const rows = entries.map((entry) => {
-    const note = el("span", "prose", entry.note);
-    const said = entry.reversed
-      ? [note, el("span", "sc-muted", ` · ${words.reversedMark}`)]
-      : [note];
-    return row([
-      format.day(entry.on),
-      words.kind[entry.kind],
-      num(format.signed(entry.days)),
-      entry.expiresOn === null ? DASH : format.day(entry.expiresOn),
-      cell(...said),
-    ]);
-  });
-  const recent = table(headers, rows.slice(0, RECENT_LINES));
-  if (rows.length <= RECENT_LINES) {
+  const statement = (lines: readonly EntryView[]) => {
+    const list = el("ol", "ledger");
+    let group: HTMLElement | null = null;
+    let current = "";
+    for (const entry of lines) {
+      if (group === null || entry.on !== current) {
+        current = entry.on;
+        const day = el("li", "ledger-day");
+        const title = el("h4", "ledger-day-title");
+        title.append(
+          el("span", "ledger-day-date", format.day(entry.on)),
+          el("span", "ledger-day-week", format.weekday(entry.on)),
+        );
+        // A day that hands out a period's days is where a period begins: said, so that the days
+        // paid out or expired beside the new ones read as the turn of the year they are.
+        if (lines.some((other) => other.on === entry.on && other.kind === "grant")) {
+          title.append(el("span", "ledger-day-tag", words.ledgerNewPeriod));
+        }
+        group = el("ul", "ledger-lines");
+        day.append(title, group);
+        list.append(day);
+      }
+      const line = el("li", entry.reversed ? "ledger-line ledger-line-reversed" : "ledger-line");
+      // A line of leave taken carries the days it took as its note: written as every day is.
+      const span = /^(\d{4}-\d{2}-\d{2})(?: ~ (\d{4}-\d{2}-\d{2}))?$/.exec(entry.note);
+      const detail = [
+        span === null
+          ? entry.note
+          : span[2] === undefined
+            ? format.day(span[1] ?? "")
+            : `${format.day(span[1] ?? "")} ~ ${format.day(span[2])}`,
+        ...(entry.expiresOn === null ? [] : [words.untilDay(format.day(entry.expiresOn))]),
+        ...(entry.reversed ? [words.reversedMark] : []),
+      ]
+        .filter((part) => part.length > 0)
+        .join(" · ");
+      const main = el("div", "ledger-main");
+      main.append(
+        el("span", "ledger-title", rowTitle(entry, typeName, words)),
+        el("span", "ledger-detail prose", detail),
+      );
+      const side = el("div", "ledger-side");
+      side.append(
+        el(
+          "span",
+          `ledger-amount ${entry.days > 0 ? "ledger-credit" : "ledger-debit"}`,
+          `${entry.days > 0 ? "+" : "−"}${format.days(Math.abs(entry.days))}`,
+        ),
+        el("span", "ledger-balance", words.ledgerBalance(format.days(entry.after))),
+      );
+      line.append(main, side);
+      group.append(line);
+    }
+    return list;
+  };
+  const recent = statement(entries.slice(0, RECENT_LINES));
+  if (entries.length <= RECENT_LINES) {
     return recent;
   }
   const box = stack();
   box.append(
     recent,
     fold(
-      words.olderLines(String(rows.length - RECENT_LINES)),
-      table(headers, rows.slice(RECENT_LINES)),
+      words.olderLines(String(entries.length - RECENT_LINES)),
+      statement(entries.slice(RECENT_LINES)),
     ),
   );
   return box;
@@ -324,9 +436,10 @@ export function ledgerPanel(
   const { frame, words, language } = view;
   const box = stack();
   let kind = balanced.some((type) => type.key === ANNUAL) ? ANNUAL : (balanced[0]?.key ?? ANNUAL);
-  const choice = select(
+  const choice = pills(
     balanced.map((type) => ({ value: type.key, label: nameIn(type.name, language) })),
     kind,
+    words.ledgerTypeLabel,
   );
   const refresh = sequenced(async (fresh) => {
     try {
@@ -336,7 +449,10 @@ export function ledgerPanel(
         ...(person === undefined ? {} : { person: person.login }),
       })) as readonly EntryView[];
       if (fresh()) {
-        box.replaceChildren(ledgerTable(entries, view));
+        const chosen = balanced.find((type) => type.key === kind);
+        box.replaceChildren(
+          ledgerTable(entries, view, chosen === undefined ? kind : nameIn(chosen.name, language)),
+        );
       }
     } catch (error) {
       if (fresh()) {
@@ -344,15 +460,15 @@ export function ledgerPanel(
       }
     }
   });
-  choice.addEventListener("change", () => {
-    kind = choice.value;
+  choice.onChange(() => {
+    kind = choice.value();
     void refresh();
   });
   return {
     node:
       balanced.length === 0
         ? panel(words.ledgerTitle, muted(words.noBalanceTypes))
-        : panelWith(words.ledgerTitle, [headChoice(words.ledgerTypeLabel, choice)], box),
+        : panelWith(words.ledgerTitle, [choice.node], box),
     refresh,
   };
 }
@@ -372,6 +488,7 @@ export async function renderLeave(
 
   const cards = stack();
   const termsBox = stack();
+  const termsPane = panel(words.termsTitle, termsBox);
   const requestsBox = stack();
   const requestsStatus = statusLine();
   const ledger = ledgerPanel(view, balanced);
@@ -386,12 +503,15 @@ export async function renderLeave(
     }
     if (balanceResult.status === "fulfilled") {
       const report = balanceResult.value;
-      cards.replaceChildren(
-        ...(report.leave
-          ? [typeCards(report, view)]
-          : [callout(words.notEnrolledTitle, words.notEnrolledBody)]),
-      );
       termsBox.replaceChildren(termsFacts(report, view));
+      // The terms stand in the row of the balances, a card as tall as theirs.
+      if (report.leave) {
+        const grid = typeCards(report, view);
+        grid.append(termsPane);
+        cards.replaceChildren(grid);
+      } else {
+        cards.replaceChildren(callout(words.notEnrolledTitle, words.notEnrolledBody), termsPane);
+      }
     } else {
       cards.replaceChildren(errorBlock(balanceResult.reason, words));
     }
@@ -409,22 +529,23 @@ export async function renderLeave(
   node.append(
     pageHead(words.leaveTitle, words.leaveLead),
     cards,
-    panel(
-      words.requestTitle,
-      enabled.length === 0
-        ? muted(words.noTypes)
-        : requestForm({
-            frame,
-            words,
-            format: view.format,
-            language,
-            types: enabled,
-            onSent: refresh,
-          }),
+    besideTheForm(
+      panel(
+        words.requestTitle,
+        enabled.length === 0
+          ? muted(words.noTypes)
+          : requestForm({
+              frame,
+              words,
+              format: view.format,
+              language,
+              types: enabled,
+              onSent: refresh,
+            }),
+      ),
+      panel(words.myRequestsTitle, requestsBox, requestsStatus),
     ),
-    panel(words.myRequestsTitle, requestsBox, requestsStatus),
     ledger.node,
-    panel(words.termsTitle, termsBox),
   );
   root.replaceChildren(node);
   frame.setTitle(words.leaveTitle);

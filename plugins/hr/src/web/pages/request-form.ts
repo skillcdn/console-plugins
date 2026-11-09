@@ -16,7 +16,6 @@ import {
   actions,
   callout,
   el,
-  eyebrow,
   type Formatters,
   field,
   form,
@@ -36,6 +35,7 @@ import {
   select,
   sequenced,
   statusLine,
+  subheading,
   submitButton,
   textarea,
 } from "../ui.js";
@@ -132,12 +132,12 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
 
   const drawQuote = (report: RequestPreview | null) => {
     if (report === null) {
-      side.replaceChildren(eyebrow(words.quoteTitle), muted(words.quoteEmpty));
+      side.replaceChildren(subheading(words.quoteTitle), muted(words.quoteEmpty));
       return;
     }
     if (report.refusal !== null) {
       side.replaceChildren(
-        eyebrow(words.quoteTitle),
+        subheading(words.quoteTitle),
         callout(words.quoteRefused, report.refusal, true),
       );
       return;
@@ -147,7 +147,7 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
       el("strong", "quote-days", format.number(report.days)),
       el("span", "quote-unit", words.daysUnit),
     );
-    const parts: HTMLElement[] = [eyebrow(words.quoteTitle), figure];
+    const parts: HTMLElement[] = [subheading(words.quoteTitle), figure];
     if (report.available !== null) {
       parts.push(
         el(
@@ -171,7 +171,7 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
     } else if (report.notice !== "") {
       parts.push(el("p", "quote-line sc-muted", words.quoteNotice(report.notice)));
     }
-    parts.push(eyebrow(words.quoteLine));
+    parts.push(subheading(words.quoteLine));
     parts.push(
       report.automatic
         ? el("p", "quote-line", words.quoteAutomatic)

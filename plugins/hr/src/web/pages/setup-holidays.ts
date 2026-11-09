@@ -112,7 +112,7 @@ export async function holidaysTab(body: HTMLElement, view: SetupView): Promise<v
       list.replaceChildren(empty(words.holidaysEmpty));
       return;
     }
-    const rows = el("ul", "rows");
+    const rows = el("ul", "rows rows-columns");
     for (const holiday of holidays) {
       const item = el("li", "rows-item");
       const remove = button(

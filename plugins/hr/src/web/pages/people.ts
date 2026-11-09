@@ -25,7 +25,6 @@ import {
   empty,
   errorBlock,
   type Formatters,
-  faces,
   field,
   fold,
   form,
@@ -58,6 +57,7 @@ import {
   toggles,
   toolbar,
   watch,
+  who,
 } from "../ui.js";
 import type { Words } from "../words.js";
 import { type LeaveView, ledgerPanel, requestsList, termsFacts, typeCards } from "./leave.js";
@@ -85,6 +85,12 @@ function loginFromPath(path: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** A badge standing alone in a card keeps its own width rather than the card's. */
+function mark(node: HTMLSpanElement): HTMLSpanElement {
+  node.classList.add("pl-hr-person-mark");
+  return node;
 }
 
 function personCard(item: PersonRow, view: View): HTMLElement {
@@ -116,7 +122,8 @@ function personCard(item: PersonRow, view: View): HTMLElement {
   };
   fact(
     words.managerLabel,
-    item.manager === null ? words.noManager : faces(frame, [item.manager], 1),
+    // The manager by face and name, as the console's own card of a person shows them.
+    item.manager === null ? words.noManager : who(frame, item.manager, ""),
   );
   fact(
     words.hiredOnLabel,
@@ -124,9 +131,9 @@ function personCard(item: PersonRow, view: View): HTMLElement {
   );
   card.append(facts);
   if (item.status === "deactivated") {
-    card.append(badge(words.status.deactivated, "neutral"));
+    card.append(mark(badge(words.status.deactivated, "neutral")));
   } else if (item.record?.leave !== true) {
-    card.append(badge(words.leaveOff, "neutral"));
+    card.append(mark(badge(words.leaveOff, "neutral")));
   } else if (item.annual !== null) {
     const { available, used, pending } = item.annual;
     const figures = el("p", "person-figures");
@@ -493,28 +500,37 @@ async function personPage(
   back.append(
     button(words.backToPeople, () => frame.navigate("/plugins/hr/people"), "ghost", true),
   );
-  body.replaceChildren(
-    back,
-    head,
-    recordBox,
-    ...(enrolled
-      ? [
-          cards,
-          panel(words.termsTitle, terms),
-          panel(words.requestsOfPerson, requestsBox, status),
-          ledger.node,
-        ]
-      : []),
+  // What the person has and did reads down the wide column; their terms and what HR changes of
+  // them stand beside it, the rare ways folded into one pane.
+  const main: HTMLElement[] = enrolled
+    ? [cards, panel(words.requestsOfPerson, requestsBox, status), ledger.node]
+    : [];
+  const side: HTMLElement[] = [
+    ...(enrolled ? [panel(words.termsTitle, terms)] : []),
     ...(hr ? [panel(words.recordOfPerson, recordForm(item, report, view, refreshAll))] : []),
     ...(hr && enrolled
       ? [
           panel(words.adjustTitle, adjustForm(item, view, refreshAll)),
-          panel(null, fold(words.recountTitle, recountForm(item, view, refreshAll))),
-          panel(null, fold(words.reverseTitle, reverseForm(item, view, refreshAll))),
-          panel(null, fold(words.offboardTitle, offboardForm(item, view, refreshAll))),
+          panel(
+            words.moreForPerson,
+            fold(words.recountTitle, recountForm(item, view, refreshAll)),
+            fold(words.reverseTitle, reverseForm(item, view, refreshAll)),
+            fold(words.offboardTitle, offboardForm(item, view, refreshAll)),
+          ),
         ]
       : []),
-  );
+  ];
+  let content: HTMLElement[] = side;
+  if (main.length > 0) {
+    const columns = el("div", "columns");
+    const left = stack();
+    left.append(...main);
+    const right = stack();
+    right.append(...side);
+    columns.append(left, right);
+    content = [columns];
+  }
+  body.replaceChildren(back, head, recordBox, ...content);
   frame.setTitle(personLabel(item.person));
   if (enrolled) {
     await refresh();

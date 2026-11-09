@@ -967,6 +967,13 @@ describe("balances and visibility", () => {
     expect(lines).toHaveLength(23);
     expect(lines.filter((line) => line.kind === "payout")).toHaveLength(11);
     expect(lines.filter((line) => line.kind === "grant")).toHaveLength(1);
+    // Each line says what was left once it was written: the lines before it and itself, summed.
+    let running = 0;
+    for (const line of [...lines].reverse()) {
+      running += line.days;
+      expect(line.after).toBe(running);
+    }
+    expect(lines[0]?.after).toBe(15);
     await expect(ledgerQuery.run(ctx.as(BOB), { person: personOf(ALICE) })).rejects.toMatchObject({
       code: "not_visible",
     });
@@ -977,6 +984,7 @@ describe("balances and visibility", () => {
     const lines = (await ledgerQuery.run(ctx.as(ALICE), {})) as EntryView[];
     expect(lines).toHaveLength(20);
     expect(Object.keys(lines[0] ?? {}).sort()).toEqual([
+      "after",
       "days",
       "expiresOn",
       "id",

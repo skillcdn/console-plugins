@@ -1,5 +1,29 @@
 /* The plugin's own classes begin with pl-hr-; the console's tokens and sc-* classes give the look. */
 
+/* A holiday's red: brighter than the console's danger, which reads as a warning rather than a day
+   off, and still 6:1 on white. */
+/* The colours the pages paint figures with: fills, dots, chips and washes, where the console's
+   tones for words run too dark and muddy. Six for the kinds of leave, in the order a workspace
+   starts with them, and one each for what the bars say. The words keep the console's tones. */
+.pl-hr-page,
+.pl-hr-widget {
+  --pl-hr-series-1: #3b6fd4;
+  --pl-hr-series-2: #ef6a6a;
+  --pl-hr-series-3: #2bb673;
+  --pl-hr-series-4: #f5a524;
+  --pl-hr-series-5: #8b6cf6;
+  --pl-hr-series-6: #2bb0c5;
+  --pl-hr-used: #3b6fd4;
+  --pl-hr-pending: #f5a524;
+  --pl-hr-pending-wash: #fef3c7;
+  --pl-hr-pending-ink: #b45309;
+  --pl-hr-left: color-mix(in srgb, var(--pl-hr-used) 16%, transparent);
+  --pl-hr-expiring: #f0603a;
+  --pl-hr-highlight: #ffe066;
+  --pl-hr-holiday: #e11d2e;
+  --pl-hr-holiday-fill: color-mix(in srgb, var(--pl-hr-holiday) 9%, transparent);
+}
+
 /* A page pads itself by the step the console's frame stands outside the page's column. */
 .pl-hr-page {
   display: grid;
@@ -26,6 +50,29 @@
   margin-bottom: 0;
 }
 
+/* What waits, or warns, is one thing everywhere on the pages: a wash of amber with no stroke, the
+   words in the text's own tone or in the amber's ink. */
+.pl-hr-callout-warning {
+  border-color: transparent;
+  background: var(--pl-hr-pending-wash);
+}
+
+.pl-hr-callout-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-end: var(--sc-space-2);
+  border-radius: var(--sc-radius-full);
+  background: var(--pl-hr-pending);
+  vertical-align: 0.05em;
+}
+
+.pl-hr-state-waiting {
+  border-color: transparent;
+  background: var(--pl-hr-pending-wash);
+  color: var(--pl-hr-pending-ink);
+}
+
 .pl-hr-stack {
   display: grid;
   gap: var(--sc-space-5);
@@ -43,22 +90,56 @@
   align-items: start;
 }
 
+/* Two columns that end on one line: the side is as tall as the main column, a pane of it taking what
+   room is left and scrolling within it rather than standing taller or emptier than its neighbour. */
+.pl-hr-columns-paired {
+  align-items: stretch;
+}
+
+.pl-hr-pair-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-5);
+  min-width: 0;
+  min-height: 0;
+}
+
+.pl-hr-pair-grow {
+  flex: 1 1 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 14rem;
+}
+
+/* Its list adds no height of its own to the row: it fills the room the pane has, and scrolls. */
+.pl-hr-pair-grow > .pl-hr-stack {
+  contain: size;
+  overflow-y: auto;
+}
+
 @media (max-width: 52rem) {
   .pl-hr-columns {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .pl-hr-pair-grow {
+    flex: none;
+    min-height: 0;
+  }
+
+  .pl-hr-pair-grow > .pl-hr-stack {
+    contain: none;
+    overflow-y: visible;
+  }
 }
 
+/* The console's row of filters: the page's gap stands under it, not a margin of its own. */
 .pl-hr-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sc-space-3);
+  margin-bottom: 0;
 }
 
 .pl-hr-toolbar > input {
-  flex: 1 1 16rem;
-  max-width: 24rem;
+  flex: 1 1 12rem;
+  max-width: 22rem;
 }
 
 .pl-hr-toolbar select {
@@ -66,22 +147,53 @@
   min-width: 10rem;
 }
 
-/* A pane of a page: the console's glass, each section set apart from the next. */
+/* The overview's panes in rows: the two of a row share their top and their bottom. */
+.pl-hr-board {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: var(--sc-space-5);
+  align-items: stretch;
+}
+
+.pl-hr-board-main {
+  grid-column: 1;
+}
+
+.pl-hr-board-side {
+  grid-column: 2;
+}
+
+@media (max-width: 52rem) {
+  .pl-hr-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pl-hr-board-main,
+  .pl-hr-board-side {
+    grid-column: 1;
+  }
+}
+
+/* A pane of a page: the console's glass, each section set apart from the next. What is in it
+   starts at its top when the pane is stretched to the height of its row. */
 
 .pl-hr-panel {
   display: grid;
+  align-content: start;
   gap: var(--sc-space-3);
   min-width: 0;
   margin-bottom: 0;
   padding: var(--sc-space-5);
 }
 
+/* A pane's head and title are the console's section head and title; the pane's gap spaces them. */
 .pl-hr-panel-head {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sc-space-2) var(--sc-space-4);
+  margin-bottom: 0;
+}
+
+.pl-hr-panel-title {
+  margin-bottom: 0;
 }
 
 .pl-hr-head-choice {
@@ -98,8 +210,12 @@
   min-width: 8rem;
 }
 
+/* A setting's words and its control side by side, close enough to be read as one, however wide the
+   pane. */
 .pl-hr-panel .pl-hr-setting {
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 27rem);
+  grid-template-columns: minmax(0, 30rem) minmax(14rem, 27rem);
+  justify-content: start;
+  column-gap: var(--sc-space-7);
 }
 
 .pl-hr-panel .pl-hr-setting-control {
@@ -120,14 +236,10 @@
   }
 }
 
-.pl-hr-panel-title {
-  font-size: var(--sc-text-lg);
-  font-weight: var(--sc-weight-bold);
-}
-
 .pl-hr-subheading {
-  font-size: var(--sc-text-md);
-  font-weight: var(--sc-weight-medium);
+  margin: 0;
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-bold);
 }
 
 .pl-hr-line {
@@ -313,6 +425,10 @@
   padding-top: var(--sc-space-2);
 }
 
+.pl-hr-person-mark {
+  align-self: flex-start;
+}
+
 .pl-hr-person-figures {
   display: flex;
   align-items: baseline;
@@ -350,15 +466,15 @@
 }
 
 .pl-hr-meter-used {
-  background: var(--sc-color-accent-solid);
+  background: var(--pl-hr-used);
 }
 
 .pl-hr-meter-pending {
-  background: var(--sc-color-warning);
+  background: var(--pl-hr-pending);
 }
 
 .pl-hr-meter-left {
-  background: color-mix(in srgb, var(--sc-color-accent-solid) 22%, transparent);
+  background: var(--pl-hr-left);
 }
 
 .pl-hr-balance {
@@ -416,15 +532,15 @@
 }
 
 .pl-hr-legend-used {
-  background: var(--sc-color-accent-solid);
+  background: var(--pl-hr-used);
 }
 
 .pl-hr-legend-pending {
-  background: var(--sc-color-warning);
+  background: var(--pl-hr-pending);
 }
 
 .pl-hr-legend-expiring {
-  background: var(--sc-color-point);
+  background: var(--pl-hr-expiring);
 }
 
 .pl-hr-kinds {
@@ -461,16 +577,82 @@
   padding: var(--sc-space-5);
 }
 
-.pl-hr-kind-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sc-space-2);
-}
-
 .pl-hr-kind-period,
 .pl-hr-kind-note {
   color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-kind-period {
+  font-variant-numeric: var(--sc-numeric);
+}
+
+/* The kind's colour washes the head of its card, under the words: the card's only mark of it. */
+.pl-hr-kind::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pl-hr-series) 14%, transparent),
+    transparent 7rem
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.pl-hr-kind .pl-hr-meter {
+  height: 0.5rem;
+}
+
+/* The figures under the bar: small stats parted by hairlines, the value large. */
+.pl-hr-kind-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-2) 0;
+  margin: 0;
+  padding-top: var(--sc-space-1);
+}
+
+.pl-hr-kind-stat {
+  display: grid;
+  gap: 2px;
+  padding-inline: var(--sc-space-4);
+  border-inline-start: var(--sc-hairline);
+}
+
+.pl-hr-kind-stat:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.pl-hr-kind-stat dt {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-1);
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+}
+
+.pl-hr-kind-stat dd {
+  margin: 0;
+  font-size: var(--sc-text-lg);
+  font-weight: var(--sc-weight-bold);
+  font-variant-numeric: var(--sc-numeric);
+  line-height: var(--sc-leading-tight);
+}
+
+/* Days about to go: a pill in the point's colour, as the overview marks them. */
+.pl-hr-kind-expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sc-space-2);
+  justify-self: start;
+  margin: 0;
+  padding: 0.3rem var(--sc-space-3);
+  border-radius: var(--sc-radius-full);
+  background: color-mix(in srgb, var(--pl-hr-expiring) 12%, transparent);
   font-size: var(--sc-text-xs);
 }
 
@@ -513,6 +695,31 @@
   border-top: 0;
 }
 
+/* A long list of short rows, as the year's holidays: in columns that read down, each row ruled
+   under, so that a row is never wider than it can be read across. */
+.pl-hr-rows-columns {
+  display: block;
+  columns: 4 24rem;
+  column-gap: var(--sc-space-7);
+}
+
+.pl-hr-rows-columns > .pl-hr-rows-item {
+  break-inside: avoid;
+  border-top: 0;
+  border-bottom: var(--sc-hairline);
+}
+
+/* A list of rows in a wide pane: as many columns as the width holds, each row ruled above, so that
+   no row runs from one edge of a wide page to the other. */
+.pl-hr-rows-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  column-gap: var(--sc-space-6);
+}
+
+.pl-hr-rows-grid > .pl-hr-rows-item:first-child {
+  border-top: var(--sc-hairline);
+}
+
 .pl-hr-rows-item > .pl-hr-who {
   flex: 1 1 10rem;
 }
@@ -522,9 +729,11 @@
   min-width: 0;
 }
 
+/* The date of a holiday in a list, in the holiday's red as on the calendar. */
 .pl-hr-rows-day {
   flex: none;
   min-width: 4.5rem;
+  color: var(--pl-hr-holiday);
   font-weight: var(--sc-weight-medium);
   font-variant-numeric: var(--sc-numeric);
 }
@@ -553,26 +762,43 @@
 
 /* The request form, and what the request would come to */
 
+/* The form takes the pane's width, and beside it, as tall as it, what the request would come to: a
+   narrow column parted by a line, not a box in the pane, and no wider than what it says. */
 .pl-hr-request {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
-  gap: var(--sc-space-5);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
+  gap: var(--sc-space-6);
+  align-items: stretch;
+}
+
+.pl-hr-quote {
+  display: grid;
+  align-content: start;
+  gap: var(--sc-space-2);
+  padding-inline-start: var(--sc-space-6);
+  border-inline-start: var(--sc-hairline);
+}
+
+.pl-hr-quote > .pl-hr-subheading + * {
+  margin-top: calc(-1 * var(--sc-space-1));
+}
+
+.pl-hr-quote > * + .pl-hr-subheading {
+  margin-top: var(--sc-space-3);
 }
 
 @media (max-width: 48rem) {
   .pl-hr-request {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--sc-space-5);
   }
-}
 
-.pl-hr-quote {
-  display: grid;
-  gap: var(--sc-space-2);
-  padding: var(--sc-space-4);
-  border: var(--sc-border);
-  border-radius: var(--sc-radius-lg);
-  background: var(--sc-color-sheet);
+  .pl-hr-quote {
+    padding-inline-start: 0;
+    padding-top: var(--sc-space-5);
+    border-inline-start: 0;
+    border-top: var(--sc-hairline);
+  }
 }
 
 .pl-hr-quote .pl-hr-callout {
@@ -635,8 +861,9 @@
 }
 
 .pl-hr-line-step-waiting {
-  border-color: var(--sc-color-warning);
-  background: var(--sc-color-warning-subtle);
+  border-color: transparent;
+  background: var(--pl-hr-pending-wash);
+  color: var(--pl-hr-pending-ink);
 }
 
 .pl-hr-line-step-ahead {
@@ -645,49 +872,75 @@
 
 /* Requests */
 
+/* Requests: a card each, as many side by side as the width holds, so that no row runs across a
+   wide page with its words at one end and its button at the other. */
 .pl-hr-requests {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  gap: var(--sc-space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.pl-hr-pair-grow .pl-hr-requests {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .pl-hr-request-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  padding: var(--sc-space-4);
+  border: var(--sc-border);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-sheet);
+}
+
+.pl-hr-request-head {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--sc-space-2) var(--sc-space-4);
-  padding: var(--sc-space-3) 0;
-  border-top: var(--sc-hairline);
-}
-
-.pl-hr-request-row:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.pl-hr-request-row:last-child {
-  padding-bottom: 0;
-}
-
-.pl-hr-request-main {
-  display: grid;
-  flex: 1 1 18rem;
-  gap: var(--sc-space-1);
+  gap: var(--sc-space-2);
   min-width: 0;
 }
 
-.pl-hr-request-title {
+.pl-hr-request-head > .pl-hr-who {
+  flex: 1;
+}
+
+.pl-hr-request-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sc-space-2);
 }
 
-.pl-hr-request-span {
+.pl-hr-request-reason {
   font-size: var(--sc-text-sm);
-  font-weight: var(--sc-weight-medium);
+}
+
+/* The foot stays at the bottom, so that the cards of a row end their feet on one line. */
+.pl-hr-request-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-3);
+  margin-top: auto;
+  padding-top: var(--sc-space-3);
+  border-top: var(--sc-hairline);
+}
+
+.pl-hr-request-foot > .pl-hr-request-actions:only-child {
+  margin-inline-start: auto;
+}
+
+.pl-hr-request-span {
+  font-size: var(--sc-text-md);
+  font-weight: var(--sc-weight-bold);
+  line-height: var(--sc-leading-snug);
 }
 
 .pl-hr-request-days {
@@ -698,6 +951,10 @@
 
 .pl-hr-request-note {
   font-size: var(--sc-text-xs);
+}
+
+.pl-hr-request-foot > .pl-hr-request-note {
+  margin: 0;
 }
 
 .pl-hr-request-actions {
@@ -775,6 +1032,137 @@
   border-bottom: 0;
 }
 
+/* The ledger as a bank statement reads: each day a heading with a rule running from it, and
+   under it a row per line, a sheet with what it was and the detail at the left, and at the right
+   the days it moved, signed, with the balance it left beneath. */
+/* A statement is read down a column of a hand's width: on a wide pane the days flow into as many
+   such columns as fit, each day kept whole, rather than one row stretched across the pane. */
+.pl-hr-ledger {
+  margin: 0;
+  padding: 0;
+  columns: 4 24rem;
+  column-gap: var(--sc-space-6);
+  list-style: none;
+}
+
+.pl-hr-ledger-day {
+  display: grid;
+  gap: var(--sc-space-1);
+  margin-bottom: var(--sc-space-3);
+  break-inside: avoid;
+}
+
+.pl-hr-ledger-day-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-space-2);
+  margin: 0;
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-bold);
+  font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-ledger-day-title::after {
+  flex: 1;
+  height: 1px;
+  margin-inline-start: var(--sc-space-2);
+  background: var(--sc-color-border);
+  content: "";
+}
+
+.pl-hr-ledger-day-week {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-normal);
+}
+
+/* The day a period begins, said beside its date. */
+.pl-hr-ledger-day-tag {
+  padding: 0.05rem var(--sc-space-2);
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-accent-subtle);
+  color: var(--sc-color-accent);
+  font-size: var(--sc-text-xs);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-ledger-lines {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A row is as low as its two lines of words: the statement is read, not browsed. */
+.pl-hr-ledger-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-3);
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border: var(--sc-hairline);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-sheet);
+  line-height: var(--sc-leading-snug);
+}
+
+.pl-hr-ledger-main {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.pl-hr-ledger-title {
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-medium);
+}
+
+.pl-hr-ledger-detail {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.pl-hr-ledger-detail:empty {
+  display: none;
+}
+
+.pl-hr-ledger-side {
+  display: grid;
+  flex: none;
+  gap: 0;
+  justify-items: end;
+  text-align: end;
+}
+
+.pl-hr-ledger-amount {
+  font-size: var(--sc-text-sm);
+  font-weight: var(--sc-weight-bold);
+  font-variant-numeric: var(--sc-numeric);
+  white-space: nowrap;
+}
+
+.pl-hr-ledger-credit {
+  color: var(--sc-color-accent);
+}
+
+.pl-hr-ledger-balance {
+  color: var(--sc-color-text-muted);
+  font-size: var(--sc-text-xs);
+  font-variant-numeric: var(--sc-numeric);
+  white-space: nowrap;
+}
+
+.pl-hr-ledger-line-reversed {
+  color: var(--sc-color-text-faint);
+}
+
+.pl-hr-ledger-line-reversed .pl-hr-ledger-amount {
+  color: var(--sc-color-text-faint);
+  text-decoration: line-through;
+}
+
 .pl-hr-numeric {
   text-align: right;
   font-variant-numeric: var(--sc-numeric);
@@ -801,7 +1189,6 @@
 
   .pl-hr-chip {
     padding: 0;
-    border-inline-start-width: 2px;
   }
 
   .pl-hr-chip-name,
@@ -823,6 +1210,16 @@
   color: var(--sc-color-text-faint);
 }
 
+/* A holiday: its cell tinted, its date and its name in the holiday's red. */
+.pl-hr-month-holiday {
+  background: var(--pl-hr-holiday-fill);
+}
+
+.pl-hr-month-holiday .pl-hr-day-number {
+  color: var(--pl-hr-holiday);
+  font-weight: var(--sc-weight-bold);
+}
+
 .pl-hr-chip {
   display: flex;
   align-items: center;
@@ -830,8 +1227,9 @@
   margin-top: 2px;
   padding: 1px var(--sc-space-1);
   overflow: hidden;
+  /* As the console's own bars on its calendar: a thin edge and a fill of the kind's colour. */
+  border: 1px solid color-mix(in srgb, var(--pl-hr-series) 60%, transparent);
   border-radius: var(--sc-radius-sm);
-  border-inline-start: 3px solid var(--pl-hr-series);
   background: color-mix(in srgb, var(--pl-hr-series) 12%, transparent);
   font-size: var(--sc-text-xs);
   white-space: nowrap;
@@ -844,8 +1242,7 @@
 }
 
 .pl-hr-chip-requested {
-  outline: 1px dashed color-mix(in srgb, var(--pl-hr-series) 60%, transparent);
-  outline-offset: -1px;
+  border-style: dashed;
   background: transparent;
 }
 
@@ -867,7 +1264,8 @@
 
 .pl-hr-holiday {
   overflow: hidden;
-  color: var(--sc-color-danger);
+  color: var(--pl-hr-holiday);
+  font-weight: var(--sc-weight-medium);
   font-size: var(--sc-text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -881,7 +1279,7 @@
 }
 
 .pl-hr-legend-approved {
-  border-inline-start: 3px solid var(--sc-color-accent);
+  border: 1px solid color-mix(in srgb, var(--sc-color-accent) 60%, transparent);
   background: color-mix(in srgb, var(--sc-color-accent) 12%, transparent);
 }
 
@@ -890,7 +1288,8 @@
 }
 
 .pl-hr-legend-holiday {
-  background: var(--sc-color-danger-subtle);
+  border: 1px solid color-mix(in srgb, var(--pl-hr-holiday) 50%, transparent);
+  background: var(--pl-hr-holiday-fill);
 }
 
 .pl-hr-legend-off {
@@ -938,11 +1337,17 @@
   list-style: none;
 }
 
+/* The exceptions as cards, side by side where the pane is wide. */
+.pl-hr-rule-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+}
+
 /* A line as it is walked: a rail with a stop for each step, from the request to the approval. */
 .pl-hr-flow {
   --pl-hr-stop: 1.75rem;
   display: grid;
   width: 100%;
+  max-width: 52rem;
   margin: var(--sc-space-2) 0 0;
   padding: 0;
   list-style: none;
@@ -1001,7 +1406,7 @@
 }
 
 .pl-hr-flow-end > .pl-hr-flow-stop {
-  border: var(--sc-border);
+  border: 2px solid var(--sc-color-border-strong);
   background: var(--sc-color-bg-raised);
   color: var(--sc-color-success);
 }
@@ -1374,7 +1779,7 @@
 }
 
 .pl-hr-week-day-off {
-  background: var(--sc-color-danger-subtle);
+  background: var(--pl-hr-holiday-fill);
 }
 
 .pl-hr-week-label {
@@ -1389,6 +1794,10 @@
   color: var(--sc-color-text);
   font-size: var(--sc-text-sm);
   font-variant-numeric: var(--sc-numeric);
+}
+
+.pl-hr-week-day-off .pl-hr-week-label strong {
+  color: var(--pl-hr-holiday);
 }
 
 /* An announcement's text: the console's prose, with what it does not have. */
@@ -1423,7 +1832,7 @@
 .pl-hr-mark {
   padding: 0.05em 0.15em;
   border-radius: var(--sc-radius-sm);
-  background: color-mix(in srgb, var(--sc-color-warning) 32%, transparent);
+  background: color-mix(in srgb, var(--pl-hr-highlight) 55%, transparent);
   color: inherit;
 }
 
@@ -1454,11 +1863,11 @@
   color: var(--sc-color-text);
 }
 
-/* The list: what is pinned as cards, the rest as rows. */
-
+/* The list: every announcement a card, the pinned first, as many side by side as the width holds;
+   the cards of a row as tall as each other, their bylines on one line at the foot. */
 .pl-hr-ann-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
   gap: var(--sc-space-4);
 }
 
@@ -1486,7 +1895,6 @@
 }
 
 .pl-hr-ann-card:focus-visible,
-.pl-hr-ann-row:focus-visible,
 .pl-hr-widget-lead:focus-visible {
   outline: none;
   box-shadow: var(--sc-focus-ring);
@@ -1495,12 +1903,15 @@
 .pl-hr-ann-card-picture {
   display: block;
   width: 100%;
+  max-height: 12rem;
   aspect-ratio: 16 / 9;
   object-fit: cover;
 }
 
 .pl-hr-ann-card-text {
-  display: grid;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   gap: var(--sc-space-2);
   min-width: 0;
   padding: var(--sc-space-4);
@@ -1524,8 +1935,8 @@
   font-size: var(--sc-text-sm);
   line-height: var(--sc-leading-snug);
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .pl-hr-ann-card-excerpt:empty {
@@ -1545,82 +1956,18 @@
   font-variant-numeric: var(--sc-numeric);
 }
 
-.pl-hr-ann-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.pl-hr-ann-card-text > .pl-hr-ann-meta {
+  margin-top: auto;
+  padding-top: var(--sc-space-2);
 }
 
-.pl-hr-ann-item + .pl-hr-ann-item {
-  border-top: 1px solid var(--sc-color-border);
-}
-
-.pl-hr-ann-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sc-space-4);
-  width: 100%;
-  padding: var(--sc-space-3) var(--sc-space-2);
-  border: 0;
-  border-radius: var(--sc-radius-md);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  transition: background var(--sc-transition);
-  cursor: pointer;
-}
-
-.pl-hr-ann-row:hover {
-  background: var(--sc-color-sheet-hover);
-}
-
-.pl-hr-ann-row-main {
-  display: grid;
-  flex: 1;
-  gap: var(--sc-space-1);
-  min-width: 0;
-}
-
-.pl-hr-ann-row-top {
-  display: flex;
-  align-items: center;
-  gap: var(--sc-space-2);
-  min-width: 0;
-}
-
-.pl-hr-ann-row-title {
-  overflow: hidden;
-  font-weight: var(--sc-weight-medium);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pl-hr-ann-row-excerpt {
-  overflow: hidden;
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pl-hr-ann-row-picture {
-  flex: none;
-  width: 5.5rem;
-  height: 3.5rem;
-  border-radius: var(--sc-radius-md);
-  object-fit: cover;
-}
-
-/* One announcement, in a column that reads well. */
+/* One announcement, in a column that reads well, starting where every pane of the pages starts. */
 
 .pl-hr-ann-column {
   display: grid;
   gap: var(--sc-space-3);
   width: 100%;
   max-width: 50rem;
-  margin-inline: auto;
 }
 
 .pl-hr-ann-article {
@@ -1682,11 +2029,6 @@
 @media (max-width: 40rem) {
   .pl-hr-ann-article {
     padding: var(--sc-space-4);
-  }
-
-  .pl-hr-ann-row-picture {
-    width: 4rem;
-    height: 3rem;
   }
 }
 
@@ -1796,7 +2138,7 @@
 .pl-hr-tool-highlight {
   padding: 0.05em 0.25em;
   border-radius: var(--sc-radius-sm);
-  background: color-mix(in srgb, var(--sc-color-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--pl-hr-highlight) 70%, transparent);
   font-weight: var(--sc-weight-medium);
 }
 
