@@ -1,5 +1,15 @@
 # @skillcdn/console-plugin-messenger
 
+## 0.1.1
+
+### Patch Changes
+
+- [`fe020bd`](https://github.com/skillcdn/console-plugins/commit/fe020bd2eb13de7ef76be554efdeb75765aae1cf) Thanks [@samo-lucid](https://github.com/samo-lucid)! - The names the app shows in Slack, the leave shortcut's among them, are in the language of whoever connects it unless they choose another. 0.1.0 took the first of the console's languages, which is English on every console, so that a Korean workspace got "Request leave" unless 한국어 was chosen on the Connection page. A route reads in the language of whoever adds it unless they choose, and someone the console's pages have not seen yet reads the app's language, as do the problems the hourly job notes. An app made with 0.1.0 keeps its language: choose another on the Connection page and update the app.
+
+- [`d56413d`](https://github.com/skillcdn/console-plugins/commit/d56413d097d4a478297b2882b474601af7956e68) Thanks [@samo-lucid](https://github.com/samo-lucid)! - Reads HR 0.3.0 as it reads 0.2: HR 0.3.0 changed how approved leave is cancelled, each kind by its own rule, kept its events and the option keys of its decisions, and only added to its api, so the leave shortcut and the threads go on with either. The Connection page names the versions read as `>=0.2.0 <0.4.0`.
+
+- [`343c428`](https://github.com/skillcdn/console-plugins/commit/343c428e0b29adeeb3ca44244575e0324c5ac3f5) Thanks [@samo-lucid](https://github.com/samo-lucid)! - The connection page and the manifest say of a secret the console took from Slack's answer that it was received and stored (Korean "받아 저장"), where "sealed" read oddly in Korean; the English says "Received from slack.com", as the console's own settings page does.
+
 ## 0.1.0
 
 ### Minor Changes
