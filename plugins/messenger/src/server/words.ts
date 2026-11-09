@@ -27,11 +27,26 @@ export interface ServerWords {
     readonly unknownPerson: string;
     readonly oauthStale: string;
     readonly oauthRefused: (error: string) => string;
+    readonly appName: string;
+    readonly botName: string;
+    readonly icon: string;
+    readonly appNameRefused: (message: string) => string;
+    readonly botNameRefused: (message: string) => string;
   };
   readonly said: {
     readonly appMade: (url: string) => string;
     readonly appUpdated: (url: string) => string;
     readonly appInstalledUpdated: string;
+    readonly names: (app: string, bot: string, handle: string | null) => string;
+    readonly icon: {
+      readonly set: string;
+      readonly manual: (url: string) => string;
+      readonly notAccessible: string;
+      readonly size: string;
+      readonly format: string;
+      readonly wait: string;
+      readonly refused: (code: string) => string;
+    };
     readonly disconnected: string;
     readonly disconnectedAppLeft: string;
     readonly testSent: (where: string) => string;
@@ -166,6 +181,12 @@ const EN: ServerWords = {
     oauthStale:
       "The installation was not started here, or took more than fifteen minutes: start it again from the Connection page.",
     oauthRefused: (error) => `Slack did not install the app: ${error}.`,
+    appName: "The app's name is one line of 35 characters at most.",
+    botName:
+      "The bot's name takes Latin letters, digits, spaces, '.', '_' and '-', begins with a letter or a digit and is 80 characters at most: Slack makes the bot's handle (@) from it.",
+    icon: "The icon is the public https address of an image, which Slack fetches itself.",
+    appNameRefused: (message) => `Slack refused the app's name: ${message}`,
+    botNameRefused: (message) => `Slack refused the bot's name: ${message}`,
   },
   said: {
     appMade: (url) =>
@@ -173,6 +194,18 @@ const EN: ServerWords = {
     appUpdated: (url) =>
       `The Slack app is up to date. To install it in the workspace, open this address: ${url}`,
     appInstalledUpdated: "The Slack app is up to date and installed.",
+    names: (app, bot, handle) =>
+      `In Slack the app is "${app}" and its bot "${bot}"${handle === null ? "" : `, @${handle}`}.`,
+    icon: {
+      set: "The icon is set.",
+      manual: (url) =>
+        `The configuration token may not set the icon: upload it at ${url}, under Display Information, a square image of 512 to 2000 pixels.`,
+      notAccessible: "Slack could not open the icon's address: check that anyone can open it.",
+      size: "Slack refused the icon: it is a square image of 512 to 2000 pixels.",
+      format: "Slack refused the icon: the address gave no image.",
+      wait: "Slack asked to wait, so the icon is not set yet: update the app again in a minute.",
+      refused: (code) => `Slack refused the icon: ${code}.`,
+    },
     disconnected:
       "The app is uninstalled from the workspace and deleted. connect makes a new one, in this workspace or another.",
     disconnectedAppLeft:
@@ -325,6 +358,12 @@ const KO: ServerWords = {
     oauthStale:
       "설치가 여기서 시작되지 않았거나 15분을 넘겼습니다. 연결 페이지에서 다시 시작하세요.",
     oauthRefused: (error) => `Slack이 앱을 설치하지 않았습니다: ${error}.`,
+    appName: "앱 이름은 한 줄로, 35자까지 쓸 수 있습니다.",
+    botName:
+      "봇 이름에는 라틴 문자, 숫자, 공백, '.', '_', '-'만 쓸 수 있고, 문자나 숫자로 시작해 80자까지입니다. Slack이 이 이름에서 봇의 핸들(@)을 만듭니다.",
+    icon: "아이콘은 Slack이 직접 가져갈 수 있는 공개 https 이미지 주소여야 합니다.",
+    appNameRefused: (message) => `Slack이 앱 이름을 받지 않았습니다: ${message}`,
+    botNameRefused: (message) => `Slack이 봇 이름을 받지 않았습니다: ${message}`,
   },
   said: {
     appMade: (url) =>
@@ -332,6 +371,19 @@ const KO: ServerWords = {
     appUpdated: (url) =>
       `Slack 앱이 최신입니다. 워크스페이스에 설치하려면 이 주소를 여세요: ${url}`,
     appInstalledUpdated: "Slack 앱이 최신이고 설치되어 있습니다.",
+    names: (app, bot, handle) =>
+      `Slack에서 앱 이름은 "${app}", 봇 이름은 "${bot}"${handle === null ? "" : `(@${handle})`}입니다.`,
+    icon: {
+      set: "아이콘을 올렸습니다.",
+      manual: (url) =>
+        `설정 토큰으로는 아이콘을 올릴 수 없습니다. ${url}의 Display Information에서 512~2000px 정사각형 이미지를 올리세요.`,
+      notAccessible:
+        "Slack이 아이콘 주소를 열지 못했습니다. 누구나 열 수 있는 주소인지 확인하세요.",
+      size: "Slack이 아이콘을 받지 않았습니다. 512~2000px 정사각형 이미지여야 합니다.",
+      format: "Slack이 아이콘을 받지 않았습니다. 주소가 이미지를 주지 않습니다.",
+      wait: "Slack이 잠시 기다려 달라고 해서 아이콘은 아직 올리지 않았습니다. 잠시 뒤 앱을 다시 갱신하세요.",
+      refused: (code) => `Slack이 아이콘을 받지 않았습니다: ${code}.`,
+    },
     disconnected:
       "워크스페이스에서 앱을 제거하고 지웠습니다. connect로 새 앱을 만들 수 있고, 다른 워크스페이스에도 연결할 수 있습니다.",
     disconnectedAppLeft:

@@ -24,10 +24,11 @@ import {
 import { callerPerson, ROLE, requireRole } from "./access.js";
 import { addressState } from "./address.js";
 import { deliveries, routes, threads } from "./collections.js";
+import { type Chosen, chosenOf, handleOf, manifestRefusal } from "./identity.js";
 import { HR, HR_ROLE, HR_VERSIONS, hrState, refusalCode } from "./integrations/hr/contract.js";
 import { workspaceLanguage } from "./people.js";
 import { isTokenGone, refusalOf, SlackError, slack, slackCall, textOf } from "./slack/api.js";
-import { appManifest, authorizeUrlOf, digestOf } from "./slack/manifest.js";
+import { appManifest, appNamesOf, authorizeUrlOf, digestOf } from "./slack/manifest.js";
 import {
   archiveAll,
   type ConnectionRecord,
@@ -79,14 +80,27 @@ export async function endpointsOf(ctx: PluginContext): Promise<Endpoints> {
   };
 }
 
-/** The manifest wanted now: the shortcut in it while HR is there, in a version this plugin reads. */
+/**
+ * The manifest wanted now: the names chosen, else the language's own, and the shortcut while HR
+ * is there, in a version this plugin reads.
+ */
 export async function wantedManifest(
   ctx: PluginContext,
   language: Language,
   endpoints: Endpoints,
+  chosen: Pick<Chosen, "appName" | "botName">,
 ): Promise<{ readonly manifest: Record<string, unknown>; readonly shortcut: boolean }> {
   const shortcut = (await hrState(ctx)).state === "on";
-  return { manifest: appManifest({ language, ...endpoints, shortcut }), shortcut };
+  return {
+    manifest: appManifest({
+      language,
+      appName: chosen.appName,
+      botName: chosen.botName,
+      ...endpoints,
+      shortcut,
+    }),
+    shortcut,
+  };
 }
 
 /**
@@ -158,7 +172,7 @@ export async function keepManifest(ctx: PluginContext, force = false): Promise<b
     return false;
   }
   const endpoints = await endpointsOf(ctx);
-  const wanted = await wantedManifest(ctx, connection.data.language, endpoints);
+  const wanted = await wantedManifest(ctx, connection.data.language, endpoints, connection.data);
   const digest = digestOf(wanted.manifest);
   if (!force && digest === connection.data.manifestDigest) {
     return false;
@@ -179,6 +193,88 @@ function newState(): string {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
+/** What became of the icon chosen when the app was made or brought up to date. */
+type IconOutcome =
+  | "none"
+  | "kept"
+  | "set"
+  | "manual"
+  | "not_accessible"
+  | "size"
+  | "format"
+  | "wait"
+  | `slack:${string}`;
+
+/** Slack's codes for a token that may not set an icon: it is uploaded on Slack's page instead. */
+const BY_HAND = new Set([
+  "not_allowed_token_type",
+  "missing_scope",
+  "no_permission",
+  "access_denied",
+]);
+const OF_THE_IMAGE: Readonly<Record<string, IconOutcome>> = {
+  icon_not_accessible: "not_accessible",
+  invalid_icon_size: "size",
+  error_bad_format: "format",
+};
+
+/**
+ * Gives Slack the icon chosen, where it differs from the one it took last: Slack fetches the image
+ * from its address itself. What it refuses is kept for the page; a call Slack asks to wait for is
+ * made at the next `connect`.
+ */
+async function keepIcon(ctx: PluginContext, connection: ConnectionRecord): Promise<IconOutcome> {
+  const { appId, iconUrl, iconSetUrl } = connection.data;
+  if (appId === null || iconUrl === null) {
+    return "none";
+  }
+  if (iconUrl === iconSetUrl) {
+    return "kept";
+  }
+  try {
+    await withConfigToken(ctx, () =>
+      slack(ctx, "apps.icon.set", { app_id: appId, url: iconUrl }, "config"),
+    );
+    await saveConnection(ctx, { iconSetUrl: iconUrl, iconProblem: null });
+    return "set";
+  } catch (error) {
+    if (error instanceof PluginError && error.code === "rate_limited") {
+      return "wait";
+    }
+    const code = error instanceof SlackError ? error.code : (refusalCode(error) ?? "failed");
+    const outcome: IconOutcome = BY_HAND.has(code)
+      ? "manual"
+      : (OF_THE_IMAGE[code] ?? `slack:${code}`);
+    ctx.log.warn("Slack did not take the icon", { code });
+    await saveConnection(ctx, { iconProblem: outcome });
+    return outcome;
+  }
+}
+
+/** What `connect` says of the icon, or nothing where nothing was asked of Slack. */
+function iconSaid(language: string, outcome: IconOutcome, appId: string | null): string | null {
+  const words = serverWords(language).said.icon;
+  switch (outcome) {
+    case "none":
+    case "kept":
+      return null;
+    case "set":
+      return words.set;
+    case "manual":
+      return words.manual(`https://api.slack.com/apps/${appId ?? ""}/general`);
+    case "not_accessible":
+      return words.notAccessible;
+    case "size":
+      return words.size;
+    case "format":
+      return words.format;
+    case "wait":
+      return words.wait;
+    default:
+      return words.refused(outcome.slice("slack:".length));
+  }
+}
+
 export const connect = defineCommand({
   about: "Makes the Slack app, or brings it up to date, and says where to install it.",
   args: {
@@ -187,6 +283,24 @@ export const connect = defineCommand({
         "the language of the app's names in Slack, its shortcut's among them; as before, else the workspace's, else yours",
       optional: true,
     }),
+    "app-name": arg.text({
+      about:
+        "the app's name in Slack, 35 characters in any script; as before unless said, empty for the language's own",
+      optional: true,
+      max: 200,
+    }),
+    "bot-name": arg.text({
+      about:
+        "its bot's name, of Latin letters, digits, spaces, . _ and -, whence Slack makes the handle; as before unless said, empty for the default",
+      optional: true,
+      max: 200,
+    }),
+    icon: arg.text({
+      about:
+        "a public https address of a square image of 512 to 2000 pixels, for the app's icon; as before unless said",
+      optional: true,
+      max: 1000,
+    }),
   },
   roles: [ROLE],
   async run(ctx, args) {
@@ -194,13 +308,22 @@ export const connect = defineCommand({
     const words = serverWords(ctx.language);
     await reachableAddress(ctx);
     const found = await connectionOf(ctx);
+    const chosen = chosenOf(
+      ctx,
+      { appName: args["app-name"], botName: args["bot-name"], icon: args.icon },
+      {
+        appName: found?.data.appName ?? null,
+        botName: found?.data.botName ?? null,
+        iconUrl: found?.data.iconUrl ?? null,
+      },
+    );
     const language =
       args.language ??
       found?.data.language ??
       (await workspaceLanguage(ctx)) ??
       languageOf(ctx.language);
     const endpoints = await endpointsOf(ctx);
-    const wanted = await wantedManifest(ctx, language, endpoints);
+    const wanted = await wantedManifest(ctx, language, endpoints, chosen);
     let connection: ConnectionRecord;
     try {
       if (found !== null && found.data.appId !== null && found.data.clientId !== null) {
@@ -215,6 +338,7 @@ export const connect = defineCommand({
         );
         connection = await saveConnection(ctx, {
           language,
+          ...chosen,
           shortcut: wanted.shortcut,
           manifestDigest: digestOf(wanted.manifest),
           manifestAt: ctx.now().toISOString(),
@@ -256,6 +380,11 @@ export const connect = defineCommand({
             appId,
             clientId,
             language,
+            ...chosen,
+            // A new app has Slack's own icon and a handle of its own.
+            botHandle: null,
+            iconSetUrl: null,
+            iconProblem: null,
             shortcut: wanted.shortcut,
             manifestDigest: digestOf(wanted.manifest),
             manifestAt: ctx.now().toISOString(),
@@ -266,7 +395,19 @@ export const connect = defineCommand({
         );
       }
     } catch (error) {
-      throw refusalOf(ctx, error);
+      throw manifestRefusal(ctx, error);
+    }
+    const icon = await keepIcon(ctx, connection);
+    // Slack makes the handle from the bot's name: read again once the name changed on an installed app.
+    if (
+      isConnected(connection) &&
+      connection.data.botUserId !== null &&
+      chosen.botName !== (found?.data.botName ?? null)
+    ) {
+      const handle = await handleOf(ctx, connection.data.botUserId);
+      if (handle !== null) {
+        await saveConnection(ctx, { botHandle: handle });
+      }
     }
     const state = newState();
     connection = await saveConnection(ctx, {
@@ -278,14 +419,29 @@ export const connect = defineCommand({
       endpoints.redirectUrl,
       state,
     );
-    const text = isConnected(connection)
-      ? words.said.appInstalledUpdated
-      : found?.data.appId === null || found === null
-        ? words.said.appMade(authorizeUrl)
-        : words.said.appUpdated(authorizeUrl);
+    const names = appNamesOf(language, chosen);
+    const text = [
+      isConnected(connection)
+        ? words.said.appInstalledUpdated
+        : found?.data.appId === null || found === null
+          ? words.said.appMade(authorizeUrl)
+          : words.said.appUpdated(authorizeUrl),
+      words.said.names(names.app, names.bot, connection.data.botHandle),
+      iconSaid(ctx.language, icon, connection.data.appId),
+    ]
+      .filter((line) => line !== null)
+      .join("\n");
     return {
       text,
-      data: { appId: connection.data.appId, phase: connection.data.phase, authorizeUrl },
+      data: {
+        appId: connection.data.appId,
+        phase: connection.data.phase,
+        authorizeUrl,
+        appName: names.app,
+        botName: names.bot,
+        botHandle: connection.data.botHandle,
+        icon,
+      },
     };
   },
 });
@@ -332,11 +488,15 @@ export const disconnect = defineCommand({
     }
     // A thread lives in a conversation of the app's bot, which a new app's bot is not in.
     await archiveAll(ctx, threads);
+    // The names and the icon chosen stay, for the next app; what Slack made of them goes with this one.
     await saveConnection(ctx, {
       phase: "disconnected",
       appId: null,
       clientId: null,
       botUserId: null,
+      botHandle: null,
+      iconSetUrl: null,
+      iconProblem: null,
       manifestDigest: null,
       manifestAt: null,
       oauthState: null,
@@ -423,6 +583,12 @@ async function connectionView(
     teamName: data.teamName,
     botUserId: data.botUserId,
     language: data.language,
+    appName: data.appName,
+    botName: data.botName,
+    botHandle: data.botHandle,
+    iconUrl: data.iconUrl,
+    iconSet: data.iconUrl !== null && data.iconUrl === data.iconSetUrl,
+    iconProblem: data.iconUrl === null ? null : data.iconProblem,
     shortcut: data.shortcut,
     manifestAt: data.manifestAt,
     connectedAt: data.connectedAt,
@@ -472,6 +638,12 @@ export const status = defineQuery({
     return {
       address: { url: workspace.url, state: addressState(workspace.url) },
       workspaceLanguage: workspace.languageSet ? languageOf(workspace.language) : null,
+      defaultNames: Object.fromEntries(
+        LANGUAGES.map((language) => {
+          const names = appNamesOf(language, { appName: null, botName: null });
+          return [language, { app: names.app, bot: names.bot }];
+        }),
+      ) as StatusReport["defaultNames"],
       secrets: await secretsOf(ctx),
       connection: connection === null ? null : await connectionView(ctx, connection),
       authorizeUrl,
@@ -526,9 +698,11 @@ export async function keepConnection(ctx: PluginContext): Promise<void> {
     const said =
       error instanceof PluginError
         ? error.message
-        : serverWords(await connectionLanguage(ctx)).refused.slackSaid(
-            error instanceof SlackError ? error.code : "unknown_error",
-          );
+        : error instanceof SlackError && error.code === "invalid_manifest"
+          ? manifestRefusal(ctx, error).message
+          : serverWords(await connectionLanguage(ctx)).refused.slackSaid(
+              error instanceof SlackError ? error.code : "unknown_error",
+            );
     await noteProblem(ctx, said);
   }
 }

@@ -12,6 +12,7 @@ import {
 import { ROLE } from "./access.js";
 import { links, routes, threads } from "./collections.js";
 import { BOT_TOKEN, CLIENT_SECRET } from "./connection.js";
+import { handleOf } from "./identity.js";
 import { refusalCode } from "./integrations/hr/contract.js";
 import { SlackError, slackCall, textOf } from "./slack/api.js";
 import { archiveAll, connectionOf, noteProblem, saveConnection } from "./store.js";
@@ -81,17 +82,22 @@ export const slackOauthEndpoint = defineEndpoint({
         await archiveAll(ctx, links);
         await archiveAll(ctx, threads);
       }
+      const botUserId = textOf(answer.body, "bot_user_id");
       await saveConnection(ctx, {
         ...(elsewhere ? { matchedAt: null, matched: 0, unmatched: 0 } : {}),
         phase: "connected",
         teamId,
         teamName: textOf(answer.body, "team.name"),
-        botUserId: textOf(answer.body, "bot_user_id"),
+        botUserId,
         connectedAt: ctx.now().toISOString(),
         connectedBy: ctx.caller.kind === "person" ? ctx.caller.person.id : null,
         problem: null,
         problemAt: null,
       });
+      // The handle Slack made of the bot's name, which the setup page says: `@console2` where taken.
+      if (botUserId !== null) {
+        await saveConnection(ctx, { botHandle: await handleOf(ctx, botUserId) });
+      }
     } catch (error) {
       const said =
         error instanceof SlackError

@@ -68,6 +68,15 @@ export interface ConnectionView {
   readonly botUserId: string | null;
   /** The language of the names the app shows in Slack, its shortcut's among them. */
   readonly language: Language;
+  /** The names someone chose for the app and its bot; null where the language's own stand. */
+  readonly appName: string | null;
+  readonly botName: string | null;
+  /** The bot's handle as Slack made it from the bot's name, once read. */
+  readonly botHandle: string | null;
+  /** The icon chosen, whether Slack took it, and why not: `manual` where the token may not set it. */
+  readonly iconUrl: string | null;
+  readonly iconSet: boolean;
+  readonly iconProblem: string | null;
   /** Whether the app's manifest, as last written, holds the leave shortcut. */
   readonly shortcut: boolean;
   readonly manifestAt: string | null;
@@ -88,6 +97,8 @@ export interface StatusReport {
    * read in unless someone chooses, before the language of whoever connects or adds them.
    */
   readonly workspaceLanguage: Language | null;
+  /** The names the app and its bot take in each language where nobody chose any. */
+  readonly defaultNames: Readonly<Record<Language, { readonly app: string; readonly bot: string }>>;
   readonly secrets: Readonly<Record<SecretName, SecretView>>;
   readonly connection: ConnectionView | null;
   /** Slack's address that installs the app, with a state good for a while; null where none is ready. */

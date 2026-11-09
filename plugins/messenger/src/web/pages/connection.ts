@@ -95,18 +95,45 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
     toolbar(button(words.openSettings, () => frame.navigate(SETTINGS), "secondary", true)),
   );
 
-  // 3. The app, made from the manifest.
+  // 3. The app, made from the manifest: its language, its names and its icon.
   const made = connection !== null && connection.appId !== null;
+  const initial =
+    connection?.language ?? status.workspaceLanguage ?? languageOf(frame.context.language);
+  const appName = input("text", {
+    value: connection?.appName ?? "",
+    placeholder: status.defaultNames[initial].app,
+    maxLength: 35,
+  });
+  const botName = input("text", {
+    value: connection?.botName ?? "",
+    placeholder: status.defaultNames[initial].bot,
+    maxLength: 80,
+  });
+  const icon = input("url", {
+    value: connection?.iconUrl ?? "",
+    placeholder: "https://",
+    maxLength: 1000,
+  });
   const language = pills<Language>(
     LANGUAGES.map((value) => ({ value, label: words.languages[value] })),
-    connection?.language ?? status.workspaceLanguage ?? languageOf(frame.context.language),
+    initial,
     w.appLanguage,
+    (chosen) => {
+      // The names left empty are the language's own: the placeholders say which.
+      appName.placeholder = status.defaultNames[chosen].app;
+      botName.placeholder = status.defaultNames[chosen].bot;
+    },
   );
   const makeStatus = statusLine();
   const make = button(
     made ? w.update : w.make,
     () => {
-      void runCommand(frame, make, makeStatus, words, "connect", { language: language.value() });
+      void runCommand(frame, make, makeStatus, words, "connect", {
+        language: language.value(),
+        "app-name": appName.value.trim(),
+        "bot-name": botName.value.trim(),
+        icon: icon.value.trim(),
+      });
     },
     made ? "secondary" : "primary",
   );
@@ -121,6 +148,9 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
         : w.appMissing,
     ),
     field(w.appLanguage, language.node),
+    field(w.appName, appName, w.appNameHint),
+    field(w.botName, botName, w.botNameHint),
+    field(w.icon, icon, w.iconHint),
     toolbar(make),
     makeStatus,
   );
@@ -178,15 +208,35 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
         secret.expiresAt === null ? DASH : w.expires(when(secret.expiresAt)),
       ]);
     });
+    const iconState =
+      connection.iconUrl === null
+        ? w.iconState.none
+        : connection.iconSet
+          ? w.iconState.set
+          : connection.iconProblem === "manual"
+            ? w.iconState.manual
+            : connection.iconProblem === null
+              ? w.iconState.waiting
+              : w.iconState.refused;
+    const appPage = `https://api.slack.com/apps/${connection.appId}/general`;
     parts.push(
       panel(
         w.details,
         factsRow([
           [w.workspace, connection.teamName ?? DASH],
           [w.bot, connection.botUserId ?? DASH],
+          [w.handle, connection.botHandle === null ? DASH : `@${connection.botHandle}`],
+          [w.icon, iconState],
           [w.shortcut, connection.shortcut ? w.shortcutOn : w.shortcutOff],
           [w.renewed, when(connection.rotatedAt)],
         ]),
+        ...(connection.iconProblem === "manual" && !connection.iconSet
+          ? [
+              muted(w.iconManual),
+              // Opened from the press itself, before anything waits, as a frame's links must be.
+              toolbar(button(w.openInSlack, () => frame.open(appPage), "secondary")),
+            ]
+          : []),
         el("h3", "subheading", w.secrets),
         table(["", "", ""], secrets),
       ),

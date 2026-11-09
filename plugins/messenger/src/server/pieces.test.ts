@@ -57,9 +57,32 @@ describe("the console's address", () => {
 describe("the manifest", () => {
   const input = {
     language: "en" as const,
+    appName: null,
+    botName: null,
     requestUrl: "https://console.example.test/api/v1/plugins/messenger/x/slack",
     redirectUrl: "https://console.example.test/api/v1/plugins/messenger/x/slack-oauth",
   };
+
+  it("names the app and its bot as chosen, else in the language's own words", () => {
+    const own = appManifest({ ...input, language: "ko", shortcut: true }) as {
+      display_information: { name: string };
+      features: { bot_user: { display_name: string }; shortcuts: { name: string }[] };
+    };
+    expect(own.display_information.name).toBe("콘솔");
+    expect(own.features.bot_user.display_name).toBe("console");
+    expect(own.features.shortcuts[0]?.name).toBe("휴가");
+    const chosen = appManifest({
+      ...input,
+      appName: "에이씨미",
+      botName: "Acme Bot",
+      shortcut: false,
+    }) as {
+      display_information: { name: string };
+      features: { bot_user: { display_name: string } };
+    };
+    expect(chosen.display_information.name).toBe("에이씨미");
+    expect(chosen.features.bot_user.display_name).toBe("Acme Bot");
+  });
 
   it("holds the shortcut only where asked, and the same scopes either way", () => {
     const withShortcut = appManifest({ ...input, shortcut: true });

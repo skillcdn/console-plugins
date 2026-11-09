@@ -2,10 +2,19 @@
 // from Slack's answer; the installation's return; how it stands; a test message; the way out; the
 // hourly job that renews the token and keeps the manifest; and HR's lifecycle moving the shortcut.
 
+import { defineCollection, z } from "@skillcdn/console/plugin";
 import type { TestContext } from "@skillcdn/console/plugin/testing";
 import { describe, expect, it } from "vitest";
 import type { StatusReport } from "../shared/contracts.js";
-import { connect, disconnect, keepConnection, onLifecycle, status, test } from "./index.js";
+import {
+  connect,
+  disconnect,
+  keepConnection,
+  onLifecycle,
+  status,
+  test,
+  upgrades,
+} from "./index.js";
 import { slackOauthEndpoint } from "./oauth.js";
 import { SCOPES } from "./slack/manifest.js";
 import {
@@ -68,12 +77,17 @@ const kept = (ctx: TestContext, name: string) =>
 
 function manifestOf(params: Readonly<Record<string, string>>) {
   return JSON.parse(params.manifest ?? "{}") as {
-    features: { shortcuts?: { name: string; callback_id: string }[] };
+    features: {
+      shortcuts?: { name: string; callback_id: string }[];
+      bot_user: { display_name: string };
+    };
     oauth_config: { redirect_urls: string[]; scopes: { bot: string[] } };
     settings: { interactivity: { request_url: string } };
     display_information: { name: string };
   };
 }
+
+const ICON = "https://images.example.test/acme.png";
 
 describe("connect", () => {
   it("makes the app from the manifest, the secrets sealed, and says where to install it", async () => {
@@ -241,6 +255,168 @@ describe("connect", () => {
   });
 });
 
+describe("the app's names and icon", () => {
+  it("names the app and its bot as chosen, says so, and keeps them until told otherwise", async () => {
+    const { ctx, slack } = setup({ slack: fakeSlack(created), caller: KEEPER_KO });
+    const made = await connect.run(ctx, { "app-name": " 에이씨미 ", "bot-name": "Acme" });
+    const manifest = manifestOf(slack.of("apps.manifest.create")[0]?.params ?? {});
+    expect(manifest.display_information.name).toBe("에이씨미");
+    expect(manifest.features.bot_user.display_name).toBe("Acme");
+    expect(made.text).toContain('Slack에서 앱 이름은 "에이씨미", 봇 이름은 "Acme"입니다.');
+    expect(ctx.all("connections")[0]?.data).toMatchObject({ appName: "에이씨미", botName: "Acme" });
+    // Not given, they stand; given empty, the language's own come back.
+    await connect.run(ctx, { language: "en" });
+    expect(
+      manifestOf(slack.of("apps.manifest.update")[0]?.params ?? {}).display_information.name,
+    ).toBe("에이씨미");
+    await connect.run(ctx, { "app-name": "", "bot-name": "" });
+    const back = manifestOf(slack.of("apps.manifest.update")[1]?.params ?? {});
+    expect(back.display_information.name).toBe("Console");
+    expect(back.features.bot_user.display_name).toBe("console");
+  });
+
+  it("refuses a bot's name Slack makes no handle of, a long app name, and an icon Slack cannot fetch, before Slack is asked", async () => {
+    const { ctx, slack } = setup({ slack: fakeSlack(created), caller: KEEPER_KO });
+    const cases = [
+      [{ "bot-name": "에이씨미" }, "bot_name"],
+      [{ "bot-name": "-acme" }, "bot_name"],
+      [{ "bot-name": "a".repeat(81) }, "bot_name"],
+      [{ "app-name": "가".repeat(36) }, "app_name"],
+      [{ "app-name": `Acme${String.fromCodePoint(7)}` }, "app_name"],
+      [{ icon: "http://images.example.test/acme.png" }, "icon"],
+      [{ icon: "https://127.0.0.1/acme.png" }, "icon"],
+      [{ icon: "not an address" }, "icon"],
+    ] as const;
+    for (const [given, code] of cases) {
+      await expect(connect.run(ctx, given)).rejects.toMatchObject({ code });
+    }
+    await expect(connect.run(ctx, { "bot-name": "에이씨미" })).rejects.toThrow(
+      "봇 이름에는 라틴 문자",
+    );
+    expect(slack.calls).toHaveLength(0);
+  });
+
+  it("says Slack's refusal of a name in the caller's words, naming the name", async () => {
+    const slack = fakeSlack({
+      "apps.manifest.create": () => ({
+        ok: false,
+        error: "invalid_manifest",
+        errors: [{ message: "Name is reserved", pointer: "/features/bot_user/display_name" }],
+      }),
+    });
+    const { ctx } = setup({ slack, caller: KEEPER_KO });
+    await expect(connect.run(ctx, { "bot-name": "slackbot" })).rejects.toMatchObject({
+      code: "bot_name",
+      message: "Slack이 봇 이름을 받지 않았습니다: Name is reserved",
+    });
+  });
+
+  it("gives Slack the icon once, and says where to upload it where the token may not", async () => {
+    const { ctx, slack } = setup({ slack: fakeSlack(created), caller: KEEPER_KO });
+    const made = await connect.run(ctx, { icon: ICON });
+    const set = slack.of("apps.icon.set");
+    expect(set[0]?.params).toMatchObject({ app_id: "A0NEWAPP1", url: ICON });
+    expect(set[0]?.secrets).toEqual([{ name: "slackConfigToken", as: "bearer" }]);
+    expect(made.text).toContain("아이콘을 올렸습니다.");
+    await connect.run(ctx, {});
+    expect(slack.of("apps.icon.set")).toHaveLength(1);
+    expect(((await status.run(ctx, {})) as StatusReport).connection).toMatchObject({
+      iconUrl: ICON,
+      iconSet: true,
+      iconProblem: null,
+    });
+    const refused = setup({
+      slack: fakeSlack({
+        ...created,
+        "apps.icon.set": () => ({ ok: false, error: "not_allowed_token_type" }),
+      }),
+      caller: KEEPER_KO,
+    });
+    const said = await connect.run(refused.ctx, { icon: ICON });
+    expect(said.text).toContain("https://api.slack.com/apps/A0NEWAPP1/general");
+    expect(((await status.run(refused.ctx, {})) as StatusReport).connection).toMatchObject({
+      iconSet: false,
+      iconProblem: "manual",
+    });
+  });
+
+  it("reads the bot's handle again once the bot of an installed app is renamed", async () => {
+    const slack = fakeSlack({ "users.info": () => ({ ok: true, user: { name: "acme" } }) });
+    const { ctx } = setup({ slack });
+    await connected(ctx);
+    const said = await connect.run(ctx, { "bot-name": "Acme" });
+    expect(slack.of("users.info")[0]?.params).toMatchObject({ user: "U0BOT0001" });
+    expect(ctx.all("connections")[0]?.data.botHandle).toBe("acme");
+    expect(said.text).toContain("@acme");
+    await connect.run(ctx, { "app-name": "Acme" });
+    expect(slack.of("users.info")).toHaveLength(1);
+  });
+
+  it("keeps the names chosen through a disconnect, for the next app, and forgets what Slack made of them", async () => {
+    const { ctx } = setup();
+    await connected(ctx);
+    const record = ctx.all("connections")[0];
+    await ctx.records("connections").update(record?.id ?? "", {
+      appName: "에이씨미",
+      botName: "Acme",
+      iconUrl: ICON,
+      iconSetUrl: ICON,
+    });
+    await disconnect.run(ctx, {});
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      appName: "에이씨미",
+      botName: "Acme",
+      iconUrl: ICON,
+      botHandle: null,
+      iconSetUrl: null,
+    });
+  });
+});
+
+describe("the upgrade of the records", () => {
+  it("writes the names and the icon, none chosen, into a connection that lacks them, once", async () => {
+    const { ctx } = setup();
+    const loose = defineCollection("connections", { schema: z.looseObject({}) });
+    await ctx.records(loose).create({
+      provider: "slack",
+      phase: "connected",
+      appId: "A0TESTAPP",
+      clientId: "1111.2222",
+      teamId: TEAM,
+      teamName: "Acme",
+      botUserId: "U0BOT0001",
+      language: "ko",
+      shortcut: true,
+      manifestDigest: null,
+      manifestAt: null,
+      oauthState: null,
+      oauthUntil: null,
+      connectedAt: NOW.toISOString(),
+      connectedBy: JIHYE.id,
+      problem: null,
+      problemAt: null,
+      matchedAt: null,
+      matched: 0,
+      unmatched: 0,
+      rotatedAt: null,
+    });
+    for (const upgrade of upgrades) {
+      await upgrade.run(ctx.as(CONSOLE));
+      await upgrade.run(ctx.as(CONSOLE));
+    }
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      phase: "connected",
+      language: "ko",
+      appName: null,
+      botName: null,
+      botHandle: null,
+      iconUrl: null,
+      iconSetUrl: null,
+      iconProblem: null,
+    });
+  });
+});
+
 describe("the installation's return", () => {
   const request = (query: Record<string, string>) => ({
     method: "GET",
@@ -258,6 +434,7 @@ describe("the installation's return", () => {
       app_id: "A0NEWAPP1",
       team: { id: "T0TEST01", name: "Acme" },
     }),
+    "users.info": () => ({ ok: true, user: { id: "U0BOT0001", name: "console2" } }),
   };
 
   it("exchanges the code for the bot's token, sealed, and sends the browser back", async () => {
@@ -278,10 +455,13 @@ describe("the installation's return", () => {
       teamId: "T0TEST01",
       teamName: "Acme",
       botUserId: "U0BOT0001",
+      // The handle Slack made, a number added where the name was taken.
+      botHandle: "console2",
       connectedBy: JIHYE.id,
       oauthState: null,
       problem: null,
     });
+    expect(slack.of("users.info")[0]?.secrets).toEqual([{ name: "slackBotToken", as: "bearer" }]);
   });
 
   const installedIn = (team: string) =>

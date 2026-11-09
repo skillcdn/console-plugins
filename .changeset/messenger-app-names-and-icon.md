@@ -1,0 +1,5 @@
+---
+"@skillcdn/console-plugin-messenger": patch
+---
+
+The app's names and icon in Slack are chosen when it is connected: `connect --app-name` names the app, up to 35 characters in any script, and `--bot-name` its bot, in Latin letters, digits, spaces, `.`, `_` and `-` alone, since Slack makes the bot's handle (@) from it and refuses a name it cannot; both are checked before Slack is asked, kept for the next app, and an empty value brings back the language's own ("콘솔" and "console" in Korean). `--icon` gives Slack the public https address of a square image of 512 to 2000 pixels, which Slack fetches; where the configuration token may not set icons, `connect` and the Connection page say where to upload it by hand. The Connection page has the three fields beside the language, and says the bot's handle as Slack made it, read once the app is installed and again when the bot is renamed. A bot renamed on an installed app may keep its handle: disconnect and connect again while nobody uses the app. The records move to data version 2, which the upgrade writes: the connection keeps the names and the icon chosen, none at first.

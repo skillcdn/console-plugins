@@ -186,7 +186,7 @@
       "wide": true
     }
   ],
-  "dataVersion": 1,
+  "dataVersion": 2,
   "store": {
     "homepage": "https://github.com/skillcdn/console-plugins/tree/main/plugins/messenger#readme",
     "repository": "https://github.com/skillcdn/console-plugins",

@@ -36,6 +36,16 @@ export interface Words {
     readonly appMissing: string;
     readonly appMade: (appId: string) => string;
     readonly appLanguage: string;
+    readonly appName: string;
+    readonly appNameHint: string;
+    readonly botName: string;
+    readonly botNameHint: string;
+    readonly icon: string;
+    readonly iconHint: string;
+    readonly handle: string;
+    readonly iconState: Readonly<Record<"none" | "set" | "manual" | "waiting" | "refused", string>>;
+    readonly iconManual: string;
+    readonly openInSlack: string;
     readonly make: string;
     readonly update: string;
     readonly install: string;
@@ -170,7 +180,26 @@ const EN: Words = {
     appMissing:
       "Not made yet. The plugin makes it from its manifest, with the configuration token.",
     appMade: (appId) => `Made in Slack (${appId}).`,
-    appLanguage: "Names in Slack",
+    appLanguage: "Language in Slack",
+    appName: "App name",
+    appNameHint: "Up to 35 characters, in any script. Left empty, the language's own.",
+    botName: "Bot name",
+    botNameHint:
+      "Latin letters, digits, spaces, '.', '_' and '-', 80 at most: Slack makes the handle (@) from it. Renamed once installed, the handle may stay; disconnect and connect again while nobody uses the app.",
+    icon: "Icon",
+    iconHint:
+      "The public https address of a square image of 512 to 2000 pixels, which Slack fetches.",
+    handle: "Handle",
+    iconState: {
+      none: "Slack's own",
+      set: "Set",
+      manual: "Upload by hand",
+      waiting: "Not set yet",
+      refused: "Refused by Slack",
+    },
+    iconManual:
+      "The configuration token may not set the icon: upload it on Slack's page of the app, under Display Information.",
+    openInSlack: "Open in Slack",
     make: "Make the app",
     update: "Update the app",
     install: "Installed in the workspace",
@@ -374,7 +403,25 @@ const KO: Words = {
     app: "앱",
     appMissing: "아직 만들지 않았습니다. 플러그인이 설정 토큰으로 매니페스트에서 앱을 만듭니다.",
     appMade: (appId) => `Slack에 만들어짐 (${appId}).`,
-    appLanguage: "Slack에 보이는 이름",
+    appLanguage: "Slack에서 쓰는 언어",
+    appName: "앱 이름",
+    appNameHint: "35자까지, 한글도 됩니다. 비우면 언어별 기본값입니다.",
+    botName: "봇 이름",
+    botNameHint:
+      "라틴 문자, 숫자, 공백, '.', '_', '-'로 80자까지. Slack이 이 이름에서 핸들(@)을 만듭니다. 설치한 뒤 바꾸면 핸들은 그대로일 수 있으니, 아무도 쓰지 않을 때 연결을 해제하고 다시 연결하세요.",
+    icon: "아이콘",
+    iconHint: "512~2000px 정사각형 이미지의 공개 https 주소. Slack이 직접 가져갑니다.",
+    handle: "핸들",
+    iconState: {
+      none: "Slack 기본",
+      set: "올림",
+      manual: "손으로 올려야 함",
+      waiting: "아직 올리지 않음",
+      refused: "Slack이 받지 않음",
+    },
+    iconManual:
+      "설정 토큰으로는 아이콘을 올릴 수 없습니다. Slack의 앱 페이지 Display Information에서 올리세요.",
+    openInSlack: "Slack에서 열기",
     make: "앱 만들기",
     update: "앱 업데이트",
     install: "워크스페이스에 설치",

@@ -28,8 +28,20 @@ export const SCOPES = [
   "mpim:write",
 ] as const;
 
+/** The names the app shows in Slack: those someone chose, else the language's own. */
+export function appNamesOf(
+  language: Language,
+  chosen: { readonly appName: string | null; readonly botName: string | null },
+): { readonly app: string; readonly bot: string } {
+  const words = serverWords(language).app;
+  return { app: chosen.appName ?? words.name, bot: chosen.botName ?? words.botName };
+}
+
 export interface ManifestInput {
   readonly language: Language;
+  /** The app's name and its bot's as someone chose them; the language's own where null. */
+  readonly appName: string | null;
+  readonly botName: string | null;
   /** The address Slack posts what people do to: the endpoint `slack`. */
   readonly requestUrl: string;
   /** The address Slack sends the installer back to: the endpoint `slack-oauth`. */
@@ -39,15 +51,16 @@ export interface ManifestInput {
 
 export function appManifest(input: ManifestInput): Record<string, unknown> {
   const words = serverWords(input.language).app;
+  const names = appNamesOf(input.language, input);
   return {
     _metadata: { major_version: 1, minor_version: 1 },
     display_information: {
-      name: words.name,
+      name: names.app,
       description: words.description.slice(0, 140),
       background_color: "#1f2937",
     },
     features: {
-      bot_user: { display_name: words.botName, always_online: true },
+      bot_user: { display_name: names.bot, always_online: true },
       ...(input.shortcut
         ? {
             shortcuts: [

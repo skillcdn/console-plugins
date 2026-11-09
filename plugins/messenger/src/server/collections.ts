@@ -29,6 +29,16 @@ export const connections = defineCollection("connections", {
     teamName: z.string().max(200).nullable(),
     botUserId: slackId.nullable(),
     language: z.enum(LANGUAGES),
+    /** The names someone chose for the app and its bot in Slack; null where the language's own stand. */
+    appName: z.string().max(100).nullable(),
+    botName: z.string().max(80).nullable(),
+    /** The bot's handle as Slack made it from the bot's name, read once the app is installed. */
+    botHandle: z.string().max(80).nullable(),
+    /** The icon chosen, a public https image, and the one Slack took last. */
+    iconUrl: z.string().max(1000).nullable(),
+    iconSetUrl: z.string().max(1000).nullable(),
+    /** Why the icon chosen is not the app's: `manual` where the token may not set it, else Slack's word. */
+    iconProblem: z.string().max(80).nullable(),
     shortcut: z.boolean(),
     manifestDigest: z.string().max(64).nullable(),
     manifestAt: instant.nullable(),

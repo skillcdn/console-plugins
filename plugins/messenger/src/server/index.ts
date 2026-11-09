@@ -15,6 +15,7 @@ import { match, people } from "./matching.js";
 import { slackOauthEndpoint } from "./oauth.js";
 import { channels, route, routesQuery, unroute } from "./routes.js";
 import { slackEndpoint } from "./slack/interactions.js";
+import { upgrades } from "./upgrades.js";
 
 export { activity } from "./activity.js";
 export {
@@ -42,6 +43,7 @@ export { match, matchEveryone, matchOne, onPersonChanged, people } from "./match
 export { slackOauthEndpoint } from "./oauth.js";
 export { channels, route, routesQuery, unroute } from "./routes.js";
 export { slackEndpoint } from "./slack/interactions.js";
+export { upgrades } from "./upgrades.js";
 
 export default definePlugin({
   collections,
@@ -50,4 +52,5 @@ export default definePlugin({
   endpoints: { slack: slackEndpoint, "slack-oauth": slackOauthEndpoint },
   on: hooks,
   jobs,
+  upgrades,
 });

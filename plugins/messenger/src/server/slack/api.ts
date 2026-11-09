@@ -40,17 +40,47 @@ const TOKEN: Readonly<Record<Exclude<SlackAuth, "none">, SecretUse>> = {
   config: { name: "slackConfigToken", as: "bearer" },
 };
 
+/** What Slack said was wrong in what it was given: where (a JSON pointer) and why, in its words. */
+export interface SlackProblem {
+  readonly pointer: string;
+  readonly message: string;
+}
+
 /** Slack's refusal of a call, by Slack's code (`channel_not_found`, `invalid_auth`, ...). */
 export class SlackError extends Error {
   readonly code: string;
   readonly method: string;
+  /** For a manifest refused (`invalid_manifest`), each field at fault. */
+  readonly problems: readonly SlackProblem[];
 
-  constructor(code: string, method: string) {
+  constructor(code: string, method: string, problems: readonly SlackProblem[] = []) {
     super(`${method}: ${code}`);
     this.name = "SlackError";
     this.code = code;
     this.method = method;
+    this.problems = problems;
   }
+}
+
+/** The fields Slack says are at fault, from its answer's `errors`, ten at most, each bounded. */
+function problemsOf(value: unknown): SlackProblem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.slice(0, 10).flatMap((item: unknown) => {
+    if (typeof item !== "object" || item === null) {
+      return [];
+    }
+    const { pointer, message } = item as { pointer?: unknown; message?: unknown };
+    return typeof message === "string" && message.length > 0
+      ? [
+          {
+            pointer: typeof pointer === "string" ? pointer.slice(0, 200) : "",
+            message: message.slice(0, 300),
+          },
+        ]
+      : [];
+  });
 }
 
 /** Slack's codes that say the token is gone: revoked, the app uninstalled, the account closed. */
@@ -148,7 +178,7 @@ export async function slackCall(
   const answer = body as Record<string, unknown>;
   if (answer.ok !== true) {
     const code = typeof answer.error === "string" ? answer.error.slice(0, 80) : "unknown_error";
-    throw new SlackError(code, method);
+    throw new SlackError(code, method, problemsOf(answer.errors));
   }
   return { body: answer, sealed: response.sealed };
 }
