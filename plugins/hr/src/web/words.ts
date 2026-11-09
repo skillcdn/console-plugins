@@ -7,6 +7,11 @@
 
 export type SetupTab = "approval" | "types" | "policies" | "holidays" | "general";
 
+/** A number of days as English counts them: "1 day", "3 days", "0.5 days". */
+function dayCount(count: string): string {
+  return count === "1" ? "1 day" : `${count} days`;
+}
+
 /** A label as it reads inside a sentence: its first letter small, unless it is a name such as HR. */
 function midSentence(label: string): string {
   return /^[A-Z]{2}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
@@ -14,7 +19,7 @@ function midSentence(label: string): string {
 
 const ENGLISH = {
   failed: "Something went wrong. Try again.",
-  days: (count: string) => (count === "1" ? "1 day" : `${count} days`),
+  days: dayCount,
   on: "On",
   off: "Off",
   save: "Save",
@@ -378,7 +383,7 @@ const ENGLISH = {
   rulesEmpty: "No exceptions: every request follows the default line.",
   addRule: "Add an exception",
   everyRequest: "Every request",
-  daysAtLeast: (days: string) => `${days} days or more`,
+  daysAtLeast: (days: string) => `${dayCount(days)} or more`,
   lateOnly: "Late requests only",
   ruleName: "Name",
   ruleKinds: "Kinds of leave",
@@ -412,7 +417,7 @@ const ENGLISH = {
   colorName: (number: string) => `Colour ${number}`,
   balanceLabel: "Balance",
   allowanceLabel: "Days a period",
-  balanceAllowance: (days: string) => `${days} days a period`,
+  balanceAllowance: (days: string) => `${dayCount(days)} a period`,
   unitLabel: "Smallest unit",
   reasonRuleLabel: "Reason",
   noticeLabel: "Notice",
@@ -428,13 +433,13 @@ const ENGLISH = {
   timeZoneLabel: "Time zone",
   timeZoneHint:
     "Today, notice times and the daily job follow it. An administrator sets it in the console's settings of the workspace.",
-  noticeDays: (days: string) => `${days} days before`,
+  noticeDays: (days: string) => `${dayCount(days)} before`,
   noticeDayBefore: (time: string) => `By ${time} the day before`,
   noticeSameDay: (time: string) => `By ${time} the same day`,
   lateLabel: "Past the notice",
   autoLabel: "Approved as written",
   autoDaysLabel: "Up to how many days",
-  autoUpTo: (days: string) => `Up to ${days} days, in time`,
+  autoUpTo: (days: string) => `Up to ${dayCount(days)}, in time`,
   typeRequestsTitle: "Requests",
   typeCancelTitle: "Cancelling approved leave",
   cancelDeadlineLabel: "Deadline",
@@ -448,10 +453,34 @@ const ENGLISH = {
   cancelAfterHint:
     "A decision goes to whoever approved the leave, or the person's manager where nobody had to.",
   cancelCardLabel: "Cancelling",
-  cancelUpTo: (days: string) => `At once up to ${days} days, longer by a decision`,
+  cancelUpTo: (days: string) => `At once up to ${dayCount(days)}, longer by a decision`,
   cancelCard: (deadline: string, within: string, after: string) =>
     `${deadline}: ${midSentence(within)}; then ${midSentence(after)}`,
   cancelThrough: (within: string) => `${within}, through the first day`,
+
+  kindRulesTitle: (name: string) => `${name} rules`,
+  kindBalance: {
+    annual: "Uses annual leave",
+    own: "Uses days of its own",
+    none: "Uses no balance",
+  },
+  kindAnyTime: "Any time",
+  kindApprovalLabel: "Approval",
+  kindPastLabel: "Days gone by",
+  kindApproval: { never: "By the approval line", always: "At once, nobody asked" },
+  kindApprovalUpTo: (days: string) => `At once up to ${dayCount(days)} in time; longer by the line`,
+  kindLate: {
+    refuse: "Not accepted",
+    manager: "Only a manager or HR records it",
+    mark: "By the line, marked late",
+  },
+  kindLateAtOnce: "At once, marked late",
+  kindCancelThen: "Then, through the first day",
+  kindCancelAfter: "After that",
+  kindCancelPast: "Once the first day has gone by",
+  kindCancelAlways: "Always",
+  kindWaitingCancel: "A request still waiting is cancelled at once.",
+  kindTimesIn: (zone: string) => `Times are in ${zone}.`,
 
   policiesHint:
     "How the days of annual leave come about. People without a policy follow the default.",
@@ -1044,6 +1073,26 @@ const KOREAN: Words = {
   cancelUpTo: (days) => `${days}일 이하는 바로, 그보다 길면 결재`,
   cancelCard: (deadline, within, after) => `${deadline} ${within}, 그 뒤 ${after}`,
   cancelThrough: (within) => `첫날까지 ${within}`,
+
+  kindRulesTitle: (name) => `${name} 규칙`,
+  kindBalance: { annual: "연차에서 차감", own: "별도 일수에서 차감", none: "차감 없음" },
+  kindAnyTime: "언제든",
+  kindApprovalLabel: "승인",
+  kindPastLabel: "지난 날짜",
+  kindApproval: { never: "결재 필요", always: "결재 없이 바로 승인" },
+  kindApprovalUpTo: (days) => `기한 안 ${days}일 이하는 바로 승인, 더 길면 결재`,
+  kindLate: {
+    refuse: "신청할 수 없음",
+    manager: "매니저나 인사 담당만 등록",
+    mark: "결재 필요, 기한 후 표시",
+  },
+  kindLateAtOnce: "바로 승인, 기한 후 표시",
+  kindCancelThen: "그 뒤 첫날까지",
+  kindCancelAfter: "그 뒤",
+  kindCancelPast: "첫날이 지나면",
+  kindCancelAlways: "언제나",
+  kindWaitingCancel: "결재 전 신청은 언제든 바로 취소됩니다.",
+  kindTimesIn: (zone) => `시각은 ${zone} 기준입니다.`,
 
   policiesHint:
     "연차가 어떻게 생기는지 정합니다. 규정을 지정하지 않은 사람은 기본 규정을 따릅니다.",

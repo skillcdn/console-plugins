@@ -1,19 +1,23 @@
 // The form that asks for leave, shared by a person's own page, a manager writing for their people
 // and HR: the kind, the days, a part of a day and a reason on the left, and on the right what the
 // request would be, as the server module says: the days it counts for, the balance after it, the
-// notice it meets and the line it would travel. The page decides nothing; it asks `preview`.
+// notice it meets and the line it would travel; under it, the rules of the kind chosen, a row each.
+// The page decides nothing; it asks `preview`.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   ANNUAL,
+  type CancelRule,
+  type LeaveType,
+  type Notice,
   type Part,
   type PersonBrief,
   partsOf,
   type RequestPreview,
-  type TypeView,
 } from "../../shared/contracts.js";
 import { isDay } from "../../shared/days.js";
 import {
   actions,
+  badge,
   callout,
   el,
   type Formatters,
@@ -46,8 +50,8 @@ export interface RequestFormOptions {
   readonly words: Words;
   readonly format: Formatters;
   readonly language: string;
-  /** The kinds, each with its rules in a sentence, shown under the kind chosen. */
-  readonly types: readonly TypeView[];
+  /** The kinds that may be asked for; the one chosen has its rules beside the form. */
+  readonly types: readonly LeaveType[];
   /** The people it may be written for, where it is written for someone else. */
   readonly people?: readonly PersonBrief[];
   /** The one person it is written for, where the page is theirs. */
@@ -65,7 +69,6 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
     start,
     words.typeLabel,
   );
-  const typeRules = el("span", "sc-field-hint type-rules-line");
   const person =
     options.people === undefined
       ? null
@@ -93,7 +96,10 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
       : words.submitRecord,
   );
   const status = statusLine();
+  const now = el("section", "quote-now");
+  const rules = el("section", "kind-rules");
   const side = el("div", "quote");
+  side.append(now, rules);
 
   const one = () => to.value === "" || to.value === from.value;
   const syncType = () => {
@@ -111,8 +117,8 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
     reasonField.hidden = type?.reason === "hidden";
     reason.required = type?.reason === "required";
     reasonHint.hidden = type?.reason !== "required";
-    typeRules.textContent = type?.summary ?? "";
-    typeRules.hidden = typeRules.textContent === "";
+    rules.replaceChildren(...(type === undefined ? [] : kindRules(type, options)));
+    rules.hidden = type === undefined;
   };
 
   const argsOf = (): Record<string, unknown> | null => {
@@ -136,11 +142,11 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
 
   const drawQuote = (report: RequestPreview | null) => {
     if (report === null) {
-      side.replaceChildren(subheading(words.quoteTitle), muted(words.quoteEmpty));
+      now.replaceChildren(subheading(words.quoteTitle), muted(words.quoteEmpty));
       return;
     }
     if (report.refusal !== null) {
-      side.replaceChildren(
+      now.replaceChildren(
         subheading(words.quoteTitle),
         callout(words.quoteRefused, report.refusal, true),
       );
@@ -181,7 +187,7 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
         ? el("p", "quote-line", words.quoteAutomatic)
         : lineSteps(frame, report.line, words),
     );
-    side.replaceChildren(...parts);
+    now.replaceChildren(...parts);
   };
 
   const quote = sequenced(async (fresh) => {
@@ -223,7 +229,7 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
 
   const node = form(
     ...(person === null ? [] : [field(words.personLabel, person)]),
-    group(words.typeLabel, typeControl.node, typeRules),
+    group(words.typeLabel, typeControl.node),
     formRow(field(words.fromLabel, from), field(words.toLabel, to, words.toHint)),
     partHolder,
     reasonField,
@@ -260,4 +266,118 @@ export function requestForm(options: RequestFormOptions): HTMLElement {
   const layout = el("div", "request");
   layout.append(node, side);
   return layout;
+}
+
+/**
+ * A kind's rules as the person asking reads them: what it is, a row for each rule of asking, and
+ * how approved leave is cancelled, step by step. Agents read the same in one sentence, the
+ * `summary` the query `types` answers.
+ */
+function kindRules(type: LeaveType, options: RequestFormOptions): HTMLElement[] {
+  const { frame, words, format, language } = options;
+  let timed = false;
+  const until = (notice: Notice): string => {
+    switch (notice.mode) {
+      case "days":
+        return words.noticeDays(format.number(notice.days));
+      case "dayBefore":
+        timed = true;
+        return words.noticeDayBefore(notice.time);
+      case "sameDay":
+        timed = true;
+        return words.noticeSameDay(notice.time);
+      default:
+        return words.kindAnyTime;
+    }
+  };
+  // A kind with days of its own and none a period has them granted one by one, as time off in lieu.
+  let balance = words.kindBalance.none;
+  if (type.balance === "annual") {
+    balance = words.kindBalance.annual;
+  } else if (type.balance === "own") {
+    balance =
+      type.allowance > 0
+        ? words.balanceAllowance(format.number(type.allowance))
+        : words.kindBalance.own;
+  }
+  const facts = el("div", "kind-facts");
+  facts.append(
+    badge(type.paid ? words.paid : words.unpaid, type.paid ? "success" : "neutral"),
+    badge(balance, "neutral"),
+    badge(words.unit[type.unit], "neutral"),
+  );
+  const asking: [string, string][] = [
+    [words.noticeLabel, until(type.notice)],
+    [
+      words.kindApprovalLabel,
+      type.autoApprove.mode === "upTo"
+        ? words.kindApprovalUpTo(format.number(type.autoApprove.days))
+        : words.kindApproval[type.autoApprove.mode],
+    ],
+  ];
+  // With no notice, a request is late only for days gone by, and the row says so.
+  asking.push([
+    type.notice.mode === "none" ? words.kindPastLabel : words.lateLabel,
+    type.late === "mark" && type.autoApprove.mode === "always"
+      ? words.kindLateAtOnce
+      : words.kindLate[type.late],
+  ]);
+  const steps = cancelSteps(type.cancel, words, format, until);
+  const notes = [words.kindWaitingCancel];
+  if (timed) {
+    notes.push(words.kindTimesIn(frame.context.workspace?.timeZone ?? "UTC"));
+  }
+  return [
+    subheading(words.kindRulesTitle(nameIn(type.name, language))),
+    facts,
+    rulesTable(asking),
+    el("p", "sc-eyebrow kind-rules-part", words.typeCancelTitle),
+    rulesTable(steps),
+    el("p", "sc-muted kind-rules-note", notes.join(" ")),
+  ];
+}
+
+/** Rows of rules: when or what on the left, what holds on the right. */
+function rulesTable(rows: readonly (readonly [string, string])[]): HTMLElement {
+  const node = el("dl", "kind-table");
+  for (const [label, value] of rows) {
+    node.append(el("dt", "", label), el("dd", "", value));
+  }
+  return node;
+}
+
+/**
+ * How approved leave of a kind is cancelled, as steps in time: until the deadline, after it through
+ * the first day, and once that day has gone by, HR's under every rule. Steps that come to the same
+ * are said once, as the server's sentence says them.
+ */
+function cancelSteps(
+  rule: CancelRule,
+  words: Words,
+  format: Formatters,
+  until: (notice: Notice) => string,
+): [string, string][] {
+  const how =
+    rule.within === "upTo"
+      ? words.cancelUpTo(format.number(rule.days))
+      : words.cancelWithin[rule.within];
+  const none = rule.deadline.mode === "none";
+  if (rule.within === "hr" && (none || rule.after === "hr")) {
+    return [[words.kindCancelAlways, words.cancelAfter.hr]];
+  }
+  if (none || (rule.within === "decision" && rule.after === "decision")) {
+    return [
+      [words.cancelDeadlineMode.none, how],
+      [words.kindCancelPast, words.cancelAfter.hr],
+    ];
+  }
+  const first: [string, string] = [until(rule.deadline), how];
+  if (rule.after === "hr") {
+    return [first, [words.kindCancelAfter, words.cancelAfter.hr]];
+  }
+  return [
+    first,
+    [words.kindCancelThen, words.cancelAfter.decision],
+    [words.kindCancelPast, words.cancelAfter.hr],
+  ];
 }
