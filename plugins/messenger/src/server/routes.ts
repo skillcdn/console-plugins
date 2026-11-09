@@ -13,13 +13,13 @@ import {
 import {
   type ChannelView,
   LANGUAGES,
+  languageOf,
   ROUTE_AS,
   ROUTE_KINDS,
   type RouteView,
 } from "../shared/contracts.js";
 import { ROLE, requireRole } from "./access.js";
 import { routes } from "./collections.js";
-import { workspaceLanguage } from "./people.js";
 import { refusalOf, SlackError, slack } from "./slack/api.js";
 import { connectionOf, isConnected } from "./store.js";
 import { serverWords } from "./words.js";
@@ -70,7 +70,7 @@ export const route = defineCommand({
       optional: true,
     }),
     language: arg.enum(LANGUAGES, {
-      about: "the language the channel reads it in; the workspace's first unless said",
+      about: "the language the channel reads it in; yours unless said",
       optional: true,
     }),
     as: arg.enum(ROUTE_AS, {
@@ -109,7 +109,7 @@ export const route = defineCommand({
       kind,
       channelId: channel.id,
       channelName: name,
-      language: args.language ?? (await workspaceLanguage(ctx)),
+      language: args.language ?? languageOf(ctx.language),
       as: args.as ?? "person",
     } as const;
     const found = await ctx.records(routes).list({

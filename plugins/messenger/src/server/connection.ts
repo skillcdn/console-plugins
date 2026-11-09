@@ -15,6 +15,7 @@ import {
   type ConnectionView,
   LANGUAGES,
   type Language,
+  languageOf,
   SECRETS,
   type SecretName,
   type SecretView,
@@ -24,7 +25,6 @@ import { callerPerson, ROLE, requireRole } from "./access.js";
 import { addressState } from "./address.js";
 import { deliveries, routes, threads } from "./collections.js";
 import { HR, HR_ROLE, HR_VERSIONS, hrState, refusalCode } from "./integrations/hr/contract.js";
-import { workspaceLanguage } from "./people.js";
 import { isTokenGone, refusalOf, SlackError, slack, slackCall, textOf } from "./slack/api.js";
 import { appManifest, authorizeUrlOf, digestOf } from "./slack/manifest.js";
 import {
@@ -183,7 +183,7 @@ export const connect = defineCommand({
   args: {
     language: arg.enum(LANGUAGES, {
       about:
-        "the language of the app's names in Slack, its shortcut's among them; as before, else the workspace's first",
+        "the language of the app's names in Slack, its shortcut's among them; as before, else yours",
       optional: true,
     }),
   },
@@ -193,7 +193,7 @@ export const connect = defineCommand({
     const words = serverWords(ctx.language);
     await reachableAddress(ctx);
     const found = await connectionOf(ctx);
-    const language = args.language ?? found?.data.language ?? (await workspaceLanguage(ctx));
+    const language = args.language ?? found?.data.language ?? languageOf(ctx.language);
     const endpoints = await endpointsOf(ctx);
     const wanted = await wantedManifest(ctx, language, endpoints);
     let connection: ConnectionRecord;
@@ -488,6 +488,11 @@ export const status = defineQuery({
  * The hourly work on the connection: the configuration token renewed before it expires, the
  * manifest written where it differs. What goes wrong is said on the connection for the page.
  */
+/** The language the job says what went wrong in: the one chosen for the app when it was made. */
+async function connectionLanguage(ctx: PluginContext): Promise<Language> {
+  return (await connectionOf(ctx))?.data.language ?? "en";
+}
+
 export async function keepConnection(ctx: PluginContext): Promise<void> {
   if ((await ctx.secrets.has(CONFIG_REFRESH)) && (await shouldRenew(ctx))) {
     try {
@@ -496,7 +501,7 @@ export async function keepConnection(ctx: PluginContext): Promise<void> {
       ctx.log.warn("the configuration token was not renewed", {
         code: error instanceof SlackError ? error.code : null,
       });
-      await noteProblem(ctx, serverWords(await workspaceLanguage(ctx)).refused.configTokenGone);
+      await noteProblem(ctx, serverWords(await connectionLanguage(ctx)).refused.configTokenGone);
       return;
     }
   }
@@ -515,7 +520,7 @@ export async function keepConnection(ctx: PluginContext): Promise<void> {
     const said =
       error instanceof PluginError
         ? error.message
-        : serverWords(await workspaceLanguage(ctx)).refused.slackSaid(
+        : serverWords(await connectionLanguage(ctx)).refused.slackSaid(
             error instanceof SlackError ? error.code : "unknown_error",
           );
     await noteProblem(ctx, said);

@@ -14,6 +14,7 @@ import {
   fakeHr,
   fakeSlack,
   JIHYE,
+  KEEPER_KO,
   linked,
   MINSU,
   NOW,
@@ -112,6 +113,21 @@ describe("connect", () => {
     expect(result.text).toContain(data.authorizeUrl);
     // The client secret is sealed, never kept: the record holds the client id alone.
     expect(JSON.stringify(record?.data)).not.toContain("made-client-value");
+  });
+
+  it("names the app in the language of whoever connects it, not the console's first", async () => {
+    // The console lists the languages it speaks, English first on every console.
+    const korean = setup({ slack: fakeSlack(created), caller: KEEPER_KO });
+    await connect.run(korean.ctx, {});
+    const ko = manifestOf(korean.slack.of("apps.manifest.create")[0]?.params ?? {});
+    expect(ko.features.shortcuts?.[0]?.name).toBe("휴가 신청");
+    expect(ko.display_information.name).toBe("콘솔");
+    expect(korean.ctx.all("connections")[0]?.data.language).toBe("ko");
+    const english = setup({ slack: fakeSlack(created) });
+    await connect.run(english.ctx, {});
+    const en = manifestOf(english.slack.of("apps.manifest.create")[0]?.params ?? {});
+    expect(en.features.shortcuts?.[0]?.name).toBe("Request leave");
+    expect(en.display_information.name).toBe("Console");
   });
 
   it("leaves the shortcut out while HR's api is not turned on for it", async () => {

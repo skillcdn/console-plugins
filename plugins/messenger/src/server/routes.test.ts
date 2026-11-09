@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelView, RouteView } from "../shared/contracts.js";
 import { channels, route, routesQuery, unroute } from "./index.js";
-import { connected, fakeSlack, STRANGER, setup } from "./test-fakes.js";
+import { connected, fakeSlack, KEEPER_KO, STRANGER, setup } from "./test-fakes.js";
 
 const workspace = fakeSlack({
   "conversations.info": (params) =>
@@ -40,6 +40,13 @@ describe("route", () => {
       language: "ko",
       as: "person",
     });
+  });
+
+  it("speaks the language of whoever routes the channel unless said", async () => {
+    const { ctx } = setup({ slack: workspace, caller: KEEPER_KO });
+    await connected(ctx, "en");
+    await route.run(ctx, { channel: "C0GENERAL" });
+    expect(ctx.all("routes")[0]?.data.language).toBe("ko");
   });
 
   it("keeps one route per kind and channel, changed in place", async () => {

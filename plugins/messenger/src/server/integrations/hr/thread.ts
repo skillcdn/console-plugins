@@ -23,7 +23,7 @@ import {
   type ThreadData,
   threads,
 } from "../../collections.js";
-import { languageOfPerson, workspaceLanguage } from "../../people.js";
+import { languageOfPerson } from "../../people.js";
 import { SlackError, slack, textOf } from "../../slack/api.js";
 import {
   type Block,
@@ -718,7 +718,7 @@ export async function onLeaveEvent(ctx: PluginContext, event: PluginHookEvent): 
         people.map((person) => person.id),
       ),
       consoleUrl: workspace.url,
-      fallbackLanguage: await workspaceLanguage(ctx),
+      fallbackLanguage: connection.data.language,
     };
     const said = await tell(telling, leaveEvent);
     await deliver(ctx, event, "sent", said, requestId);

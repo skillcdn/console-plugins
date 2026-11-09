@@ -220,6 +220,16 @@ export const KEEPER: PluginCaller = {
   project: null,
 };
 
+/** Whoever keeps the messenger, reading in Korean. */
+export const KEEPER_KO: PluginCaller = {
+  kind: "person",
+  person: { id: MINSU.id, login: MINSU.login, name: MINSU.name, language: "ko", admin: false },
+  agent: null,
+  roles: ["messenger"],
+  run: null,
+  project: null,
+};
+
 export const STRANGER: PluginCaller = {
   kind: "person",
   person: { id: HANA.id, login: HANA.login, name: HANA.name, language: "ko", admin: false },
@@ -349,7 +359,7 @@ export function setup(
     console: {
       workspace: async () => ({
         name: "Acme",
-        languages: ["ko", "en"],
+        languages: ["en", "ko"],
         timeZone: "Asia/Seoul",
         timeZoneSet: true,
         weekStart: "auto",

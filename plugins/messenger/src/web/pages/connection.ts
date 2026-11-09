@@ -99,7 +99,7 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
   const made = connection !== null && connection.appId !== null;
   const language = pills<Language>(
     LANGUAGES.map((value) => ({ value, label: words.languages[value] })),
-    connection?.language ?? languageOf(frame.context.workspace?.languages?.[0]),
+    connection?.language ?? languageOf(frame.context.language),
     w.appLanguage,
   );
   const makeStatus = statusLine();
