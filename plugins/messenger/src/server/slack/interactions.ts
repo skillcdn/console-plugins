@@ -11,7 +11,7 @@ import {
 import type { Language } from "../../shared/contracts.js";
 import { refusalCode } from "../integrations/hr/contract.js";
 import { openLeaveForm, type Presser, submitLeave } from "../integrations/hr/requests.js";
-import { languageOfPerson } from "../people.js";
+import { languageOfPerson, workspaceLanguage } from "../people.js";
 import { connectionOf, isConnected, linkOfMember } from "../store.js";
 import { serverWords } from "../words.js";
 import { outbound } from "./api.js";
@@ -138,7 +138,8 @@ export const slackEndpoint = defineEndpoint({
     if (!isConnected(connection)) {
       return OK;
     }
-    const language = connection.data.language;
+    // Whoever the console knows no language of reads the workspace's, else the app's.
+    const language = (await workspaceLanguage(ctx)) ?? connection.data.language;
     switch (kind.data.type) {
       case "shortcut": {
         const payload = shortcutPayload.safeParse(json);

@@ -83,6 +83,11 @@ export interface ConnectionView {
 
 export interface StatusReport {
   readonly address: { readonly url: string | null; readonly state: AddressState };
+  /**
+   * The workspace's language where an administrator set one, else null: what the app and a route
+   * read in unless someone chooses, before the language of whoever connects or adds them.
+   */
+  readonly workspaceLanguage: Language | null;
   readonly secrets: Readonly<Record<SecretName, SecretView>>;
   readonly connection: ConnectionView | null;
   /** Slack's address that installs the app, with a state good for a while; null where none is ready. */

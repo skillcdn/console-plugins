@@ -186,7 +186,14 @@ export async function renderRoutes(
           : table([w.kind, w.channel, w.language, w.as, ""], routeRows(frame, words, routes)),
       ),
     );
-    parts.push(addForm(frame, words, languageOf(frame.context.language), connected));
+    parts.push(
+      addForm(
+        frame,
+        words,
+        status.workspaceLanguage ?? languageOf(frame.context.language),
+        connected,
+      ),
+    );
     node.replaceChildren(...parts);
   });
   await draw();

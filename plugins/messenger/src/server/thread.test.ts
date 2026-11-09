@@ -107,6 +107,27 @@ function blocksOf(call: { params: Readonly<Record<string, string>> } | undefined
 }
 
 describe("a request", () => {
+  it("writes to someone the console knows no language of in the workspace's, else the app's", async () => {
+    const quiet = { ...MINSU, language: null };
+    for (const [workspaceLanguage, said] of [
+      ["ko", "*휴가 신청*"],
+      [undefined, "*Leave request*"],
+    ] as const) {
+      const slack = fakeSlack();
+      const made = setup({
+        slack,
+        hr: fakeHr({ views: { [REQUEST]: view({}) } }),
+        people: [quiet, JIHYE, HANA],
+        ...(workspaceLanguage === undefined ? {} : { workspaceLanguage }),
+      });
+      await connected(made.ctx, "en");
+      await linked(made.ctx, quiet, "U0MINSU01");
+      await linked(made.ctx, JIHYE, "U0JIHYE01");
+      await onLeaveEvent(made.ctx.as(CONSOLE), event("leave-requested"));
+      expect(blocksOf(slack.of("chat.postMessage")[0])).toContain(said);
+    }
+  });
+
   it("opens a conversation of the person and whoever decides, the request in their name, the step asked", async () => {
     const { hook, slack, hr, ctx } = await ready({ [REQUEST]: view({}) });
     await onLeaveEvent(hook, event("leave-requested"));

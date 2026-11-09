@@ -130,6 +130,20 @@ describe("connect", () => {
     expect(en.display_information.name).toBe("Console");
   });
 
+  it("names the app in the workspace's language where an administrator set one", async () => {
+    // Whoever connects reads English; the workspace was set to Korean.
+    const { ctx, slack } = setup({ slack: fakeSlack(created), workspaceLanguage: "ko" });
+    await connect.run(ctx, {});
+    const ko = manifestOf(slack.of("apps.manifest.create")[0]?.params ?? {});
+    expect(ko.display_information.name).toBe("콘솔");
+    expect(ctx.all("connections")[0]?.data.language).toBe("ko");
+    expect(((await status.run(ctx, {})) as StatusReport).workspaceLanguage).toBe("ko");
+    // Chosen, the language stands, the workspace's or not.
+    const chosen = setup({ slack: fakeSlack(created), workspaceLanguage: "ko" });
+    await connect.run(chosen.ctx, { language: "en" });
+    expect(chosen.ctx.all("connections")[0]?.data.language).toBe("en");
+  });
+
   it("leaves the shortcut out while HR's api is not turned on for it", async () => {
     const { ctx, slack } = setup({
       slack: fakeSlack(created),
@@ -349,6 +363,7 @@ describe("status", () => {
     await connect.run(ctx, {});
     const report = (await status.run(ctx, {})) as StatusReport;
     expect(report.address).toEqual({ url: PUBLIC_URL, state: "ok" });
+    expect(report.workspaceLanguage).toBe(null);
     expect(report.secrets.slackBotToken.set).toBe(true);
     expect(report.connection?.phase).toBe("app");
     expect(report.authorizeUrl).toMatch(/^https:\/\/slack\.com\/oauth\/v2\/authorize\?/);

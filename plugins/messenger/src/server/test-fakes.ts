@@ -329,6 +329,8 @@ export function setup(
     readonly capabilities?: readonly string[];
     readonly grants?: readonly { readonly plugin: string; readonly role: string }[];
     readonly answer?: (decisionId: string, personId: string) => void;
+    /** The language an administrator set for the workspace; none set unless said. */
+    readonly workspaceLanguage?: "en" | "ko";
   } = {},
 ): Setup {
   const people = (options.people ?? [MINSU, JIHYE, HANA, NOMAIL]).map(restPerson);
@@ -359,9 +361,9 @@ export function setup(
     console: {
       workspace: async () => ({
         name: "Acme",
-        language: "en",
-        languageSet: false,
-        languages: ["en", "ko"],
+        language: options.workspaceLanguage ?? "en",
+        languageSet: options.workspaceLanguage !== undefined,
+        languages: options.workspaceLanguage === "ko" ? ["ko", "en"] : ["en", "ko"],
         timeZone: "Asia/Seoul",
         timeZoneSet: true,
         weekStart: "auto",

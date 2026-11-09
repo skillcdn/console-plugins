@@ -13,7 +13,7 @@
     "ko": "워크스페이스의 Slack을 연결하고, 사람을 Slack 계정과 맞추고, 플러그인 알림을 채널로 보냅니다. 메신저 담당이 씁니다."
   },
   "pluginApi": 1,
-  "console": ">=0.4.6 <0.5.0",
+  "console": ">=0.4.7 <0.5.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",

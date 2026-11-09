@@ -49,6 +49,13 @@ describe("route", () => {
     expect(ctx.all("routes")[0]?.data.language).toBe("ko");
   });
 
+  it("speaks the workspace's language where one is set, before the language of whoever routes", async () => {
+    const { ctx } = setup({ slack: workspace, workspaceLanguage: "ko" });
+    await connected(ctx, "en");
+    await route.run(ctx, { channel: "C0GENERAL" });
+    expect(ctx.all("routes")[0]?.data.language).toBe("ko");
+  });
+
   it("keeps one route per kind and channel, changed in place", async () => {
     const { ctx } = setup({ slack: workspace });
     await connected(ctx);

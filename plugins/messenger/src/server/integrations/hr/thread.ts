@@ -14,7 +14,7 @@ import {
   type PluginRecord,
   satisfiesRange,
 } from "@skillcdn/console/plugin";
-import type { Language } from "../../../shared/contracts.js";
+import { type Language, languageOf } from "../../../shared/contracts.js";
 import {
   type LinkData,
   type PostData,
@@ -718,7 +718,9 @@ export async function onLeaveEvent(ctx: PluginContext, event: PluginHookEvent): 
         people.map((person) => person.id),
       ),
       consoleUrl: workspace.url,
-      fallbackLanguage: connection.data.language,
+      fallbackLanguage: workspace.languageSet
+        ? languageOf(workspace.language)
+        : connection.data.language,
     };
     const said = await tell(telling, leaveEvent);
     await deliver(ctx, event, "sent", said, requestId);

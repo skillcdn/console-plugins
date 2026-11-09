@@ -25,6 +25,7 @@ import { callerPerson, ROLE, requireRole } from "./access.js";
 import { addressState } from "./address.js";
 import { deliveries, routes, threads } from "./collections.js";
 import { HR, HR_ROLE, HR_VERSIONS, hrState, refusalCode } from "./integrations/hr/contract.js";
+import { workspaceLanguage } from "./people.js";
 import { isTokenGone, refusalOf, SlackError, slack, slackCall, textOf } from "./slack/api.js";
 import { appManifest, authorizeUrlOf, digestOf } from "./slack/manifest.js";
 import {
@@ -183,7 +184,7 @@ export const connect = defineCommand({
   args: {
     language: arg.enum(LANGUAGES, {
       about:
-        "the language of the app's names in Slack, its shortcut's among them; as before, else yours",
+        "the language of the app's names in Slack, its shortcut's among them; as before, else the workspace's, else yours",
       optional: true,
     }),
   },
@@ -193,7 +194,11 @@ export const connect = defineCommand({
     const words = serverWords(ctx.language);
     await reachableAddress(ctx);
     const found = await connectionOf(ctx);
-    const language = args.language ?? found?.data.language ?? languageOf(ctx.language);
+    const language =
+      args.language ??
+      found?.data.language ??
+      (await workspaceLanguage(ctx)) ??
+      languageOf(ctx.language);
     const endpoints = await endpointsOf(ctx);
     const wanted = await wantedManifest(ctx, language, endpoints);
     let connection: ConnectionRecord;
@@ -466,6 +471,7 @@ export const status = defineQuery({
     });
     return {
       address: { url: workspace.url, state: addressState(workspace.url) },
+      workspaceLanguage: workspace.languageSet ? languageOf(workspace.language) : null,
       secrets: await secretsOf(ctx),
       connection: connection === null ? null : await connectionView(ctx, connection),
       authorizeUrl,
