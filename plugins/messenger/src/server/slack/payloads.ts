@@ -30,16 +30,25 @@ const stateValue = z.object({
     .optional(),
 });
 
+const values = z.record(z.string().max(255), z.record(z.string().max(255), stateValue));
+const viewId = z.string().min(1).max(40);
+
+/** A form as Slack sends it back: its id, the stack it is in, what it was given and what is filled. */
+const view = z.object({
+  id: viewId.optional(),
+  hash: z.string().max(200).optional(),
+  callback_id: z.string().max(255),
+  private_metadata: z.string().max(3000).optional(),
+  root_view_id: viewId.nullable().optional(),
+  previous_view_id: viewId.nullable().optional(),
+  state: z.object({ values }),
+});
+
 export const submissionPayload = z.object({
   type: z.literal("view_submission"),
   user,
   team,
-  view: z.object({
-    callback_id: z.string().max(255),
-    state: z.object({
-      values: z.record(z.string().max(255), z.record(z.string().max(255), stateValue)),
-    }),
-  }),
+  view,
 });
 export type SubmissionPayload = z.infer<typeof submissionPayload>;
 export type StateValues = SubmissionPayload["view"]["state"]["values"];
@@ -48,12 +57,21 @@ export const actionsPayload = z.object({
   type: z.literal("block_actions"),
   user,
   team,
+  /** For a press within a form: it lets another form open over it within three seconds. */
+  trigger_id: z.string().min(1).max(255).optional(),
   response_url: z.string().max(1000).optional(),
+  /** The form a press was made in; none for a button in a message. */
+  view: view.optional(),
   actions: z
     .array(
       z.object({
         action_id: z.string().max(255),
+        block_id: z.string().max(255).optional(),
         value: z.string().max(2000).optional(),
+        selected_option: z
+          .object({ value: z.string().max(150) })
+          .nullable()
+          .optional(),
       }),
     )
     .max(25),

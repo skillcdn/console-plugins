@@ -1,10 +1,16 @@
 // A leave request from Slack, answered within the request alone (ADR-0011): the shortcut opens
-// the form with what HR says for the person who pressed, read as that person; the submission is
-// HR's `request`, made for them, which HR records as theirs through the messenger. Nothing anyone
-// else reads is written here: HR's events bring the thread to the hooks.
+// the form with what HR says for the person who pressed, read as that person, and choosing another
+// kind draws it again for that kind; the submission is HR's `request`, made for them, which HR
+// records as theirs through the messenger. Nothing anyone else reads is written here: HR's events
+// bring the thread to the hooks.
 import { type PluginContext, PluginError, satisfiesRange } from "@skillcdn/console/plugin";
-import { slack } from "../../slack/api.js";
-import type { ShortcutPayload, SubmissionPayload } from "../../slack/payloads.js";
+import { SlackError, slack } from "../../slack/api.js";
+import type {
+  ActionsPayload,
+  ShortcutPayload,
+  StateValues,
+  SubmissionPayload,
+} from "../../slack/payloads.js";
 import { serverWords } from "../../words.js";
 import {
   balanceReport,
@@ -12,14 +18,80 @@ import {
   hrOf,
   isAbsent,
   leaveKinds,
+  refusalCode,
   requestOutcome,
 } from "./contract.js";
-import { leaveFormView, leaveInputOf, noticeView } from "./form.js";
+import {
+  type FormData,
+  firstKind,
+  leaveFormView,
+  leaveInputOf,
+  noticeView,
+  offeredKinds,
+  partBlockOf,
+  type View,
+} from "./form.js";
 import { todayIn } from "./texts.js";
 
 export interface Presser {
   readonly personId: string;
   readonly language: string;
+}
+
+type FormRead =
+  | { readonly ok: true; readonly data: FormData }
+  | { readonly ok: false; readonly view: View };
+
+/**
+ * What the form is drawn from, read of HR for whoever pressed, as them; or the notice that stands
+ * in its place: HR out of reach, the person not enrolled for leave, no kind they may request.
+ */
+async function readForm(ctx: PluginContext, presser: Presser): Promise<FormRead> {
+  const words = serverWords(presser.language).form;
+  const unavailable: FormRead = {
+    ok: false,
+    view: noticeView(presser.language, words.unavailableTitle, words.unavailable),
+  };
+  const hr = await hrOf(ctx);
+  if (hr === null || !satisfiesRange(hr.version, HR_VERSIONS)) {
+    return unavailable;
+  }
+  const forPerson = hr.for(presser.personId);
+  const workspace = await ctx.console.workspace();
+  let data: FormData;
+  try {
+    const [types, left] = await Promise.all([
+      forPerson.api.types?.({}),
+      forPerson.api.balance?.({}).catch(() => null),
+    ]);
+    const parsed = balanceReport.safeParse(left);
+    data = {
+      language: presser.language,
+      kinds: offeredKinds(leaveKinds.parse(types ?? [])),
+      balance: parsed.success ? parsed.data : null,
+      today: todayIn(ctx.now(), workspace.timeZone),
+    };
+  } catch (error) {
+    ctx.log.warn("the leave form could not read HR", {
+      code: error instanceof Error ? error.name : "unknown",
+      absent: isAbsent(error),
+    });
+    return unavailable;
+  }
+  // HR refuses every request of someone it does not keep leave for, whatever the kind.
+  if (data.balance?.leave === false) {
+    return {
+      ok: false,
+      view: noticeView(presser.language, words.notEnrolledTitle, words.notEnrolled),
+    };
+  }
+  if (data.kinds.length === 0) {
+    return {
+      ok: false,
+      view: noticeView(presser.language, words.unavailableTitle, words.noKinds),
+    };
+  }
+  return { ok: true, data };
 }
 
 /** Opens the form for whoever pressed, or a notice where they or HR cannot take a request. */
@@ -29,50 +101,47 @@ export async function openLeaveForm(
   presser: Presser | null,
   language: string,
 ): Promise<void> {
-  const words = serverWords(presser?.language ?? language).form;
-  const open = (view: Readonly<Record<string, unknown>>) =>
-    slack(ctx, "views.open", { trigger_id: payload.trigger_id, view });
+  const open = (view: View) => slack(ctx, "views.open", { trigger_id: payload.trigger_id, view });
   if (presser === null) {
+    const words = serverWords(language).form;
     await open(noticeView(language, words.notLinkedTitle, words.notLinked));
     return;
   }
-  const hr = await hrOf(ctx);
-  if (hr === null || !satisfiesRange(hr.version, HR_VERSIONS)) {
-    await open(noticeView(presser.language, words.unavailableTitle, words.unavailable));
+  const read = await readForm(ctx, presser);
+  await open(read.ok ? leaveFormView(read.data, firstKind(read.data.kinds)) : read.view);
+}
+
+/** Slack's codes for a form that changed again since, or closed: the later press draws it. */
+const STALE = new Set(["hash_conflict", "not_found", "view_not_found"]);
+
+/**
+ * A press within the form: another kind chosen, which draws the form again for it, read of HR
+ * afresh; Slack keeps what was filled in the fields that stay.
+ */
+export async function onFormPress(
+  ctx: PluginContext,
+  payload: ActionsPayload,
+  presser: Presser | null,
+): Promise<void> {
+  const view = payload.view;
+  const chosen = payload.actions.find((action) => action.block_id === "kind")?.selected_option
+    ?.value;
+  if (presser === null || view?.id === undefined || chosen === undefined) {
     return;
   }
-  const forPerson = hr.for(presser.personId);
-  let kinds: ReturnType<typeof leaveKinds.parse>;
-  let balance: ReturnType<typeof balanceReport.parse> | null = null;
+  const read = await readForm(ctx, presser);
   try {
-    const [types, left] = await Promise.all([
-      forPerson.api.types?.({}),
-      forPerson.api.balance?.({}).catch(() => null),
-    ]);
-    kinds = leaveKinds.parse(types ?? []);
-    const parsed = balanceReport.safeParse(left);
-    balance = parsed.success ? parsed.data : null;
-  } catch (error) {
-    ctx.log.warn("the leave form could not read HR", {
-      code: error instanceof Error ? error.name : "unknown",
-      absent: isAbsent(error),
+    await slack(ctx, "views.update", {
+      view_id: view.id,
+      ...(view.hash === undefined ? {} : { hash: view.hash }),
+      view: read.ok ? leaveFormView(read.data, chosen) : read.view,
     });
-    await open(noticeView(presser.language, words.unavailableTitle, words.unavailable));
-    return;
+  } catch (error) {
+    if (error instanceof SlackError && STALE.has(error.code)) {
+      return;
+    }
+    throw error;
   }
-  if (kinds.length === 0) {
-    await open(noticeView(presser.language, words.unavailableTitle, words.noKinds));
-    return;
-  }
-  const workspace = await ctx.console.workspace();
-  await open(
-    leaveFormView({
-      language: presser.language,
-      kinds,
-      balance,
-      today: todayIn(ctx.now(), workspace.timeZone),
-    }),
-  );
 }
 
 export type FormAnswer =
@@ -93,7 +162,8 @@ export async function submitLeave(
     };
   }
   const words = serverWords(presser.language).form;
-  const read = leaveInputOf(payload.view.state.values, presser.language);
+  const values = payload.view.state.values;
+  const read = leaveInputOf(values, presser.language);
   if (!read.ok) {
     return { response_action: "errors", errors: read.errors };
   }
@@ -110,7 +180,7 @@ export async function submitLeave(
       const message = (error as Error).message;
       return {
         response_action: "errors",
-        errors: { [fieldOf(message)]: message.slice(0, 1000) },
+        errors: { [fieldOf(refusalCode(error), values)]: message.slice(0, 1000) },
       };
     }
     ctx.log.warn("a leave request from Slack failed", {
@@ -129,7 +199,16 @@ function isOwnRefusal(error: unknown): boolean {
   return typeof code === "string" && code.startsWith("plugin.hr.");
 }
 
-/** The field a refusal is said beside: the reason where it speaks of one, the first day otherwise. */
-function fieldOf(message: string): string {
-  return /reason|사유/i.test(message) ? "reason" : "from";
+/** The field each of HR's refusals is about; any other is said beside the first day. */
+const FIELD_OF: Readonly<Record<string, string>> = {
+  reason_required: "reason",
+  span: "to",
+  unknown_type: "kind",
+};
+
+/** The field a refusal is said beside, by HR's code, where the form holds that field. */
+function fieldOf(code: string | null, values: StateValues): string {
+  const own = code?.startsWith("plugin.hr.") ? code.slice("plugin.hr.".length) : "";
+  const field = own === "part" ? partBlockOf(values) : FIELD_OF[own];
+  return field !== undefined && field in values ? field : "from";
 }

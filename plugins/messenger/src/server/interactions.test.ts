@@ -5,7 +5,17 @@
 import { PluginRefusal } from "@skillcdn/console/plugin";
 import { describe, expect, it } from "vitest";
 import { slackEndpoint } from "./index.js";
-import { connected, fakeHr, linked, MINSU, NOW, setup, signedRequest, TEAM } from "./test-fakes.js";
+import {
+  connected,
+  fakeHr,
+  fakeSlack,
+  linked,
+  MINSU,
+  NOW,
+  setup,
+  signedRequest,
+  TEAM,
+} from "./test-fakes.js";
 
 const DECISION = "0199b000-0000-7000-8000-00000000d001";
 const RESPONSE_URL = "https://hooks.slack.com/actions/T0TEST01/1/abc";
@@ -29,10 +39,54 @@ const filled = (from: string, to: string | null, extra: Record<string, unknown> 
   kind: { value: { type: "static_select", selected_option: { value: "annual" } } },
   from: { value: { type: "datepicker", selected_date: from } },
   to: { value: { type: "datepicker", selected_date: to } },
-  part: { value: { type: "static_select", selected_option: null } },
+  "part-quarter": { value: { type: "static_select", selected_option: null } },
   reason: { value: { type: "plain_text_input", value: "Family trip" } },
   ...extra,
 });
+
+/** Another kind chosen in the form, as Slack tells it, with the form's id and hash. */
+const choose = (kind: string, user = "U0MINSU01") => ({
+  type: "block_actions",
+  user: { id: user, team_id: TEAM },
+  team: { id: TEAM },
+  trigger_id: "trigger-2",
+  view: {
+    id: "V0FORM001",
+    hash: "hash-1",
+    callback_id: "leave-request",
+    state: { values: {} },
+  },
+  actions: [
+    {
+      action_id: "value",
+      block_id: "kind",
+      type: "static_select",
+      selected_option: { value: kind },
+    },
+  ],
+});
+
+interface ViewJson {
+  readonly callback_id?: string;
+  readonly title: { readonly text: string };
+  readonly blocks: readonly {
+    readonly type: string;
+    readonly block_id?: string;
+    readonly optional?: boolean;
+    readonly dispatch_action?: boolean;
+    readonly label?: { readonly text: string };
+    readonly hint?: { readonly text: string };
+    readonly element?: {
+      readonly options?: readonly { readonly value: string }[];
+      readonly initial_option?: { readonly value: string };
+    };
+    readonly elements?: readonly { readonly text: string }[];
+  }[];
+}
+
+const viewOf = (call: { readonly params: Readonly<Record<string, string>> } | undefined) =>
+  JSON.parse(call?.params.view ?? "{}") as ViewJson;
+const blockOf = (view: ViewJson, id: string) => view.blocks.find((block) => block.block_id === id);
 
 const press = (action: string, value: string, url = RESPONSE_URL, user = "U0MINSU01") => ({
   type: "block_actions",
@@ -91,22 +145,42 @@ describe("the leave shortcut", () => {
     ]);
     const open = slack.of("views.open")[0];
     expect(open?.params.trigger_id).toBe("trigger-1");
-    const view = JSON.parse(open?.params.view ?? "{}") as {
-      callback_id: string;
-      title: { text: string };
-      blocks: {
-        block_id?: string;
-        element?: { options?: { value: string }[] };
-        elements?: { text: string }[];
-      }[];
-    };
+    const view = viewOf(open);
     expect(view.callback_id).toBe("leave-request");
     expect(view.title.text).toBe("휴가 신청");
-    expect(view.blocks[0]?.element?.options?.map((option) => option.value)).toEqual([
-      "annual",
+    // What is left comes first, of the kinds that keep a balance.
+    expect(view.blocks[0]?.elements?.[0]?.text).toBe("남은 휴가: 연차 12.5일");
+    // HR's order, the disabled kind left out; annual leave chosen first, as HR's own form does,
+    // its rules under it, its quarters offered, a reason optional.
+    const kind = blockOf(view, "kind");
+    expect(kind?.element?.options?.map((option) => option.value)).toEqual([
       "sick",
+      "annual",
+      "comp",
     ]);
-    expect(view.blocks.at(-1)?.elements?.[0]?.text).toContain("연차 12.5일");
+    expect(kind?.element?.initial_option?.value).toBe("annual");
+    expect(kind?.dispatch_action).toBe(true);
+    expect(kind?.hint?.text).toBe("Annual leave rules, in a sentence.");
+    expect(blockOf(view, "part-quarter")?.element?.options?.map((option) => option.value)).toEqual([
+      "am",
+      "pm",
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+    ]);
+    expect(blockOf(view, "part-quarter")?.label?.text).toBe("반차·반반차");
+    expect(blockOf(view, "reason")?.optional).toBe(true);
+  });
+
+  it("tells someone HR keeps no leave for that they cannot request it, in place of the form", async () => {
+    const { ctx, slack } = setup({ hr: fakeHr({ enrolled: false }) });
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    await slackEndpoint.run(ctx, signedRequest(shortcut()));
+    const view = viewOf(slack.of("views.open")[0]);
+    expect(view.title.text).toBe("휴가 대상 아님");
+    expect(view.blocks.some((block) => block.block_id === "kind")).toBe(false);
   });
 
   it("tells a presser with no linked account so, and reads nothing of HR", async () => {
@@ -129,6 +203,56 @@ describe("the leave shortcut", () => {
       title: { text: string };
     };
     expect(view.title.text).toBe("사용할 수 없음");
+  });
+});
+
+describe("a kind chosen in the form", () => {
+  it("draws the form again for it: its parts of a day, its reason, its rules, the days kept", async () => {
+    const { ctx, slack, answered } = setup();
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    expect((await slackEndpoint.run(ctx, signedRequest(choose("sick")))).status).toBe(200);
+    const update = slack.of("views.update")[0];
+    expect(update?.params).toMatchObject({ view_id: "V0FORM001", hash: "hash-1" });
+    const sick = viewOf(update);
+    expect(blockOf(sick, "kind")?.element?.initial_option?.value).toBe("sick");
+    expect(blockOf(sick, "kind")?.hint?.text).toBe("Sick leave rules, in a sentence.");
+    // Whole days alone, a reason asked.
+    expect(sick.blocks.some((block) => block.block_id?.startsWith("part"))).toBe(false);
+    expect(blockOf(sick, "reason")?.optional).toBe(false);
+    expect(blockOf(sick, "reason")?.hint?.text).toBe("이 휴가는 사유가 필요합니다.");
+    // The days' fields keep their ids, so that Slack keeps what was picked in them.
+    expect(blockOf(sick, "from")).toBeDefined();
+    expect(blockOf(sick, "to")).toBeDefined();
+    await slackEndpoint.run(ctx, signedRequest(choose("comp")));
+    const comp = viewOf(slack.of("views.update")[1]);
+    expect(blockOf(comp, "part-half")?.element?.options?.map((option) => option.value)).toEqual([
+      "am",
+      "pm",
+    ]);
+    expect(blockOf(comp, "part-half")?.label?.text).toBe("반차");
+    expect(blockOf(comp, "reason")).toBeUndefined();
+    expect(blockOf(comp, "kind")?.hint).toBeUndefined();
+    expect(answered).toHaveLength(0);
+  });
+
+  it("draws the first kind for a choice that is none of HR's, and lets a form changed since be", async () => {
+    const slack = fakeSlack({ "views.update": () => ({ ok: false, error: "hash_conflict" }) });
+    const { ctx } = setup({ slack });
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    const answer = await slackEndpoint.run(ctx, signedRequest(choose("../../etc")));
+    expect(answer).toEqual({ status: 200 });
+    const view = viewOf(slack.of("views.update")[0]);
+    expect(blockOf(view, "kind")?.element?.initial_option?.value).toBe("annual");
+  });
+
+  it("draws nothing for a presser with no linked account", async () => {
+    const { ctx, slack, hr } = setup();
+    await connected(ctx);
+    await slackEndpoint.run(ctx, signedRequest(choose("sick", "U0NOBODY1")));
+    expect(slack.of("views.update")).toHaveLength(0);
+    expect(hr.calls).toHaveLength(0);
   });
 });
 
@@ -170,6 +294,52 @@ describe("the form's submission", () => {
     });
   });
 
+  it("says each of HR's refusals beside the field it is about, by HR's code", async () => {
+    const cases = [
+      ["reason_required", "reason"],
+      ["part", "part-quarter"],
+      ["span", "to"],
+      ["unknown_type", "kind"],
+      ["too_late", "from"],
+    ] as const;
+    for (const [code, field] of cases) {
+      const hr = fakeHr({
+        request: () => {
+          throw new PluginRefusal(`plugin.hr.${code}`, `refused: ${code}`);
+        },
+      });
+      const { ctx } = setup({ hr });
+      await connected(ctx);
+      await linked(ctx, MINSU, "U0MINSU01");
+      const answer = await slackEndpoint.run(
+        ctx,
+        signedRequest(submission(filled("2026-11-20", "2026-11-21"))),
+      );
+      expect(answer.body).toEqual({
+        response_action: "errors",
+        errors: { [field]: `refused: ${code}` },
+      });
+    }
+  });
+
+  it("says a refusal about a field the form does not hold beside the first day", async () => {
+    const hr = fakeHr({
+      request: () => {
+        throw new PluginRefusal("plugin.hr.reason_required", "사유가 필요합니다.");
+      },
+    });
+    const { ctx } = setup({ hr });
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    const values = filled("2026-11-20", null) as Record<string, unknown>;
+    delete values.reason;
+    const answer = await slackEndpoint.run(ctx, signedRequest(submission(values)));
+    expect(answer.body).toEqual({
+      response_action: "errors",
+      errors: { from: "사유가 필요합니다." },
+    });
+  });
+
   it("refuses a last day before the first, and a part that is none of HR's, before HR is asked", async () => {
     const { ctx, hr } = setup();
     await connected(ctx);
@@ -187,7 +357,9 @@ describe("the form's submission", () => {
       signedRequest(
         submission(
           filled("2026-11-20", null, {
-            part: { value: { type: "static_select", selected_option: { value: "evening" } } },
+            "part-quarter": {
+              value: { type: "static_select", selected_option: { value: "evening" } },
+            },
           }),
         ),
       ),

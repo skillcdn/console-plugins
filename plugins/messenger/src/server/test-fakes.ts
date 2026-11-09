@@ -248,14 +248,50 @@ export function fakeHr(
     readonly views?: Record<string, unknown>;
     readonly request?: (personId: string | null, input: unknown) => unknown;
     readonly absent?: boolean;
+    /** Whether HR keeps leave for the person: not, and their balance says `leave: false`. */
+    readonly enrolled?: boolean;
   } = {},
 ) {
   const calls: { readonly as: string | null; readonly name: string; readonly input: unknown }[] =
     [];
   const views = options.views ?? {};
+  // In HR's order: a kind in whole days that asks a reason first, annual leave in quarters, one in
+  // halves that keeps no reason, and one disabled, which HR answers a person never.
   const kinds = [
-    { key: "annual", name: { en: "Annual leave", ko: "연차" }, unit: "quarter", order: 1 },
-    { key: "sick", name: { en: "Sick leave", ko: "병가" }, unit: "day", order: 2 },
+    {
+      key: "sick",
+      name: { en: "Sick leave", ko: "병가" },
+      unit: "day",
+      reason: "required",
+      order: 1,
+      enabled: true,
+      summary: "Sick leave rules, in a sentence.",
+    },
+    {
+      key: "annual",
+      name: { en: "Annual leave", ko: "연차" },
+      unit: "quarter",
+      reason: "optional",
+      order: 2,
+      enabled: true,
+      summary: "Annual leave rules, in a sentence.",
+    },
+    {
+      key: "comp",
+      name: { en: "Compensatory leave", ko: "보상휴가" },
+      unit: "half",
+      reason: "hidden",
+      order: 3,
+      enabled: true,
+    },
+    {
+      key: "retired",
+      name: { en: "Retired leave", ko: "폐지된 휴가" },
+      unit: "day",
+      reason: "optional",
+      order: 4,
+      enabled: false,
+    },
   ];
   const apiFor = (personId: string | null) => ({
     "request-view": async (input: unknown) => {
@@ -279,7 +315,7 @@ export function fakeHr(
     balance: async (input: unknown) => {
       calls.push({ as: personId, name: "balance", input });
       return {
-        leave: true,
+        leave: options.enrolled !== false,
         types: [
           {
             type: "annual",

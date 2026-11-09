@@ -32,6 +32,15 @@ export type HrPerson = z.infer<typeof personBrief>;
 
 export const PARTS = ["none", "am", "pm", "q1", "q2", "q3", "q4"] as const;
 export type Part = (typeof PARTS)[number];
+export type Unit = "day" | "half" | "quarter";
+
+/** The parts of a day a kind offers beside the whole day, as HR's `partsOf` has them. */
+export function partsOfUnit(unit: Unit): readonly Part[] {
+  if (unit === "day") {
+    return [];
+  }
+  return unit === "half" ? ["am", "pm"] : ["am", "pm", "q1", "q2", "q3", "q4"];
+}
 
 export const requestView = z.object({
   id: z.string().min(1).max(64),
@@ -64,11 +73,20 @@ export const requestView = z.object({
 });
 export type RequestView = z.infer<typeof requestView>;
 
+/** Whether a request of a kind asks for a reason: `hidden` keeps none. */
+export const REASON_RULES = ["optional", "required", "hidden"] as const;
+export type ReasonRule = (typeof REASON_RULES)[number];
+
 const leaveKind = z.object({
   key: z.string().min(1).max(64),
   name: z.record(z.string(), z.string().max(200)),
   unit: z.enum(["day", "half", "quarter"]),
   order: z.number().optional(),
+  reason: z.enum(REASON_RULES).optional(),
+  /** Whether it may be requested; HR answers a person the enabled kinds alone. */
+  enabled: z.boolean().optional(),
+  /** Its rules in a sentence of the caller's language, from HR 0.3.0. */
+  summary: z.string().max(4000).optional(),
 });
 export const leaveKinds = z.array(leaveKind).max(200);
 export type LeaveKind = z.infer<typeof leaveKind>;

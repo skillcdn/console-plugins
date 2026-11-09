@@ -57,15 +57,20 @@ export interface ServerWords {
     readonly from: string;
     readonly to: string;
     readonly toHint: string;
-    readonly part: string;
+    /** The field of a part of a day, for a kind taken in halves, and for one taken in quarters. */
+    readonly partHalf: string;
+    readonly partQuarter: string;
     readonly partHint: string;
     readonly reason: string;
+    readonly reasonRequired: string;
     readonly left: (list: string) => string;
     readonly toBeforeFrom: string;
     readonly failed: string;
     readonly noKinds: string;
     readonly notLinkedTitle: string;
     readonly notLinked: string;
+    readonly notEnrolledTitle: string;
+    readonly notEnrolled: string;
     readonly unavailableTitle: string;
     readonly unavailable: string;
   };
@@ -176,9 +181,11 @@ const EN: ServerWords = {
     from: "First day",
     to: "Last day",
     toHint: "Leave it empty for a single day.",
-    part: "Part of the day",
-    partHint: "For a single day, where the kind is taken in halves or quarters.",
+    partHalf: "Half day",
+    partQuarter: "Half or quarter day",
+    partHint: "Half days and quarter days are offered on a single day.",
     reason: "Reason",
+    reasonRequired: "This kind of leave asks for a reason.",
     left: (list) => `Left: ${list}`,
     toBeforeFrom: "The last day comes before the first.",
     failed: "The request did not go through. Try again, or request it on the console.",
@@ -186,6 +193,8 @@ const EN: ServerWords = {
     notLinkedTitle: "Not linked",
     notLinked:
       "Your Slack account is not linked to the console. Accounts are matched by email: ask whoever keeps the messenger to check yours.",
+    notEnrolledTitle: "Not enrolled",
+    notEnrolled: "You are not enrolled for leave, so you cannot request it. Ask HR to enroll you.",
     unavailableTitle: "Not available",
     unavailable: "Leave cannot be requested from Slack now. Request it on the console.",
   },
@@ -233,10 +242,10 @@ const EN: ServerWords = {
     none: "Whole day",
     am: "Morning half",
     pm: "Afternoon half",
-    q1: "First quarter",
-    q2: "Second quarter",
-    q3: "Third quarter",
-    q4: "Last quarter",
+    q1: "Early-morning quarter",
+    q2: "Late-morning quarter",
+    q3: "Early-afternoon quarter",
+    q4: "Late-afternoon quarter",
   },
   decisions: "Decisions",
 };
@@ -305,9 +314,11 @@ const KO: ServerWords = {
     from: "시작일",
     to: "종료일",
     toHint: "하루면 비워 두세요.",
-    part: "반차·반반차",
-    partHint: "하루짜리 신청에서, 종류가 반차나 반반차를 허용할 때만.",
+    partHalf: "반차",
+    partQuarter: "반차·반반차",
+    partHint: "반차와 반반차는 하루를 신청할 때만 고를 수 있습니다.",
     reason: "사유",
+    reasonRequired: "이 휴가는 사유가 필요합니다.",
     left: (list) => `남은 휴가: ${list}`,
     toBeforeFrom: "종료일이 시작일보다 앞입니다.",
     failed: "신청하지 못했습니다. 다시 시도하거나 콘솔에서 신청하세요.",
@@ -315,6 +326,9 @@ const KO: ServerWords = {
     notLinkedTitle: "연결되지 않음",
     notLinked:
       "Slack 계정이 콘솔과 연결되어 있지 않습니다. 계정은 이메일로 연결되니 메신저 담당에게 확인을 부탁하세요.",
+    notEnrolledTitle: "휴가 대상 아님",
+    notEnrolled:
+      "휴가 대상으로 등록되어 있지 않아 신청할 수 없습니다. 인사 담당에게 등록을 요청하세요.",
     unavailableTitle: "사용할 수 없음",
     unavailable: "지금은 Slack에서 휴가를 신청할 수 없습니다. 콘솔에서 신청하세요.",
   },
@@ -362,10 +376,10 @@ const KO: ServerWords = {
     none: "종일",
     am: "오전 반차",
     pm: "오후 반차",
-    q1: "오전 전반",
-    q2: "오전 후반",
-    q3: "오후 전반",
-    q4: "오후 후반",
+    q1: "오전 전반 반반차",
+    q2: "오전 후반 반반차",
+    q3: "오후 전반 반반차",
+    q4: "오후 후반 반반차",
   },
   decisions: "결정",
 };

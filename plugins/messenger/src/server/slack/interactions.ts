@@ -1,8 +1,9 @@
-// The endpoint Slack posts to when someone presses: the shortcut, the form's submission, a
-// decision's button. It answers the request and nothing else (ADR-0011): the signature verified
-// first, the presser matched to a person by their account, the form opened or checked for them,
-// the decision answered for them where it is on their plate. A refusal reaches the presser alone,
-// through the address the press carried. What others read follows from the producer's events.
+// The endpoint Slack posts to when someone presses: the shortcut, a choice within the form, the
+// form's submission, a decision's button. It answers the request and nothing else (ADR-0011): the
+// signature verified first, the presser matched to a person by their account, the form opened,
+// drawn again or checked for them, the decision answered for them where it is on their plate. A
+// refusal reaches the presser alone, through the address the press carried. What others read
+// follows from the producer's events.
 import {
   defineEndpoint,
   type EndpointResponse,
@@ -10,7 +11,12 @@ import {
 } from "@skillcdn/console/plugin";
 import type { Language } from "../../shared/contracts.js";
 import { refusalCode } from "../integrations/hr/contract.js";
-import { openLeaveForm, type Presser, submitLeave } from "../integrations/hr/requests.js";
+import {
+  onFormPress,
+  openLeaveForm,
+  type Presser,
+  submitLeave,
+} from "../integrations/hr/requests.js";
 import { languageOfPerson, workspaceLanguage } from "../people.js";
 import { connectionOf, isConnected, linkOfMember } from "../store.js";
 import { serverWords } from "../words.js";
@@ -179,6 +185,14 @@ export const slackEndpoint = defineEndpoint({
           return OK;
         }
         const presser = await presserOf(ctx, payload.data.user.id, language);
+        if (payload.data.view?.callback_id === LEAVE_SHORTCUT) {
+          try {
+            await onFormPress(ctx, payload.data, presser);
+          } catch (error) {
+            ctx.log.warn("the leave form did not follow the press", { code: refusalCode(error) });
+          }
+          return OK;
+        }
         await onActions(ctx, payload.data, presser, language);
         return OK;
       }

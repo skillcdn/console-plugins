@@ -96,7 +96,7 @@ describe("the form, read back", () => {
           kind: value({ selected_option: { value: "annual" } }),
           from: value({ selected_date: "2026-11-20" }),
           to: value({ selected_date: "2026-11-20" }),
-          part: value({ selected_option: { value: "am" } }),
+          "part-half": value({ selected_option: { value: "am" } }),
           reason: value({ value: "  dentist  " }),
         },
         "en",
@@ -125,5 +125,12 @@ describe("a leave's days, in words", () => {
   it("says one day with its part, or first to last", () => {
     expect(spanOf("2026-11-20", "2026-11-20", "am", "en")).toBe("Fri, Nov 20, Morning half");
     expect(spanOf("2026-11-20", "2026-11-21", "none", "ko")).toContain("11월 20일");
+  });
+
+  it("names the quarters of a day as HR does", () => {
+    expect(spanOf("2026-11-20", "2026-11-20", "q1", "ko")).toContain("오전 전반 반반차");
+    expect(spanOf("2026-11-20", "2026-11-20", "q4", "en")).toBe(
+      "Fri, Nov 20, Late-afternoon quarter",
+    );
   });
 });
