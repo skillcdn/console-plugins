@@ -243,7 +243,7 @@ const EN: Words = {
       outside: "Other version",
     },
     hrHint: {
-      on: "Leave is requested from Slack with the shortcut, and each request's thread follows HR's events.",
+      on: "Leave is requested and cancelled from Slack with the shortcut, and each request's thread follows HR's events.",
       off: "HR is not enabled, so the shortcut is not in the app and no thread is begun.",
       no_capability:
         "HR's api is not turned on for the messenger: an administrator turns on plugins:hr on the plugin's settings page.",
@@ -467,7 +467,7 @@ const KO: Words = {
       outside: "다른 버전",
     },
     hrHint: {
-      on: "Slack에서 단축키로 휴가를 신청하고, 신청마다 HR의 알림을 따라 스레드가 이어집니다.",
+      on: "Slack에서 단축키로 휴가를 신청하고 취소하며, 신청마다 HR의 알림을 따라 스레드가 이어집니다.",
       off: "HR이 켜져 있지 않아 단축키가 앱에 없고 스레드도 만들지 않습니다.",
       no_capability:
         "메신저에 HR의 api가 켜져 있지 않습니다. 관리자가 플러그인 설정 페이지에서 plugins:hr을 켜야 합니다.",
