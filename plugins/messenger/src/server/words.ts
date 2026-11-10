@@ -118,6 +118,8 @@ export interface ServerWords {
     readonly done: string;
     readonly asked: (names: string) => string;
     readonly askedNobody: string;
+    /** HR took the cancellation and answered what the messenger could not read. */
+    readonly sent: string;
     readonly failed: string;
   };
   readonly press: {
@@ -303,6 +305,7 @@ const EN: ServerWords = {
     done: "Cancelled.",
     asked: (names) => `The cancellation waits for ${names} to decide.`,
     askedNobody: "The cancellation waits for a decision.",
+    sent: "HR took the cancellation. Your time off on the console says where it stands.",
     failed: "It was not cancelled. Try again, or cancel it on the console.",
   },
   press: {
@@ -500,6 +503,7 @@ const KO: ServerWords = {
     done: "취소했습니다.",
     asked: (names) => `취소 결재를 올렸습니다. ${names} 님이 결재합니다.`,
     askedNobody: "취소 결재를 올렸습니다.",
+    sent: "취소를 HR에 보냈습니다. 어떻게 되었는지는 콘솔의 내 휴가에서 볼 수 있습니다.",
     failed: "취소하지 못했습니다. 다시 시도하거나 콘솔에서 취소하세요.",
   },
   press: {

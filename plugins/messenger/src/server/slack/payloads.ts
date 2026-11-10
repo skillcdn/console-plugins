@@ -53,6 +53,16 @@ export const submissionPayload = z.object({
 export type SubmissionPayload = z.infer<typeof submissionPayload>;
 export type StateValues = SubmissionPayload["view"]["state"]["values"];
 
+/** A form closed where it asked to be told (`notify_on_close`); `is_cleared` when the whole stack went. */
+export const closedPayload = z.object({
+  type: z.literal("view_closed"),
+  user,
+  team,
+  view,
+  is_cleared: z.boolean().optional(),
+});
+export type ClosedPayload = z.infer<typeof closedPayload>;
+
 export const actionsPayload = z.object({
   type: z.literal("block_actions"),
   user,

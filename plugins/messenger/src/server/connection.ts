@@ -207,13 +207,19 @@ type IconOutcome =
   | "wait"
   | `slack:${string}`;
 
-/** Slack's codes for a token that may not set an icon: it is uploaded on Slack's page instead. */
+/**
+ * Slack's codes for a token that may not set an icon, or a Slack that has no such call: the icon
+ * is uploaded on Slack's page instead.
+ */
 const BY_HAND = new Set([
   "not_allowed_token_type",
   "missing_scope",
   "no_permission",
   "access_denied",
+  "unknown_method",
 ]);
+/** What the connection keeps of a code of Slack's it has no word for, within its 80 characters. */
+const SLACK_CODE_KEPT = 80 - "slack:".length;
 const OF_THE_IMAGE: Readonly<Record<string, IconOutcome>> = {
   icon_not_accessible: "not_accessible",
   invalid_icon_size: "size",
@@ -246,7 +252,7 @@ async function keepIcon(ctx: PluginContext, connection: ConnectionRecord): Promi
     const code = error instanceof SlackError ? error.code : (refusalCode(error) ?? "failed");
     const outcome: IconOutcome = BY_HAND.has(code)
       ? "manual"
-      : (OF_THE_IMAGE[code] ?? `slack:${code}`);
+      : (OF_THE_IMAGE[code] ?? `slack:${code.slice(0, SLACK_CODE_KEPT)}`);
     ctx.log.warn("Slack did not take the icon", { code });
     await saveConnection(ctx, { iconProblem: outcome });
     return outcome;
@@ -712,7 +718,7 @@ export const status = defineQuery({
       routes: routeTotal,
     });
     const shortcut =
-      connection !== null && connection.data.shortcut
+      connection?.data.shortcut === true
         ? serverWords(connection.data.language).app.shortcutName
         : null;
     return {

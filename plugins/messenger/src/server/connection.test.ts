@@ -341,6 +341,29 @@ describe("the app's names and icon", () => {
     });
   });
 
+  it("says to upload the icon by hand where Slack has no such call, and keeps a long code of Slack's whole", async () => {
+    const unknown = setup({
+      slack: fakeSlack({
+        ...created,
+        "apps.icon.set": () => ({ ok: false, error: "unknown_method" }),
+      }),
+      caller: KEEPER_KO,
+    });
+    await connect.run(unknown.ctx, { icon: ICON });
+    expect(unknown.ctx.all("connections")[0]?.data.iconProblem).toBe("manual");
+    const long = setup({
+      slack: fakeSlack({
+        ...created,
+        "apps.icon.set": () => ({ ok: false, error: "e".repeat(500) }),
+      }),
+      caller: KEEPER_KO,
+    });
+    await expect(connect.run(long.ctx, { icon: ICON })).resolves.toBeDefined();
+    const kept = String(long.ctx.all("connections")[0]?.data.iconProblem ?? "");
+    expect(kept.startsWith("slack:e")).toBe(true);
+    expect(kept.length).toBeLessThanOrEqual(80);
+  });
+
   it("reads the bot's handle again once the bot of an installed app is renamed", async () => {
     const slack = fakeSlack({ "users.info": () => ({ ok: true, user: { name: "acme" } }) });
     const { ctx } = setup({ slack });

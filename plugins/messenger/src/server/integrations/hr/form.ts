@@ -312,12 +312,18 @@ export function cancelView(input: {
   };
 }
 
-/** What became of a cancellation, the form's last word: closing it goes back to the leave form. */
-export function cancelledView(language: string, said: string): View {
+/**
+ * What became of a cancellation, the form's last word: closing it goes back to the leave form,
+ * which Slack then tells, so that the list is drawn again as the person returns to it rather than
+ * within the three seconds the submission has.
+ */
+export function cancelledView(language: string, said: string, metadata: CancelMetadata): View {
   const words = serverWords(language);
   return {
     type: "modal",
     callback_id: CANCEL_FORM,
+    private_metadata: JSON.stringify(metadata),
+    notify_on_close: true,
     title: plain(words.cancel.title, 24),
     close: plain(words.form.close, 24),
     blocks: [section(safe(said))],

@@ -104,6 +104,22 @@ const cancelSubmission = (metadata: string, reason: string | null, user = "U0MIN
   },
 });
 
+/** What became of the cancellation closed, back to the leave form `V0FORM001`, or the whole stack. */
+const cancelClosed = (metadata: string, cleared = false, user = "U0MINSU01") => ({
+  type: "view_closed",
+  user: { id: user, team_id: TEAM },
+  team: { id: TEAM },
+  is_cleared: cleared,
+  view: {
+    id: "V0CANCEL1",
+    callback_id: "leave-cancel",
+    private_metadata: metadata,
+    root_view_id: "V0FORM001",
+    previous_view_id: "V0FORM001",
+    state: { values: {} },
+  },
+});
+
 const shortcut = (user = "U0MINSU01", team = TEAM) => ({
   type: "shortcut",
   callback_id: "leave-request",
@@ -153,6 +169,7 @@ const choose = (kind: string, user = "U0MINSU01") => ({
 interface ViewJson {
   readonly callback_id?: string;
   readonly private_metadata?: string;
+  readonly notify_on_close?: boolean;
   readonly title: { readonly text: string };
   readonly submit?: { readonly text: string };
   readonly close?: { readonly text: string };
@@ -566,7 +583,7 @@ describe("one's upcoming leave, and its cancellation", () => {
     expect(slack.of("views.push")).toHaveLength(1);
   });
 
-  it("cancels the leave for whoever submitted, draws the form below again, and says it is done", async () => {
+  it("cancels the leave for whoever submitted and says it is done, the form below drawn again once it is closed", async () => {
     const hr = fakeHr({
       requests: [own(leaveId(2), "2026-11-20")],
       cancel: (_, input) => ({
@@ -597,12 +614,54 @@ describe("one's upcoming leave, and its cancellation", () => {
     expect(body.response_action).toBe("update");
     expect(body.view.blocks[0]?.text?.text).toBe("취소했습니다.");
     expect(body.view.close?.text).toBe("닫기");
-    // The form below, its list read again, on the kind it was on.
+    expect(body.view.notify_on_close).toBe(true);
+    // Nothing more within the submission's three seconds.
+    expect(slack.of("views.update")).toHaveLength(0);
+    // Closed, back to the form below: its list read again, on the kind it was on.
+    const reads = hr.calls.length;
+    await slackEndpoint.run(ctx, signedRequest(cancelClosed(body.view.private_metadata ?? "")));
+    expect(hr.calls.slice(reads).every((call) => call.as === MINSU.id)).toBe(true);
     const update = slack.of("views.update")[0];
     expect(update?.params.view_id).toBe("V0FORM001");
     const form = viewOf(update);
     expect(blockOf(form, "kind")?.element?.initial_option?.value).toBe("comp");
     expect(form.blocks.filter((block) => block.accessory !== undefined)).toHaveLength(1);
+  });
+
+  it("draws nothing again for a stack closed whole, a presser with no account, or a form it did not write", async () => {
+    const hr = fakeHr({ requests: [own(leaveId(2), "2026-11-20")] });
+    const { ctx, slack } = setup({ hr });
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    const metadata = JSON.stringify({ id: leaveId(1), kind: "comp" });
+    for (const closed of [
+      cancelClosed(metadata, true),
+      cancelClosed(metadata, false, "U0NOBODY1"),
+      cancelClosed("not json"),
+      cancelClosed(JSON.stringify({ id: "../../etc" })),
+      { ...cancelClosed(metadata), view: { ...cancelClosed(metadata).view, callback_id: "other" } },
+      { ...cancelClosed(metadata), team: { id: "T0OTHER01" }, user: { id: "U0MINSU01" } },
+    ]) {
+      expect((await slackEndpoint.run(ctx, signedRequest(closed))).status).toBe(200);
+    }
+    expect(slack.of("views.update")).toHaveLength(0);
+    expect(hr.calls).toHaveLength(0);
+  });
+
+  it("says HR took a cancellation whose answer it cannot read, never that it failed", async () => {
+    const hr = fakeHr({ cancel: () => ({ unexpected: true }) });
+    const { ctx } = setup({ hr });
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    const answer = await slackEndpoint.run(
+      ctx,
+      signedRequest(cancelSubmission(JSON.stringify({ id: leaveId(1) }), null)),
+    );
+    const body = answer.body as { response_action: string; view: ViewJson };
+    expect(body.response_action).toBe("update");
+    expect(body.view.blocks[0]?.text?.text).toBe(
+      "취소를 HR에 보냈습니다. 어떻게 되었는지는 콘솔의 내 휴가에서 볼 수 있습니다.",
+    );
   });
 
   it("says a cancellation that waits for a decision, and whom it asks", async () => {

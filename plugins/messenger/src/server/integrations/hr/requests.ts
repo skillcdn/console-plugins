@@ -2,12 +2,14 @@
 // what HR says for the person who pressed, read as that person, and choosing another kind draws it
 // again for that kind; the submission is HR's `request`, made for them, which HR records as theirs
 // through the messenger. A leave's cancel button pushes a form over it, whose submission is HR's
-// `cancel` for them, at once or by a decision as HR's rules say. Nothing anyone else reads is
+// `cancel` for them, at once or by a decision as HR's rules say, the form below drawn again when
+// the person closes the pushed one and Slack says so (`view_closed`). Nothing anyone else reads is
 // written here: HR's events bring the thread and the channels' strike-through to the hooks.
 import { type PluginContext, PluginError, satisfiesRange } from "@skillcdn/console/plugin";
 import { SlackError, slack } from "../../slack/api.js";
 import type {
   ActionsPayload,
+  ClosedPayload,
   ShortcutPayload,
   StateValues,
   SubmissionPayload,
@@ -233,8 +235,10 @@ export type CancelAnswer =
 
 /**
  * Cancels the leave for whoever submitted, as HR's `cancel` does for them: at once, or by the
- * decision HR raises, which the hooks then thread. The leave form below is drawn again without
- * it, and the form says what became of it; what HR refuses is said beside the reason.
+ * decision HR raises, which the hooks then thread. The form says what became of it at once; the
+ * leave form below is drawn again when the person closes it (`redrawAfterCancel`), since reading
+ * HR again and drawing would spend the three seconds Slack gives the answer. What HR refuses is
+ * said beside the reason.
  */
 export async function submitCancel(
   ctx: PluginContext,
@@ -259,11 +263,9 @@ export async function submitCancel(
   if (hr === null || cancel === undefined || !satisfiesRange(hr.version, HR_VERSIONS)) {
     return { response_action: "errors", errors: { reason: words.form.unavailable } };
   }
-  let outcome: RequestView;
+  let answer: unknown;
   try {
-    outcome = cancelOutcome.parse(
-      await cancel({ id: metadata.id, ...(reason.length === 0 ? {} : { reason }) }),
-    ).request;
+    answer = await cancel({ id: metadata.id, ...(reason.length === 0 ? {} : { reason }) });
   } catch (error) {
     if (error instanceof PluginError || isOwnRefusal(error)) {
       return {
@@ -277,17 +279,40 @@ export async function submitCancel(
       errors: { reason: isAbsent(error) ? words.form.unavailable : words.cancel.failed },
     };
   }
-  await drawAgain(ctx, payload.view.root_view_id, presser, metadata.kind);
-  const asked = outcome.asked.map((person) =>
+  // HR took it: an answer read otherwise than expected must not say it was not cancelled.
+  const read = cancelOutcome.safeParse(answer);
+  if (!read.success) {
+    ctx.log.warn("HR's answer to a cancellation from Slack was not read");
+  }
+  const outcome = read.success ? read.data.request : null;
+  const asked = (outcome?.asked ?? []).map((person) =>
     person.name !== null && person.name.length > 0 ? person.name : person.login,
   );
   const said =
-    outcome.request.state === "cancelling"
-      ? asked.length === 0
-        ? words.cancel.askedNobody
-        : words.cancel.asked(asked.join(", "))
-      : words.cancel.done;
-  return { response_action: "update", view: cancelledView(presser.language, said) };
+    outcome === null
+      ? words.cancel.sent
+      : outcome.request.state === "cancelling"
+        ? asked.length === 0
+          ? words.cancel.askedNobody
+          : words.cancel.asked(asked.join(", "))
+        : words.cancel.done;
+  return { response_action: "update", view: cancelledView(presser.language, said, metadata) };
+}
+
+/**
+ * The leave form drawn again once the person closes what became of a cancellation and returns to
+ * it: its list read afresh, on the kind it was on. Nothing where the whole stack was closed.
+ */
+export async function redrawAfterCancel(
+  ctx: PluginContext,
+  payload: ClosedPayload,
+  presser: Presser | null,
+): Promise<void> {
+  const metadata = cancelMetadataOf(payload.view.private_metadata);
+  if (presser === null || payload.is_cleared === true || metadata === null) {
+    return;
+  }
+  await drawAgain(ctx, payload.view.root_view_id, presser, metadata.kind);
 }
 
 /** The leave form under a cancellation drawn again, its list read afresh; what fails is let be. */

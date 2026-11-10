@@ -1,9 +1,9 @@
 // The endpoint Slack posts to when someone presses: the shortcut, a choice or a cancel button
-// within the form, a form's submission, a decision's button. It answers the request and nothing
-// else (ADR-0011): the signature verified first, the presser matched to a person by their account,
-// the form opened, drawn again, pushed or checked for them, the decision answered for them where it
-// is on their plate. A refusal reaches the presser alone, through the address the press carried.
-// What others read follows from the producer's events.
+// within the form, a form submitted or closed, a decision's button. It answers the request and
+// nothing else (ADR-0011): the signature verified first, the presser matched to a person by their
+// account, the form opened, drawn again, pushed or checked for them, the decision answered for
+// them where it is on their plate. A refusal reaches the presser alone, through the address the
+// press carried. What others read follows from the producer's events.
 import {
   defineEndpoint,
   type EndpointResponse,
@@ -16,6 +16,7 @@ import {
   onFormPress,
   openLeaveForm,
   type Presser,
+  redrawAfterCancel,
   submitCancel,
   submitLeave,
 } from "../integrations/hr/requests.js";
@@ -28,6 +29,7 @@ import { LEAVE_SHORTCUT } from "./manifest.js";
 import {
   type ActionsPayload,
   actionsPayload,
+  closedPayload,
   isResponseUrl,
   payloadKind,
   shortcutPayload,
@@ -184,6 +186,23 @@ export const slackEndpoint = defineEndpoint({
         return answer.response_action === "clear"
           ? OK
           : { status: 200, headers: JSON_TYPE, body: answer };
+      }
+      case "view_closed": {
+        const payload = closedPayload.safeParse(json);
+        if (
+          !payload.success ||
+          payload.data.view.callback_id !== CANCEL_FORM ||
+          teamOf(payload.data) !== connection.data.teamId
+        ) {
+          return OK;
+        }
+        const presser = await presserOf(ctx, payload.data.user.id, language);
+        try {
+          await redrawAfterCancel(ctx, payload.data, presser);
+        } catch (error) {
+          ctx.log.warn("the leave form was not drawn again", { code: refusalCode(error) });
+        }
+        return OK;
       }
       case "block_actions": {
         const payload = actionsPayload.safeParse(json);
