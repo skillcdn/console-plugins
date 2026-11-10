@@ -30,6 +30,34 @@
   min-width: 0;
 }
 
+/* Two columns: what the page is for, and an aside a little wider than the console's own, for the
+   facts and the forms that stand around it; one column under the other where there is no room. */
+.pl-messenger-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--sc-width-aside) + 4rem);
+  align-items: start;
+  gap: var(--sc-space-5);
+  min-width: 0;
+}
+
+@media (max-width: 64rem) {
+  .pl-messenger-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pl-messenger-main,
+.pl-messenger-aside {
+  display: grid;
+  align-content: start;
+  gap: var(--sc-space-5);
+  min-width: 0;
+}
+
+.pl-messenger-small {
+  font-size: var(--sc-text-xs);
+}
+
 .pl-messenger-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -58,6 +86,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sc-space-2) var(--sc-space-4);
+  min-width: 0;
 }
 
 .pl-messenger-panel-title {
@@ -93,7 +122,9 @@
   border-top: var(--sc-hairline);
 }
 
-/* The steps of the connection, each with whether it is done. */
+/* The steps of the connection, numbered since their order is the order they are done in: a step
+   done carries a check, the step to do now the accent, and one waiting for those above it is
+   folded to its title, its mark an outline. */
 
 .pl-messenger-steps {
   display: grid;
@@ -105,43 +136,72 @@
 }
 
 .pl-messenger-step {
-  display: grid;
-  gap: var(--sc-space-2);
-  padding: var(--sc-space-4) 0 var(--sc-space-4) 2.25rem;
-  border-top: var(--sc-hairline);
+  --pl-messenger-mark: 1.5rem;
   position: relative;
+  display: grid;
+  gap: var(--sc-space-3);
+  padding: var(--sc-space-5) 0 var(--sc-space-5) calc(var(--pl-messenger-mark) + var(--sc-space-3));
+  border-top: var(--sc-hairline);
   counter-increment: pl-messenger-step;
 }
 
 .pl-messenger-step:first-child {
-  border-top: 0;
   padding-top: var(--sc-space-1);
+  border-top: 0;
+}
+
+.pl-messenger-step:last-child {
+  padding-bottom: 0;
 }
 
 .pl-messenger-step::before {
   content: counter(pl-messenger-step);
   position: absolute;
+  top: var(--sc-space-5);
   left: 0;
-  top: var(--sc-space-4);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--sc-color-neutral-subtle);
-  color: var(--sc-color-text-muted);
+  box-sizing: border-box;
+  width: var(--pl-messenger-mark);
+  height: var(--pl-messenger-mark);
+  border-radius: var(--sc-radius-full);
+  background: var(--sc-color-accent-subtle);
+  color: var(--sc-color-accent);
   font-size: var(--sc-text-xs);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--sc-weight-bold);
 }
 
-.pl-messenger-step:first-child::before {
+.pl-messenger-step:first-child::before,
+.pl-messenger-step:first-child::after {
   top: var(--sc-space-1);
 }
 
 .pl-messenger-step-done::before {
+  content: "";
   background: var(--sc-color-success-subtle);
-  color: var(--sc-color-success);
+}
+
+/* The check, drawn as the console draws the one of its toggle chips. */
+.pl-messenger-step-done::after {
+  content: "";
+  position: absolute;
+  top: var(--sc-space-5);
+  left: 0;
+  box-sizing: border-box;
+  width: 0.3125rem;
+  height: 0.5625rem;
+  margin: 0.4375rem 0 0 0.59375rem;
+  border: solid var(--sc-color-success);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.pl-messenger-step-blocked::before {
+  border: var(--sc-border);
+  background: transparent;
+  color: var(--sc-color-text-faint);
 }
 
 .pl-messenger-step-head {
@@ -149,6 +209,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sc-space-2) var(--sc-space-3);
+  min-height: var(--pl-messenger-mark);
 }
 
 .pl-messenger-step-title {
@@ -156,11 +217,50 @@
   font-weight: var(--sc-weight-medium);
 }
 
+.pl-messenger-step-blocked .pl-messenger-step-title {
+  color: var(--sc-color-text-muted);
+}
+
 .pl-messenger-step-body {
   display: grid;
   gap: var(--sc-space-2);
   min-width: 0;
-  max-width: 44rem;
+  max-width: 40rem;
+}
+
+.pl-messenger-step-blocked .pl-messenger-step-body {
+  margin-top: calc(var(--sc-space-2) * -1);
+}
+
+/* A form inside a step: a field set apart from the next more than a label from its control. */
+.pl-messenger-fields {
+  display: grid;
+  gap: var(--sc-space-4);
+  min-width: 0;
+  margin-top: var(--sc-space-2);
+}
+
+/* What was made once, folded under the press that opens it again. */
+.pl-messenger-more {
+  display: grid;
+  gap: var(--sc-space-2);
+  min-width: 0;
+}
+
+.pl-messenger-more > summary {
+  justify-self: start;
+  list-style: none;
+}
+
+.pl-messenger-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pl-messenger-secret {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1) var(--sc-space-2);
 }
 
 /* Choices: the console's toggle chips, the box itself out of sight. */
@@ -282,6 +382,15 @@
 
 .pl-messenger-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.pl-messenger-when {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pl-messenger-num {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Lines under forms */

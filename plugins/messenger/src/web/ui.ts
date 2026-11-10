@@ -234,16 +234,52 @@ export function panel(title: string | null, ...children: HTMLElement[]): HTMLEle
   return node;
 }
 
-/** A panel with controls at the right of its title. */
+/**
+ * A panel with controls in a bar at its top: at the right of its title, or alone where the page's
+ * own title already names what the panel holds.
+ */
 export function panelWith(
-  title: string,
+  title: string | null,
   controls: readonly HTMLElement[],
   ...children: HTMLElement[]
 ): HTMLElement {
   const node = el("section", "sc-panel panel");
   const head = el("div", "panel-head");
-  head.append(el("h2", "panel-title", title), ...controls);
+  if (title !== null) {
+    head.append(el("h2", "panel-title", title));
+  }
+  head.append(...controls);
   node.append(head, ...children);
+  return node;
+}
+
+/**
+ * The page in two columns: what the page is for in the wide one, and beside it an aside of what
+ * stands around it; the aside under the main column where the frame has no room for both.
+ */
+export function columns(
+  main: readonly HTMLElement[],
+  aside: readonly HTMLElement[],
+): HTMLDivElement {
+  const node = el("div", "columns");
+  const mainNode = el("div", "main");
+  mainNode.append(...main);
+  const asideNode = el("aside", "aside");
+  asideNode.append(...aside);
+  node.append(mainNode, asideNode);
+  return node;
+}
+
+/** Facts one under another, a label beside its value, as the console's plain facts have them. */
+export function factsPlain(pairs: readonly (readonly [string, string | Node])[]): HTMLDListElement {
+  const node = el("dl", "sc-facts-plain");
+  for (const [label, value] of pairs) {
+    const item = el("div", "");
+    const detail = el("dd", "");
+    detail.append(value);
+    item.append(el("dt", "", label), detail);
+    node.append(item);
+  }
   return node;
 }
 
@@ -273,19 +309,6 @@ export function callout(
 
 export function muted(text: string): HTMLParagraphElement {
   return el("p", "sc-muted line", text);
-}
-
-/** Facts in a row, a label over a value each, as the console's head of a task has them. */
-export function factsRow(pairs: readonly (readonly [string, string | Node])[]): HTMLDListElement {
-  const node = el("dl", "sc-facts-row");
-  for (const [label, value] of pairs) {
-    const item = el("div", "");
-    const detail = el("dd", "");
-    detail.append(value);
-    item.append(el("dt", "", label), detail);
-    node.append(item);
-  }
-  return node;
 }
 
 /** A table that scrolls within its box where it is wider than the frame. */

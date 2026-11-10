@@ -59,6 +59,8 @@ export interface Words {
     readonly installedBy: (who: string, when: string) => string;
     readonly done: string;
     readonly todo: string;
+    readonly blocked: string;
+    readonly appEdit: string;
     readonly details: string;
     readonly workspace: string;
     readonly bot: string;
@@ -216,6 +218,8 @@ const EN: Words = {
     installedBy: (who, when) => `By ${who}, ${when}`,
     done: "Done",
     todo: "To do",
+    blocked: "Opens once the steps above are done.",
+    appEdit: "Change the language, the names or the icon",
     details: "The connection",
     workspace: "Workspace",
     bot: "Bot user",
@@ -440,6 +444,8 @@ const KO: Words = {
     installedBy: (who, when) => `${who}, ${when}`,
     done: "완료",
     todo: "할 일",
+    blocked: "위 단계를 마치면 열립니다.",
+    appEdit: "언어, 이름, 아이콘 바꾸기",
     details: "연결",
     workspace: "워크스페이스",
     bot: "봇 사용자",

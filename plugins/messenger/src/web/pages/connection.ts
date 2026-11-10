@@ -14,23 +14,23 @@ import {
   badge,
   button,
   callout,
+  columns,
   DASH,
   dateTimeIn,
   el,
   errorBlock,
-  factsRow,
+  factsPlain,
   field,
   input,
   muted,
   page,
   pageHead,
   panel,
+  panelWith,
   pills,
-  row,
   runCommand,
   sequenced,
   statusLine,
-  table,
   toolbar,
   watch,
 } from "../ui.js";
@@ -38,17 +38,41 @@ import type { Words } from "../words.js";
 
 const SETTINGS = "/settings/plugins/messenger";
 
-function step(done: boolean, title: string, words: Words, ...body: HTMLElement[]): HTMLLIElement {
-  const item = el("li", `step${done ? " step-done" : ""}`);
+/** Where a step stands: done, to do now, or waiting for the steps above it. */
+type StepState = "done" | "todo" | "blocked";
+
+/**
+ * A step of getting connected. A step waiting for the ones above folds to its title and a line
+ * saying so, so that what can be done now is what the page shows open.
+ */
+function step(
+  state: StepState,
+  title: string,
+  words: Words,
+  ...body: HTMLElement[]
+): HTMLLIElement {
+  const item = el("li", `step step-${state}`);
   const head = el("div", "step-head");
-  head.append(
-    el("span", "step-title", title),
-    badge(done ? words.connection.done : words.connection.todo, done ? "success" : "neutral"),
-  );
+  head.append(el("span", "step-title", title));
+  if (state !== "blocked") {
+    head.append(
+      badge(
+        state === "done" ? words.connection.done : words.connection.todo,
+        state === "done" ? "success" : "accent",
+      ),
+    );
+  }
   const content = el("div", "step-body");
-  content.append(...body);
+  content.append(...(state === "blocked" ? [muted(words.connection.blocked)] : body));
   item.append(head, content);
   return item;
+}
+
+/** Fields one under another, set apart more than a label is from its control. */
+function fields(...children: HTMLElement[]): HTMLDivElement {
+  const node = el("div", "fields");
+  node.append(...children);
+  return node;
 }
 
 function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElement[] {
@@ -56,24 +80,25 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
   const when = dateTimeIn(frame.context.language);
   const connection = status.connection;
   const connected = connection?.phase === "connected";
-  const parts: HTMLElement[] = [pageHead(w.title, w.lead)];
+  const main: HTMLElement[] = [];
+  const aside: HTMLElement[] = [];
 
   // What is left to set up, the line `status` says to an agent too.
-  parts.push(callout(status.next === "ready" ? w.ready : w.next, status.text));
+  main.push(callout(status.next === "ready" ? w.ready : w.next, status.text));
 
   if (connection?.problem !== null && connection?.problem !== undefined) {
-    parts.push(
+    main.push(
       callout(w.problem, `${connection.problem} (${when(connection.problemAt)})`, "warning"),
     );
   }
   if (status.failures > 0) {
-    parts.push(callout(w.failures(String(status.failures)), undefined, "warning"));
+    main.push(callout(w.failures(String(status.failures)), undefined, "warning"));
   }
 
   // 1. The console's address.
   const addressOk = status.address.state === "ok";
   const addressStep = step(
-    addressOk,
+    addressOk ? "done" : "todo",
     w.address,
     words,
     toolbar(
@@ -91,7 +116,7 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
       ? w.tokenPasted
       : w.tokenSet(when(token.expiresAt));
   const tokenStep = step(
-    token.set,
+    token.set ? "done" : "todo",
     w.token,
     words,
     muted(tokenText),
@@ -141,8 +166,24 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
     made ? "secondary" : "primary",
   );
   make.disabled = !addressOk || !token.set;
+  const appForm = fields(
+    field(w.appLanguage, language.node),
+    field(w.appName, appName, w.appNameHint),
+    field(w.botName, botName, w.botNameHint),
+    field(w.icon, icon, w.iconHint),
+    toolbar(make),
+    makeStatus,
+  );
+  // Once the app is made, what it was made with is a change asked for now and then: folded under
+  // a press, so that the step reads as done.
+  let appBody: HTMLElement = appForm;
+  if (made) {
+    const more = el("details", "more");
+    more.append(el("summary", "sc-button sc-button-secondary sc-button-sm", w.appEdit), appForm);
+    appBody = more;
+  }
   const appStep = step(
-    made,
+    made ? "done" : addressOk && token.set ? "todo" : "blocked",
     w.app,
     words,
     muted(
@@ -150,12 +191,7 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
         ? w.appMade(connection.appId)
         : w.appMissing,
     ),
-    field(w.appLanguage, language.node),
-    field(w.appName, appName, w.appNameHint),
-    field(w.botName, botName, w.botNameHint),
-    field(w.icon, icon, w.iconHint),
-    toolbar(make),
-    makeStatus,
+    appBody,
   );
 
   // 4. The installation in the workspace, through Slack's own page.
@@ -190,26 +226,57 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
     }
     installBody.push(muted(w.installHint), installStatus);
   }
-  const installStep = step(connected, w.install, words, ...installBody);
+  const installStep = step(
+    connected ? "done" : made ? "todo" : "blocked",
+    w.install,
+    words,
+    ...installBody,
+  );
 
   const steps = el("ol", "steps");
   steps.append(addressStep, tokenStep, appStep, installStep);
-  parts.push(panel(w.steps, steps));
+  main.push(panel(w.steps, steps));
+
+  // What HR is to the messenger, first in the aside: it holds whatever the connection's stage.
+  const hr = status.hr;
+  const granted = hr.asked.every((role) => hr.granted.includes(role));
+  const hrParts: HTMLElement[] = [muted(w.hrHint[hr.state])];
+  const hrFacts: [string, string | Node][] = [
+    [w.hrRole, badge(granted ? w.hrGranted : w.hrNotGranted, granted ? "success" : "warning")],
+  ];
+  if (hr.version !== null) {
+    hrParts.push(el("p", "sc-muted small", w.hrVersion(hr.version, hr.range)));
+  }
+  hrParts.push(factsPlain(hrFacts));
+  if (!granted || hr.state === "no_capability") {
+    hrParts.push(
+      muted(w.hrGrantHint),
+      toolbar(button(words.openSettings, () => frame.navigate(SETTINGS), "secondary", true)),
+    );
+  }
+  aside.push(
+    panelWith(
+      w.hr,
+      [badge(w.hrState[hr.state], hr.state === "on" ? "success" : "neutral")],
+      ...hrParts,
+    ),
+  );
 
   // How the connection stands, and the secrets as the console says them.
   if (connection !== null && connection.appId !== null) {
-    const secrets = SECRETS.map((name) => {
+    const secrets = SECRETS.map((name): [string, Node] => {
       const secret = status.secrets[name];
       const stood = !secret.set
         ? w.secretUnset
         : secret.source === "administrator"
           ? w.secretPasted
           : w.secretFrom(secret.source ?? DASH);
-      return row([
-        w.secretNames[name],
-        badge(stood, secret.set ? "success" : "neutral"),
-        secret.expiresAt === null ? DASH : w.expires(when(secret.expiresAt)),
-      ]);
+      const value = el("span", "secret");
+      value.append(badge(stood, secret.set ? "success" : "neutral"));
+      if (secret.expiresAt !== null) {
+        value.append(el("span", "sc-muted small", w.expires(when(secret.expiresAt))));
+      }
+      return [w.secretNames[name], value];
     });
     const iconState =
       connection.iconUrl === null
@@ -222,10 +289,10 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
               ? w.iconState.waiting
               : w.iconState.refused;
     const appPage = `https://api.slack.com/apps/${connection.appId}/general`;
-    parts.push(
+    aside.push(
       panel(
         w.details,
-        factsRow([
+        factsPlain([
           [w.workspace, connection.teamName ?? DASH],
           [w.bot, connection.botUserId ?? DASH],
           [w.handle, connection.botHandle === null ? DASH : `@${connection.botHandle}`],
@@ -237,38 +304,14 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
           ? [
               muted(w.iconManual),
               // Opened from the press itself, before anything waits, as a frame's links must be.
-              toolbar(button(w.openInSlack, () => frame.open(appPage), "secondary")),
+              toolbar(button(w.openInSlack, () => frame.open(appPage), "secondary", true)),
             ]
           : []),
         el("h3", "subheading", w.secrets),
-        table(["", "", ""], secrets),
+        factsPlain(secrets),
       ),
     );
   }
-
-  // What HR is to the messenger: reachable, and the role it asks there.
-  const hr = status.hr;
-  const granted = hr.asked.every((role) => hr.granted.includes(role));
-  const hrParts: HTMLElement[] = [
-    toolbar(badge(w.hrState[hr.state], hr.state === "on" ? "success" : "neutral")),
-    muted(w.hrHint[hr.state]),
-  ];
-  if (hr.version !== null) {
-    hrParts.push(muted(w.hrVersion(hr.version, hr.range)));
-  }
-  hrParts.push(
-    toolbar(
-      el("span", "label", w.hrRole),
-      badge(granted ? w.hrGranted : w.hrNotGranted, granted ? "success" : "warning"),
-    ),
-  );
-  if (!granted || hr.state === "no_capability") {
-    hrParts.push(
-      muted(w.hrGrantHint),
-      toolbar(button(words.openSettings, () => frame.navigate(SETTINGS), "secondary", true)),
-    );
-  }
-  parts.push(panel(w.hr, ...hrParts));
 
   // A test message where the app is installed, and the way out wherever one is made: to start
   // again, in this workspace or another.
@@ -309,7 +352,7 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
       },
       "danger",
     );
-    parts.push(
+    aside.push(
       panel(
         connected ? w.tryIt : w.disconnect,
         ...tryParts,
@@ -319,7 +362,7 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
       ),
     );
   }
-  return parts;
+  return [pageHead(w.title, w.lead), columns(main, aside)];
 }
 
 export async function renderConnection(

@@ -7,9 +7,9 @@ import {
   button,
   callout,
   dateTimeIn,
+  el,
   empty,
   errorBlock,
-  factsRow,
   muted,
   page,
   pageHead,
@@ -68,14 +68,11 @@ export async function renderPeople(
     if (!report.connected) {
       parts.push(callout(w.notConnected, undefined, "warning"));
     }
-    parts.push(
-      factsRow([
-        [
-          w.lastMatched,
-          report.matchedAt === null ? w.neverMatched : w.matchedAt(when(report.matchedAt)),
-        ],
-        ...STATES.map((state) => [w.states[state], String(report.counts[state])] as const),
-      ]),
+    // The counts are on the filter's chips; the bar says beside them when the matching last ran.
+    const lastMatched = el(
+      "span",
+      "sc-muted small",
+      `${w.lastMatched}: ${report.matchedAt === null ? w.neverMatched : w.matchedAt(when(report.matchedAt))}`,
     );
     const filter = pills<MatchState | "all">(
       [
@@ -101,8 +98,8 @@ export async function renderPeople(
     );
     parts.push(
       panelWith(
-        w.title,
-        [filter.node],
+        null,
+        [filter.node, lastMatched],
         rows.length === 0 ? empty(w.nobody) : table([w.person, w.state, w.account], rows),
         ...(report.total > report.people.length
           ? [muted(w.more(String(report.people.length), String(report.total)))]

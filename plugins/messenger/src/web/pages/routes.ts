@@ -17,6 +17,7 @@ import {
   actions,
   button,
   callout,
+  columns,
   empty,
   errorBlock,
   errorText,
@@ -178,20 +179,25 @@ export async function renderRoutes(
     if (!connected) {
       parts.push(callout(w.notConnected, undefined, "warning"));
     }
+    // The routes there are lead; the form that adds one stands beside them.
     parts.push(
-      panel(
-        w.list,
-        routes.length === 0
-          ? empty(w.none)
-          : table([w.kind, w.channel, w.language, w.as, ""], routeRows(frame, words, routes)),
-      ),
-    );
-    parts.push(
-      addForm(
-        frame,
-        words,
-        status.workspaceLanguage ?? languageOf(frame.context.language),
-        connected,
+      columns(
+        [
+          panel(
+            w.list,
+            routes.length === 0
+              ? empty(w.none)
+              : table([w.kind, w.channel, w.language, w.as, ""], routeRows(frame, words, routes)),
+          ),
+        ],
+        [
+          addForm(
+            frame,
+            words,
+            status.workspaceLanguage ?? languageOf(frame.context.language),
+            connected,
+          ),
+        ],
       ),
     );
     node.replaceChildren(...parts);

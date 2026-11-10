@@ -5,6 +5,7 @@ import { type ActivityRow, NOTES, type NoteCode, type Outcome } from "../../shar
 import {
   badge,
   dateTimeIn,
+  el,
   empty,
   errorBlock,
   page,
@@ -74,17 +75,17 @@ export async function renderActivity(
     );
     const lines = rows.map((line) =>
       row([
-        when(line.at),
+        el("span", "when", when(line.at)),
         w.kinds[line.kind] ?? line.kind,
         badge(w.outcomes[line.outcome], TONES[line.outcome]),
         noteIn(words, line.note),
-        String(line.attempt),
+        el("span", "num", String(line.attempt)),
       ]),
     );
     node.replaceChildren(
       pageHead(w.title, w.lead),
       panelWith(
-        w.title,
+        null,
         [filter.node],
         lines.length === 0
           ? empty(w.none)
