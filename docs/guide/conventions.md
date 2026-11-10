@@ -67,8 +67,18 @@ Every plugin speaks the languages the repository speaks: English first, and Kore
 - Everything a person wrote is set with `textContent`; nothing is rendered as HTML; a form handles its `submit` itself and calls a command.
 - The plugin's classes begin with `pl-<key>-` (the check refuses others); the console's `sc-` classes and `--sc-*` tokens give the look, and a widget pads nothing of its own, since the console's box does.
 - Every colour is the console's: a tone from its tokens (`--sc-color-*`), and a colour that tells things apart, such as a kind or a category, from its category classes (`sc-category-<hue>`, read through `--sc-category-fill`, `-line` and `-mark`), as its chips, badges and calendar bars use them. A stylesheet writes no colour of its own (the check refuses a hex value or a colour function), so that a console's own look reaches its plugins.
+- A part the console has is used as it is, never drawn again. Look in its stylesheet (`node_modules/@skillcdn/console/dist/console.css`) before writing a class. The parts it has:
+  - Chips: `sc-chips`, a person or a step with `sc-chip-label`, and a choice among several with `sc-toggle-chips`.
+  - Badges: a state with `sc-badge-kind-state`, a kind or a category with `sc-badge-category`. Nothing stands before a badge's words.
+  - A calendar's bars, dots, legend and head.
+  - Facts: `sc-facts`, `sc-facts-row` and `sc-facts-plain`.
+  - A label of the plugin's own: `sc-eyebrow`.
+  - Buttons, avatars, progress bars and empty states.
+
+  A class of the plugin's beside one of these places it: its grid area, its margin, its width. It leaves alone the part's colours, borders, radius and type.
 - A page has a head (`sc-page-head`) and each of its sections is a pane (`sc-panel`), with the console's view switch (`sc-subtabs`), facts, avatars (`frame.people.picture`), progress bars and empty states; it pads itself by `--sc-space-4`, and a calendar starts its week on `frame.context.workspace.firstDay`.
-- A widget declares the `sizes` it comes in, one of them at most four cells across, and lays itself out for each, from `frame.context.size` and `frame.onSize`; it fills its cells and shows less rather than scrolling.
+- A widget declares the `sizes` it comes in, one of them at most four cells across. It lays itself out for the room its frame has, not for the name of its size, since a console may give one size boxes of different shapes. It reads that room from the frame's own viewport, on `frame.onSize` and on a resize. It fills its box and shows less rather than scrolling. A larger box never shows less than a smaller one.
+- A change to a page or a widget is looked at on a console on this machine ([local-console.md](local-console.md)) before its commit. A page is looked at at a phone's width and on a wide screen, in both languages. A widget is looked at in every size it declares. What could not be looked at is reported as not run.
 - A page refreshes on `frame.onEvent(["records", "command"])` for what its own plugin changed, and on `["plugin"]` for the events it emitted; the logic stays in the server module, so that the command line and the pages do the same thing.
 - A bundle holds no secret and imports nothing from elsewhere; a framework, where a plugin chooses one, is bundled, and `@skillcdn/console/plugin/web/react` is there for React. What only one page opens, an editor above all, is imported with `import()`, so that `build.mjs` splits it off and a widget does not carry it.
 
