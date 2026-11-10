@@ -359,8 +359,11 @@
   min-width: 0;
 }
 
+/* A table keeps a width it reads at and scrolls inside its pane on a narrow frame, rather than
+   squeezing a column to a letter a line. */
 .pl-messenger-table {
   width: 100%;
+  min-width: 36rem;
   font-size: var(--sc-text-sm);
 }
 
