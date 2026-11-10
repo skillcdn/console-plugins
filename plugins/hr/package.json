@@ -1,6 +1,6 @@
 {
   "name": "@skillcdn/console-plugin-hr",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "HR, a plugin of the SkillCDN Console: leave requests, approvals as decisions and balances from a policy written for Korea, the US or your own rules, and announcements; attendance and the people's records to come.",
   "license": "MIT",
   "type": "module",

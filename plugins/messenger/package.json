@@ -1,6 +1,6 @@
 {
   "name": "@skillcdn/console-plugin-messenger",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Messenger, a plugin of the SkillCDN Console: every message a plugin has for people, carried to the messengers an organization uses and back, Slack first; for HR, time off requested and cancelled in the chat, and the approval threaded with whoever decides.",
   "license": "MIT",
   "type": "module",
