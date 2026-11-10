@@ -515,8 +515,7 @@
   padding: var(--sc-space-5);
 }
 
-.pl-hr-kind-period,
-.pl-hr-kind-note {
+.pl-hr-kind-period {
   color: var(--sc-color-text-muted);
   font-size: var(--sc-text-xs);
 }
@@ -1680,10 +1679,9 @@
   margin: 0;
 }
 
+/* Each name is the console's label (sc-eyebrow), kept to its line. */
 .pl-hr-widget-facts dt {
   overflow: hidden;
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1704,12 +1702,10 @@
   gap: var(--sc-space-1);
 }
 
+/* The console's label (sc-eyebrow) over the section's rows. */
 .pl-hr-widget-section-title {
   flex: none;
   margin: 0;
-  color: var(--sc-color-text-muted);
-  font-size: var(--sc-text-xs);
-  font-weight: var(--sc-weight-medium);
 }
 
 /* The rows: one height each, a hairline between, as many as the list has room for. */
@@ -2281,9 +2277,11 @@
   cursor: pointer;
 }
 
-.pl-hr-widget:not(:has(> .pl-hr-widget-body)) .pl-hr-widget-feature,
-.pl-hr-widget-wide .pl-hr-widget-feature {
-  flex: 1 1 0;
+/* Alone, or beside the rows, the feature is the lead's one row, as high as the lead: its picture
+   then has a height to take what the words leave. */
+.pl-hr-widget:not(:has(> .pl-hr-widget-body)) > .pl-hr-widget-lead:has(> .pl-hr-widget-feature),
+.pl-hr-widget-wide:has(> .pl-hr-widget-body) > .pl-hr-widget-lead:has(> .pl-hr-widget-feature) {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .pl-hr-widget-feature-picture {

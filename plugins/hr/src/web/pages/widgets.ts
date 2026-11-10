@@ -64,6 +64,14 @@ const TALL_RATIO = 0.85;
 /** The narrowest room a week of who is out reads in, a column a day. */
 export const WEEK_WIDTH = 520;
 
+/**
+ * Whether a room shows a week of who is out: wherever it has more than the lead and a column a
+ * day reads, beside the lead or under it, so that a larger box never shows less than a smaller.
+ */
+export function weekFits(room: Room): boolean {
+  return room.shape !== "compact" && room.width >= WEEK_WIDTH;
+}
+
 /** The shape of a room of so many CSS pixels. */
 export function shapeOf(width: number, height: number): Shape {
   if (
@@ -175,8 +183,7 @@ function mount(
   // shape only lays out again.
   new ResizeObserver(() => {
     const next = roomNow();
-    const crossed =
-      next.shape !== room.shape || next.width >= WEEK_WIDTH !== room.width >= WEEK_WIDTH;
+    const crossed = next.shape !== room.shape || weekFits(next) !== weekFits(room);
     room = next;
     if (crossed) {
       void refresh();
@@ -211,10 +218,10 @@ function line(text: string): HTMLElement {
   return el("p", "widget-line sc-muted", text);
 }
 
-/** A section of the body: its name, and what is under it. */
+/** A section of the body: its name, as the console labels a group, and what is under it. */
 function section(title: string, ...children: HTMLElement[]): HTMLElement {
   const node = el("section", "widget-section");
-  node.append(el("h3", "widget-section-title", title), ...children);
+  node.append(el("h3", "widget-section-title sc-eyebrow", title), ...children);
   return node;
 }
 
@@ -340,7 +347,7 @@ export async function renderBalanceWidget(
     const facts = el("dl", "widget-facts");
     const fact = (label: string, value: string) => {
       const item = el("div", "");
-      item.append(el("dt", "", label), el("dd", "", value));
+      item.append(el("dt", "sc-eyebrow", label), el("dd", "", value));
       facts.append(item);
     };
     fact(words.used, format.number(annual.used));
@@ -454,13 +461,16 @@ export async function renderTodayWidget(
           ]),
     ];
     // Wide enough for a column a day, the week; else today's people, a row each.
-    if (room.shape === "wide" && room.width >= WEEK_WIDTH) {
+    if (weekFits(room)) {
       const start = addDays(today, -week.indexOf(weekdayOf(today)));
       const calendar = (await frame.query("calendar", {
         from: start,
         to: addDays(start, 6),
       })) as CalendarReport;
-      return { lead: [...lead, ...holiday], body: [weekStrip(calendar, start, view)] };
+      const strip = weekStrip(calendar, start, view);
+      return room.shape === "wide"
+        ? { lead: [...lead, ...holiday], body: [strip] }
+        : { lead, body: [strip], foot: holiday };
     }
     return {
       lead,

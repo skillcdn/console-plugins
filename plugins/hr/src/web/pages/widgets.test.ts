@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shapeOf, WEEK_WIDTH } from "./widgets.js";
+import { shapeOf, WEEK_WIDTH, weekFits } from "./widgets.js";
 
 describe("a widget's shape, from the room its frame has", () => {
   it("places the parts by the room, not by the name of the size", () => {
@@ -35,5 +35,21 @@ describe("a widget's shape, from the room its frame has", () => {
 
   it("shows a week of who is out only where a column a day reads", () => {
     expect(WEEK_WIDTH).toBeGreaterThan(440);
+  });
+
+  it("shows the week in a large box as in a medium one, beside the lead or under it", () => {
+    const room = (width: number, height: number) => ({
+      shape: shapeOf(width, height),
+      width,
+      height,
+    });
+    // A medium and a large of the grid on a wide screen, and the lead of a composed page.
+    expect(weekFits(room(623, 268))).toBe(true);
+    expect(weekFits(room(623, 605))).toBe(true);
+    expect(weekFits(room(618, 940))).toBe(true);
+    // A small, a large on a phone, and a box too low for more than the lead.
+    expect(weekFits(room(286, 268))).toBe(false);
+    expect(weekFits(room(309, 291))).toBe(false);
+    expect(weekFits(room(900, 140))).toBe(false);
   });
 });
