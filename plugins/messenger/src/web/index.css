@@ -173,29 +173,6 @@
   min-width: 0;
 }
 
-.pl-messenger-pills .pl-messenger-pill {
-  position: relative;
-}
-
-.pl-messenger-pills .pl-messenger-pill input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.pl-messenger-pills .pl-messenger-pill:has(input:checked) {
-  border-color: var(--sc-color-accent);
-  background: var(--sc-color-accent-subtle);
-  color: var(--sc-color-accent);
-  font-weight: var(--sc-weight-medium);
-}
-
-.pl-messenger-pills .pl-messenger-pill:has(input:focus-visible) {
-  outline: var(--sc-focus-ring);
-  outline-offset: 1px;
-}
-
 .pl-messenger-option-cards {
   display: grid;
   gap: var(--sc-space-2);
