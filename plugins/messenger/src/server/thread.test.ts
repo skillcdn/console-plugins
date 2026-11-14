@@ -390,10 +390,24 @@ describe("what stands in the way", () => {
   });
 
   it("leaves a version of HR it was not written for alone", async () => {
-    const { ctx } = setup({ hr: fakeHr({ version: "0.4.0", views: { [REQUEST]: view({}) } }) });
+    const { ctx } = setup({ hr: fakeHr({ version: "0.5.0", views: { [REQUEST]: view({}) } }) });
     await connected(ctx);
     await onLeaveEvent(ctx.as(CONSOLE), event("leave-requested"));
-    expect(ctx.all("deliveries")[0]?.data.note).toBe("outside:0.4.0");
+    expect(ctx.all("deliveries")[0]?.data.note).toBe("outside:0.5.0");
+  });
+
+  it("reads HR 0.4, which moved to console 0.5 and kept its contract", async () => {
+    const slack = fakeSlack();
+    const { ctx } = setup({
+      slack,
+      hr: fakeHr({ version: "0.4.0", views: { [REQUEST]: view({}) } }),
+    });
+    await connected(ctx);
+    await linked(ctx, MINSU, "U0MINSU01");
+    await linked(ctx, JIHYE, "U0JIHYE01");
+    await onLeaveEvent(ctx.as(CONSOLE), event("leave-requested"));
+    expect(ctx.all("deliveries")[0]?.data).toMatchObject({ outcome: "sent", note: "thread" });
+    expect(slack.of("chat.postMessage").length).toBeGreaterThan(0);
   });
 
   it("hands Slack's wait to the console and keeps the failure for the page", async () => {

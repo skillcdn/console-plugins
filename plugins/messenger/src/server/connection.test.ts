@@ -574,7 +574,7 @@ describe("status", () => {
     expect(report.hr).toEqual({
       state: "on",
       version: "0.2.0",
-      range: ">=0.2.0 <0.4.0",
+      range: ">=0.2.0 <0.5.0",
       granted: ["hr"],
       asked: ["hr"],
     });
@@ -621,7 +621,10 @@ describe("status", () => {
     expect(((await status.run(off.ctx, {})) as StatusReport).hr.state).toBe("off");
     const next = setup({ hr: fakeHr({ version: "0.3.0" }) });
     expect(((await status.run(next.ctx, {})) as StatusReport).hr.state).toBe("on");
-    const later = setup({ hr: fakeHr({ version: "0.4.0" }) });
+    // HR 0.4.0 moved to console 0.5 and kept its contract.
+    const moved = setup({ hr: fakeHr({ version: "0.4.0" }) });
+    expect(((await status.run(moved.ctx, {})) as StatusReport).hr.state).toBe("on");
+    const later = setup({ hr: fakeHr({ version: "0.5.0" }) });
     expect(((await status.run(later.ctx, {})) as StatusReport).hr.state).toBe("outside");
     const bare = setup({ grants: [] });
     expect(((await status.run(bare.ctx, {})) as StatusReport).hr.granted).toEqual([]);
