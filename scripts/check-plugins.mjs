@@ -12,6 +12,7 @@
 //      commands and the console's own, never another's;
 //   5. the stylesheet's classes carry the plugin's prefix, pl-<key>-, and it writes no colour of
 //      its own: every colour is a console token or comes with one of its classes (PRODUCT.md);
+//      what else its rules may say, and the console classes its sources name, is check-styles.mjs's;
 //   6. every link a Markdown file of the repository makes to a file of the repository resolves;
 //   7. every plugin is listed in the root README's table and in the roadmap.
 // Dependency-free but for the console's own manifest parser, which the root installs. Part of

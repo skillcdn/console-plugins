@@ -1,0 +1,29 @@
+{
+  "drawn": [
+    "pl-messenger-head",
+    "pl-messenger-label",
+    "pl-messenger-line",
+    "pl-messenger-mono",
+    "pl-messenger-num",
+    "pl-messenger-ok",
+    "pl-messenger-option-card",
+    "pl-messenger-option-card-hint",
+    "pl-messenger-option-card-label",
+    "pl-messenger-option-cards",
+    "pl-messenger-page",
+    "pl-messenger-panel-title",
+    "pl-messenger-rule",
+    "pl-messenger-small",
+    "pl-messenger-status",
+    "pl-messenger-step",
+    "pl-messenger-step-blocked",
+    "pl-messenger-step-done",
+    "pl-messenger-step-title",
+    "pl-messenger-subheading",
+    "pl-messenger-table",
+    "pl-messenger-when",
+    "pl-messenger-who-name",
+    "pl-messenger-who-sub",
+    "pl-messenger-who-text"
+  ]
+}

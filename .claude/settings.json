@@ -42,5 +42,19 @@
       "Bash(git show *)",
       "Bash(git branch --show-current)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm -w --silent check:styles --hook",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
   }
 }

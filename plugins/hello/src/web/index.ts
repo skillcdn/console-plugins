@@ -10,15 +10,17 @@ interface Greeting {
   readonly by: string;
 }
 
-const PREFIX = "pl-hello-";
-
+/**
+ * An element with its classes: the console's parts give it its look (sc-...), and a class of the
+ * plugin's (pl-hello-...) places it, nothing more (docs/guide/conventions.md#pages).
+ */
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,
   text?: string,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
-  node.className = `${PREFIX}${className}`;
+  node.className = className;
   if (text !== undefined) {
     node.textContent = text;
   }
@@ -33,29 +35,29 @@ async function latestGreetings(
 }
 
 function greetingItem(record: PluginRecord<Greeting>, words: Words): HTMLLIElement {
-  const item = element("li", "greeting");
+  const item = element("li", "sc-task-row");
   item.append(
-    element("span", "text", record.data.text),
-    element("span", "by", `${words.by} ${record.data.by}`),
+    element("span", "sc-task-row-title", record.data.text),
+    element("span", "sc-task-row-meta sc-muted", `${words.by} ${record.data.by}`),
   );
   return item;
 }
 
 async function renderPage(root: HTMLElement, frame: PluginFrame, words: Words): Promise<void> {
-  const page = element("div", "page");
-  const form = element("form", "form");
+  const page = element("div", "pl-hello-page");
+  const form = element("form", "pl-hello-form");
   const input = document.createElement("input");
   input.className = "sc-input";
   input.placeholder = words.whoToGreet;
   input.maxLength = 80;
   input.required = true;
   const button = document.createElement("button");
-  button.className = "sc-button";
+  button.className = "sc-button sc-button-primary";
   button.type = "submit";
   button.textContent = words.greet;
   form.append(input, button);
-  const list = element("ul", "list");
-  const status = element("p", "empty");
+  const list = element("ul", "sc-task-rows");
+  const status = element("p", "sc-muted");
   page.append(form, list, status);
   root.replaceChildren(page);
 
@@ -63,7 +65,7 @@ async function renderPage(root: HTMLElement, frame: PluginFrame, words: Words): 
     const records = await latestGreetings(frame, 20);
     list.replaceChildren(...records.map((record) => greetingItem(record, words)));
     status.textContent = records.length === 0 ? words.nobodyYet : "";
-    status.className = `${PREFIX}empty`;
+    status.className = "sc-muted";
   };
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -76,7 +78,7 @@ async function renderPage(root: HTMLElement, frame: PluginFrame, words: Words): 
       })
       .catch((error: unknown) => {
         status.textContent = error instanceof Error ? error.message : words.refused;
-        status.className = `${PREFIX}error`;
+        status.className = "sc-form-error";
       })
       .finally(() => {
         button.disabled = false;
@@ -90,14 +92,14 @@ async function renderPage(root: HTMLElement, frame: PluginFrame, words: Words): 
 }
 
 async function renderWidget(root: HTMLElement, frame: PluginFrame, words: Words): Promise<void> {
-  const widget = element("div", "widget");
+  const widget = element("div", "pl-hello-widget");
   root.replaceChildren(widget);
   const refresh = async () => {
     const [record] = await latestGreetings(frame, 1);
     widget.replaceChildren(
       record === undefined
-        ? element("p", "empty", words.nobodyYet)
-        : element("p", "text", record.data.text),
+        ? element("p", "sc-muted", words.nobodyYet)
+        : element("p", "", record.data.text),
     );
   };
   frame.onEvent(["records"], () => {
