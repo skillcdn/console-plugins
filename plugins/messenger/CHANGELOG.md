@@ -1,5 +1,11 @@
 # @skillcdn/console-plugin-messenger
 
+## 0.3.2
+
+### Patch Changes
+
+- [`844ae67`](https://github.com/skillcdn/console-plugins/commit/844ae672690e570f34a8642d65243b5a918b9eaa) Thanks [@samo-lucid](https://github.com/samo-lucid)! - On a wide screen, the facts beside the Connection page (the HR pane, the connection and its secrets) put each label above its value, as they stand on a phone: on console 0.5.0 the label took most of the narrow pane, and the secrets' badges ran out of it.
+
 ## 0.3.1
 
 ### Patch Changes
