@@ -1,5 +1,11 @@
 # @skillcdn/console-plugin-messenger
 
+## 0.3.1
+
+### Patch Changes
+
+- [`b426b73`](https://github.com/skillcdn/console-plugins/commit/b426b73861f342a1250c8a98aa7d97011779e68c) Thanks [@samo-lucid](https://github.com/samo-lucid)! - Reads HR 0.4 as it reads 0.3. HR 0.4.0 moved to console 0.5 and changed nothing the messenger reads, but the messenger 0.3.0 read HR up to 0.3 alone: with HR 0.4.0 its Connection page said HR was in a version it was not written for, the Slack shortcut lost the leave form, and leave requests were not told in Slack. Install 0.3.1 with HR 0.4.0.
+
 ## 0.3.0
 
 ### Minor Changes
