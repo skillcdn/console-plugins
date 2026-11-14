@@ -270,11 +270,14 @@ export function columns(
   return node;
 }
 
-/** Facts one under another, a label beside its value, as the console's plain facts have them. */
+/**
+ * Facts one under another, the console's plain facts, each label above its value: the aside is
+ * narrower than the label's column of the part and its value beside it.
+ */
 export function factsPlain(pairs: readonly (readonly [string, string | Node])[]): HTMLDListElement {
   const node = el("dl", "sc-facts-plain");
   for (const [label, value] of pairs) {
-    const item = el("div", "");
+    const item = el("div", "fact");
     const detail = el("dd", "");
     detail.append(value);
     item.append(el("dt", "", label), detail);

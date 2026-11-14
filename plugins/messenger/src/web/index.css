@@ -256,6 +256,12 @@
   display: none;
 }
 
+/* A fact of the aside: its label above its value, as the console's plain facts stand on a phone.
+   Beside it, the part's label column leaves the value a few rem, and a badge runs out of the pane. */
+.pl-messenger-fact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .pl-messenger-secret {
   display: inline-flex;
   flex-wrap: wrap;
