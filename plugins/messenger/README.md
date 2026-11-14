@@ -106,6 +106,6 @@ What the administrator and whoever keeps the messenger do, which the hand-over t
 - A public address over https (`PUBLIC_URL`) that Slack can reach: Slack posts the presses to the endpoint `slack` and sends the installer back to `slack-oauth` under it.
 - Outbound https to `slack.com` and `hooks.slack.com`.
 - `AUTH_SECRET`, which the console seals the secret settings with.
-- Console 0.4.7 or later, before 0.5.0: built against 0.4.7, which says the workspace's language to a plugin, for whoever has none of their own.
+- Console 0.5.0 or later, before 0.6.0: built against 0.5.0, which runs a plugin's upgrades, so that the connection kept by 0.1 takes the names and the icon of data version 2 when the deployment moves.
 
 Measured on a real Slack workspace since the first release: the configuration token, pasted with no expiry the console knows, renewed by the first hourly run; the form opening within the three seconds Slack allows. Not measured yet: whether an edit keeps the name and the picture a message was posted under, whether adding or taking away the shortcut asks for the app to be installed again, whether a bot renamed on an installed app gets a new handle, whether the configuration token may set the app's icon, the second form of a cancellation and its answer within the three seconds, whether closing it brings back the leave form drawn again, and how long a configuration refresh token lasts ([docs/roadmap.md](../../docs/roadmap.md), "Open points of `messenger`").

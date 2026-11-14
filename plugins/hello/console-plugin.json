@@ -10,7 +10,7 @@
     "ko": "인사를 레코드로 보관합니다. greet 명령으로 인사하고, latest 조회로 최근 인사를 읽습니다."
   },
   "pluginApi": 1,
-  "console": ">=0.4.4 <0.5.0",
+  "console": ">=0.5.0 <0.6.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",

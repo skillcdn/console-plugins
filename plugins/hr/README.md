@@ -194,7 +194,7 @@ What the administrator does, which the hand-over task quotes:
 
 ## What the deployment must provide
 
-Nothing beyond the console: no `storage:sql`, no outbound host; the pictures of announcements are the console's files, kept where it keeps every file. The manifest's `console` says the consoles it runs on, `>=0.4.7 <0.5.0` ([ADR-0006](../../docs/adr/0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md)); what each version of the console brought is in [docs/roadmap.md](../../docs/roadmap.md), 0.4.7 the workspace's language for whoever has none.
+Nothing beyond the console: no `storage:sql`, no outbound host; the pictures of announcements are the console's files, kept where it keeps every file. The manifest's `console` says the consoles it runs on, `>=0.5.0 <0.6.0` ([ADR-0006](../../docs/adr/0006-a-plugin-has-a-version-of-its-own-and-declares-the-consoles-it-runs-on.md)); what each version of the console brought is in [docs/roadmap.md](../../docs/roadmap.md), 0.5.0 the upgrades of a plugin's records run at last, so that a deployment that took 0.3 on an earlier console has its kinds' rules of cancelling written when it moves.
 
 ## The pages
 

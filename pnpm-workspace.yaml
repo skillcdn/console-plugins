@@ -6,7 +6,7 @@ packages:
 # API moves with the console's line, so the plugins are rebuilt together when it moves
 # (docs/adr/0003-every-plugin-is-built-against-one-version-of-the-console-and-they-move-together.md).
 catalog:
-  "@skillcdn/console": ^0.4.7
+  "@skillcdn/console": ^0.5.0
   "@types/node": ^24.19.1
   esbuild: ^0.28.2
   typescript: ^7.0.2
