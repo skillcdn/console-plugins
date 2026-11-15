@@ -1,5 +1,19 @@
 # @skillcdn/console-plugin-messenger
 
+## 0.4.0
+
+### Minor Changes
+
+- [`42766d7`](https://github.com/skillcdn/console-plugins/commit/42766d743a9b1c127acf0dcd16eac9280695df31) Thanks [@samo-lucid](https://github.com/samo-lucid)! - Breaking: needs console 0.5.1 or later, before 0.6.0, and moves the records to data version 3. The administrator consents to two new capabilities, `projects:read` and `board:read`, and places the messenger on the projects whose people are to be told of their own work.
+  
+  - **Several Slack workspaces, one app.** The app is installed in each workspace that takes it, from a link `connect` or `install` gives, good once within a day, which whoever may install apps there opens with or without an account on the console; the workspace then waits until whoever keeps the messenger accepts it on the Connection page or with `workspace <id> --accept`, so that a link handed on cannot connect a workspace nobody chose. Each workspace's bot token is kept under its id. People are matched in each workspace; a route names a channel of one workspace and tells it only of people with an account there; HR's thread of a request is begun in the workspace the shortcut was pressed in, a decider with no account there asked directly where they have one. `disconnect --workspace` takes one workspace away, and a workspace that removes the app in Slack is noticed within the hour. `workspace` makes one the default, or names the projects told in it.
+  - **A person's own work, as they choose.** Each person is told in a direct message of a task given to them, their tasks moved, changed, commented or put away, a decision waiting on them, and their agent accounts stopping or running again, never of what they did themselves, at once or in one message a day. They choose on the new page My notifications, or through their agent with `notify` and `notices`; each message has a button that turns its kind off. A project's Slack page says which workspace it is told in.
+  - **The upgrade.** The one connection becomes the app and its workspace, the default, and the routes and threads name that workspace. The bot token is moved under the workspace's id by the upgrade where the deployment gives the `migrate` role the sign-in configuration, else by the first call to Slack that needs it, or the hourly job.
+
+### Patch Changes
+
+- [`844ae67`](https://github.com/skillcdn/console-plugins/commit/844ae672690e570f34a8642d65243b5a918b9eaa) Thanks [@samo-lucid](https://github.com/samo-lucid)! - On a wide screen, the facts beside the Connection page (the HR pane, the connection and its secrets) put each label above its value, as they stand on a phone: on console 0.5.0 the label took most of the narrow pane, and the secrets' badges ran out of it.
+
 ## 0.3.1
 
 ### Patch Changes
