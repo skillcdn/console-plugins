@@ -50,7 +50,7 @@ import {
   type WaitingData,
   waiting,
 } from "./collections.js";
-import { HR } from "./integrations/hr/contract.js";
+import { HR, refusalCode } from "./integrations/hr/contract.js";
 import { languageOfPerson } from "./people.js";
 import { bot, SlackError, slack, textOf } from "./slack/api.js";
 import {
@@ -278,6 +278,29 @@ export function projectTeam(
   );
 }
 
+/**
+ * What the console tells the caller of at all, read in their own call (the console's ADR-0165): a
+ * kind off there is sent by nobody, whatever is chosen here. Null where the console does not say,
+ * and then the choice is shown as it stands.
+ */
+async function toldByConsole(ctx: PluginContext): Promise<NoticesView["console"]> {
+  try {
+    const settings = await ctx.console.notifications.settings();
+    return {
+      kinds: Object.fromEntries(
+        NOTICE_KINDS.map((kind) => [kind, settings.kinds[kind] !== false]),
+      ) as Record<NoticeKind, boolean>,
+      projectsOff: settings.projectsOff.map(({ key, name }) => ({ key, name })),
+      ownAgents: settings.ownAgents,
+    };
+  } catch (error) {
+    ctx.log.warn("the console did not say what it tells of", {
+      code: refusalCode(error),
+    });
+    return null;
+  }
+}
+
 /** What a person's choice comes to, as the page and their agent read it. */
 async function noticesView(ctx: PluginContext, personId: string): Promise<NoticesView> {
   const found = await preferenceOf(ctx, personId);
@@ -286,6 +309,7 @@ async function noticesView(ctx: PluginContext, personId: string): Promise<Notice
   const connected = await connectionsOf(ctx);
   const accounts = await accountsOf(ctx, personId);
   const waitingCount = await ctx.records(waiting).aggregate({ where: { personId }, count: true });
+  const person = await ctx.console.people.get(personId).catch(() => null);
   return {
     kinds: Object.fromEntries(
       NOTICE_CHOICES.map((choiceName) => [choiceName, !choice.off.includes(choiceName)]),
@@ -293,6 +317,8 @@ async function noticesView(ctx: PluginContext, personId: string): Promise<Notice
     cadence: choice.cadence,
     at: choice.at,
     chosen: found !== null,
+    console: await toldByConsole(ctx),
+    agentAccount: person?.kind === "agent",
     timeZone: workspace.timeZone,
     accounts: connected
       .filter((connection) => accounts.has(connection.data.teamId))
@@ -363,12 +389,26 @@ export const notify = defineCommand({
       ...(sentOn === undefined ? {} : { sentOn }),
     });
     const out = offOf(saved);
+    const view = await noticesView(ctx, personId);
+    const told = view.console?.kinds;
+    const offThere = told === undefined ? [] : NOTICE_KINDS.filter((kind) => !told[kind]);
+    const inVain = offThere.filter((kind) => on.has(kind));
     return {
-      text: words.said.notices(
-        out.map((choice) => words.notice.kinds[choice]).join(", ") || words.notice.nothing,
-        saved.cadence === "daily" ? words.notice.daily(saved.at) : words.notice.now,
-      ),
-      data: await noticesView(ctx, personId),
+      text: [
+        words.said.notices(
+          out.map((choice) => words.notice.kinds[choice]).join(", ") || words.notice.nothing,
+          saved.cadence === "daily" ? words.notice.daily(saved.at) : words.notice.now,
+        ),
+        // Said where it was asked for in vain: to an agent account nothing is sent at all.
+        view.agentAccount
+          ? words.said.noticesAgent
+          : inVain.length > 0
+            ? words.said.noticesOff(inVain.map((kind) => words.notice.kinds[kind]).join(", "))
+            : null,
+      ]
+        .filter((line) => line !== null)
+        .join("\n"),
+      data: view,
     };
   },
 });

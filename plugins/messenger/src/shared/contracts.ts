@@ -348,6 +348,18 @@ export interface NoticesView {
   readonly timeZone: string;
   /** Whether they ever chose, or stand on the defaults. */
   readonly chosen: boolean;
+  /**
+   * What the console tells them of at all, which they choose there: each kind, the projects that
+   * tell them nothing, of those the messenger is on, and whether what their own agents do counts.
+   * Null where the console did not say.
+   */
+  readonly console: {
+    readonly kinds: Readonly<Record<NoticeKind, boolean>>;
+    readonly projectsOff: readonly { readonly key: string; readonly name: string }[];
+    readonly ownAgents: boolean;
+  } | null;
+  /** An agent account, which the console wakes itself for what it tells it: nothing is sent to it. */
+  readonly agentAccount: boolean;
   /** The workspaces they have an account in, where they are told. */
   readonly accounts: readonly { readonly teamId: string; readonly teamName: string | null }[];
   /** Lines waiting for the day's message. */

@@ -30,6 +30,7 @@ import {
 import {
   CONSOLE,
   connected,
+  type FakePerson,
   fakeSlack,
   HANA,
   JIHYE,
@@ -109,6 +110,9 @@ async function ready(
     readonly decision?: Record<string, unknown>;
     readonly now?: () => Date;
     readonly slack?: ReturnType<typeof fakeSlack>;
+    /** What the console answers of the caller's own settings; refused unless given. */
+    readonly settings?: NonNullable<Parameters<typeof setup>[0]>["settings"];
+    readonly people?: readonly FakePerson[];
   } = {},
 ) {
   const slack = options.slack ?? fakeSlack();
@@ -116,7 +120,8 @@ async function ready(
     slack,
     caller: MEMBER_MINSU,
     ...(options.now === undefined ? {} : { now: options.now }),
-    people: [
+    ...(options.settings === undefined ? {} : { settings: options.settings }),
+    people: options.people ?? [
       MINSU,
       JIHYE,
       { ...HANA, managerId: null },
@@ -1390,6 +1395,19 @@ describe("the kinds", () => {
   });
 });
 
+/** What a person who chose nothing in the console is told of: their agent accounts alone. */
+const PERSON_KINDS = {
+  assigned: false,
+  ready: false,
+  moved: false,
+  changed: false,
+  commented: false,
+  archived: false,
+  decision: false,
+  answered: false,
+  agent: true,
+};
+
 describe("notify and notices", () => {
   it("answers everything the console tells to whoever never chose, and what they keep out of Slack since", async () => {
     const { ctx } = await ready();
@@ -1438,6 +1456,66 @@ describe("notify and notices", () => {
     const reset = await notify.run(ctx, { reset: true });
     expect(reset.text).toContain("Slack으로 보내지 않는 것: 없음.");
     expect(((await notices.run(ctx, {})) as NoticesView).kinds.followed).toBe(true);
+  });
+
+  it("says what is off in the console, where nothing of it comes, and keeps the choice made here", async () => {
+    const { ctx } = await ready({
+      settings: async () => ({
+        kinds: { ...PERSON_KINDS, commented: true },
+        defaults: PERSON_KINDS,
+        projectsOff: [{ key: "web", name: "Web" }],
+        ownAgents: false,
+      }),
+    });
+    const before = (await notices.run(ctx, {})) as NoticesView;
+    expect(before.console).toEqual({
+      kinds: { ...PERSON_KINDS, commented: true },
+      projectsOff: [{ key: "web", name: "Web" }],
+      ownAgents: false,
+    });
+    // What is chosen here stands whatever the console's says, for when it is on there again.
+    expect(before.kinds.moved).toBe(true);
+    expect(before.agentAccount).toBe(false);
+    const off = await notify.run(ctx, { off: ["moved"] });
+    expect(off.text).not.toContain("비활성화되어 있어");
+    // Turned on here, a kind that is off there comes no more than before: the answer says so.
+    const on = await notify.run(ctx, { on: ["moved", "commented", "followed"] });
+    expect(on.text).toContain(
+      "콘솔에서 비활성화되어 있어 오지 않는 것: 상태 변경. 콘솔 알림 설정이나 console notify로 활성화하세요.",
+    );
+    expect((on.data as NoticesView).kinds).toMatchObject({ moved: true, commented: true });
+    expect(ctx.all("preferences")[0]?.data.off).toEqual([]);
+  });
+
+  it("answers as it did where the console does not say what is off there", async () => {
+    for (const settings of [
+      undefined,
+      async () => {
+        throw Object.assign(new Error("down"), { code: "plugin.unavailable" });
+      },
+    ]) {
+      const { ctx } = await ready(settings === undefined ? {} : { settings });
+      const view = (await notices.run(ctx, {})) as NoticesView;
+      expect(view.console).toBe(null);
+      expect(view.kinds.moved).toBe(true);
+      const on = await notify.run(ctx, { on: ["moved"] });
+      expect(on.text).not.toContain("비활성화되어 있어");
+    }
+  });
+
+  it("tells an agent account that nothing is sent to it, the console waking it itself", async () => {
+    const { ctx } = await ready({
+      people: [{ ...MINSU, kind: "agent" }, JIHYE],
+      settings: async () => ({
+        kinds: PERSON_KINDS,
+        defaults: PERSON_KINDS,
+        projectsOff: [],
+        ownAgents: false,
+      }),
+    });
+    expect(((await notices.run(ctx, {})) as NoticesView).agentAccount).toBe(true);
+    const said = await notify.run(ctx, { on: ["moved"] });
+    expect(said.text).toContain("에이전트 계정에는 Slack으로 보내지 않습니다.");
   });
 
   it("refuses a time that is none, a kind both on and off, the console itself, and whoever holds no role", async () => {

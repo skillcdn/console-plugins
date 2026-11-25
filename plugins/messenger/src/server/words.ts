@@ -55,6 +55,8 @@ export interface ServerWords {
     readonly removed: (name: string) => string;
     readonly workspaceSaved: (name: string, isDefault: boolean, projects: string) => string;
     readonly notices: (kinds: string, when: string) => string;
+    readonly noticesOff: (kinds: string) => string;
+    readonly noticesAgent: string;
     readonly accepted: (name: string) => string;
     readonly answeredFor: (name: string) => string;
     readonly names: (app: string, bot: string, handle: string | null) => string;
@@ -307,6 +309,10 @@ const EN: ServerWords = {
         : `${name} is told of ${projects} projects named here.`,
     notices: (out, when) =>
       `What the console tells you reaches you in Slack ${when}. Kept out of Slack: ${out}.`,
+    noticesOff: (kinds) =>
+      `Off in the console, so that nothing of it comes: ${kinds}. Turn it on in the console's notification settings, or with console notify.`,
+    noticesAgent:
+      "Nothing is sent in Slack to an agent account: the console wakes it itself for what it tells it.",
     accepted: (name) => `${name} is accepted: its people are matched within the hour.`,
     answeredFor: (name) =>
       `You accepted ${name} as an administrator: the console is told whose each account there is.`,
@@ -608,6 +614,10 @@ const KO: ServerWords = {
         : `${name}에는 여기에 정한 프로젝트 ${projects}개를 알립니다.`,
     notices: (out, when) =>
       `콘솔이 알려 주는 것을 Slack으로 ${when} 보냅니다. Slack으로 보내지 않는 것: ${out}.`,
+    noticesOff: (kinds) =>
+      `콘솔에서 비활성화되어 있어 오지 않는 것: ${kinds}. 콘솔 알림 설정이나 console notify로 활성화하세요.`,
+    noticesAgent:
+      "에이전트 계정에는 Slack으로 보내지 않습니다. 콘솔이 알려 주는 것은 콘솔이 직접 깨워 전합니다.",
     accepted: (name) =>
       `${asObject(name)} 수락했습니다. 한 시간 안에 그곳 사람들의 계정을 연결합니다.`,
     answeredFor: (name) =>

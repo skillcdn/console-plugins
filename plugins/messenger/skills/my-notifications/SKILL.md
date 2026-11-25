@@ -34,9 +34,9 @@ The kinds are the console's own, by its names: `assigned` (a task given to you),
 
 ## What to know
 
-- When a person gets nothing in Slack of a kind, look in this order: `console notify` says whether the console tells them of it at all; `notices` says whether it is kept out of Slack, and lists the workspaces they have an account in, none meaning that nothing reaches them, usually because their address in Slack is not the one the console knows; `project-notices` says which workspace a project is told in, and a project is told only where the messenger is placed on it.
+- When a person gets nothing in Slack of a kind, read `notices`: under `console` is what the console tells them of at all, the kinds, the projects turned off (`projectsOff`) and whether what their own agents did counts (`ownAgents`), null where the console did not say, which `console notify` then does; `kinds` is what is sent on to Slack of it, so that a kind comes where both say true; `accounts` lists the workspaces they have an account in, none meaning that nothing reaches them, usually because their address in Slack is not the one the console knows. `project-notices` says which workspace a project is told in, and a project is told only where the messenger is placed on it.
 - A project turned off, and whether what one's own agents did counts, are the console's settings: `console notify`.
-- An agent account is sent nothing here: the console wakes it itself for what it is told, and the messenger sends that to nobody.
+- An agent account is sent nothing here, and `notices` says so (`agentAccount`): the console wakes it itself for what it is told, and the messenger sends that to nobody. What wakes it is chosen in the console, with `console notify`.
 - The time of the day's message is `HH:MM` in the workspace's time zone, which `notices` says; the message goes within five minutes after.
 - A message says what happened first, then who did it, and under it the task or the decision by its name, which is the link to it on the console. The day's message says each task, decision or agent account once, with everything that happened to it since the last, what waits on the person first.
 - A message sent at once has a button that turns off, for Slack, what let it through: its kind, or the tasks turned on. The console's own list still has it; the page and `notify` send it on again.

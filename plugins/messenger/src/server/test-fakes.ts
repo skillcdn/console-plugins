@@ -197,6 +197,8 @@ export interface FakePerson {
   readonly language: string | null;
   readonly status?: "active" | "deactivated";
   readonly role?: "admin" | "member";
+  /** An agent account, where it says so. */
+  readonly kind?: "agent";
   readonly managerId?: string | null;
 }
 
@@ -215,6 +217,7 @@ export function restPerson(person: FakePerson) {
     teams: [],
     language: person.language,
     email: person.email,
+    kind: person.kind ?? ("person" as const),
   };
 }
 
@@ -455,6 +458,16 @@ export function setup(
     /** The projects the messenger is placed on, by key; every one unless said. */
     readonly placed?: readonly string[];
     readonly answer?: (decisionId: string, personId: string) => void;
+    /**
+     * What the caller chose to be told of, as the console answers it; refused unless given, as the
+     * console refuses a caller who is no member.
+     */
+    readonly settings?: () => Promise<{
+      readonly kinds: Readonly<Record<string, boolean>>;
+      readonly defaults: Readonly<Record<string, boolean>>;
+      readonly projectsOff: { readonly key: string; readonly name: string }[];
+      readonly ownAgents: boolean;
+    }>;
     /** The language an administrator set for the workspace; none set unless said. */
     readonly workspaceLanguage?: "en" | "ko";
     /** The console's clock; the tests' moment unless said. */
@@ -580,6 +593,9 @@ export function setup(
           return true;
         },
       },
+      ...(options.settings === undefined
+        ? {}
+        : { notifications: { settings: options.settings as never } }),
       ...(options.board?.tasks === undefined ? {} : { tasks: options.board.tasks as never }),
       projects: (options.board?.projects ?? { list: async () => [] }) as never,
       decisions: {

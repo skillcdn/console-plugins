@@ -2,13 +2,15 @@
 // in Slack too, each kind a chip in the groups of the console's own settings and the tasks they
 // turned on themselves beside them, at once or in one message a day at a time of the workspace's
 // zone; where they are told, and what waits for the day's message. What they are told at all is
-// the console's to say, and the page leads to its settings. Saving runs the command `notify`, as
-// their agent would.
+// the console's to say, and the page leads to its settings: a kind that is off there is shown as
+// off and cannot be chosen here, with what was chosen of it kept for when it is on there again.
+// Saving runs the command `notify`, as their agent would.
 import type { PluginFrame } from "@skillcdn/console/plugin/web";
 import {
   CADENCES,
   type Cadence,
   CONSOLE_NOTIFICATIONS_PATH,
+  FOLLOWED,
   NOTICE_CHOICES,
   NOTICE_GROUPS,
   type NoticeChoice,
@@ -54,10 +56,18 @@ function build(frame: PluginFrame, words: Words, view: NoticesView): HTMLElement
     main.push(callout(w.noAccount.title, w.noAccount.body, "warning"));
   }
 
+  // The tasks turned on one by one are no kind of the console's, and come whatever its kinds say.
+  const there = view.console?.kinds ?? null;
+  const offThere = (choice: NoticeChoice): boolean =>
+    choice !== FOLLOWED && there !== null && !there[choice];
   const groups = GROUPS.map((group) => ({
     name: w.groups[group],
     chips: checks<NoticeChoice>(
-      NOTICE_GROUPS[group].map((choice) => ({ value: choice, label: w.kinds[choice] })),
+      NOTICE_GROUPS[group].map((choice) => ({
+        value: choice,
+        label: w.kinds[choice],
+        locked: offThere(choice) ? w.offThere : undefined,
+      })),
       new Set(NOTICE_GROUPS[group].filter((choice) => view.kinds[choice])),
       w.groups[group],
     ),
@@ -82,7 +92,7 @@ function build(frame: PluginFrame, words: Words, view: NoticesView): HTMLElement
   // with that, the way to it at the panel's head, since a kind is turned on there before it is
   // here.
   const node = settingsForm(
-    lead(w.chooseHint),
+    lead(NOTICE_CHOICES.some(offThere) ? w.chooseHintOff : w.chooseHint),
     ...groups.map(({ name, chips }) => settingsRow(name, chips.node)),
     settingsRow(w.when, cadence.node, atField),
     actions(save, said),
@@ -103,8 +113,9 @@ function build(frame: PluginFrame, words: Words, view: NoticesView): HTMLElement
       node,
     ),
   );
-  // Where the messages go, and what waits for the day's. With no account the warning above says
-  // so already, and the pane keeps only how a place is chosen.
+  // Where the messages go, which projects are told of nothing, and what waits for the day's. With
+  // no account the warning above says so already, and the pane keeps only how a place is chosen.
+  const projectsOff = (view.console?.projectsOff ?? []).map((project) => project.name);
   aside.push(
     panel(
       w.where,
@@ -116,6 +127,7 @@ function build(frame: PluginFrame, words: Words, view: NoticesView): HTMLElement
             ),
           ]),
       muted(w.whereHint),
+      ...(projectsOff.length > 0 ? [muted(w.projectsOff(projectsOff.join(", ")))] : []),
       ...(view.cadence === "daily" ? [muted(w.waiting(String(view.waiting)))] : []),
     ),
   );

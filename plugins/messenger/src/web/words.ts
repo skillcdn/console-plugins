@@ -176,6 +176,9 @@ export interface Words {
     readonly noAccount: Note;
     readonly choose: string;
     readonly chooseHint: string;
+    readonly chooseHintOff: string;
+    readonly offThere: string;
+    readonly projectsOff: (names: string) => string;
     readonly openConsole: string;
     readonly groups: Readonly<Record<NoticeGroup, string>>;
     readonly kinds: Readonly<Record<NoticeChoice, string>>;
@@ -444,6 +447,11 @@ const EN: Words = {
     choose: "What, and when",
     chooseHint:
       "What is off in the console stays off in Slack. Turn it on in its notification settings, or by a task's bell.",
+    chooseHintOff:
+      "What is dimmed is off in the console. Turn it on in its notification settings, or by a task's bell.",
+    offThere: "Off in the console",
+    projectsOff: (names) =>
+      `Projects off in the console: ${names}. Of those, only tasks whose bell is on are sent.`,
     openConsole: "Console notification settings",
     groups: {
       tasks: "Tasks",
@@ -765,6 +773,11 @@ const KO: Words = {
     choose: "무엇을, 언제",
     chooseHint:
       "콘솔에서 비활성화된 알림은 Slack으로도 오지 않습니다. 콘솔 알림 설정이나 작업의 종에서 활성화할 수 있습니다.",
+    chooseHintOff:
+      "흐리게 보이는 알림은 콘솔에서 비활성화되어 있습니다. 콘솔 알림 설정이나 작업의 종에서 활성화할 수 있습니다.",
+    offThere: "콘솔에서 비활성화됨",
+    projectsOff: (names) =>
+      `콘솔에서 비활성화된 프로젝트: ${names}. 직접 활성화한 작업의 소식만 옵니다.`,
     openConsole: "콘솔 알림 설정",
     groups: {
       tasks: "작업",

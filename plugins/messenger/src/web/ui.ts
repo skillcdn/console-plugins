@@ -17,6 +17,8 @@ export interface Option<K extends string = string> {
   readonly value: K;
   readonly label: string;
   readonly hint?: string;
+  /** Why it cannot be chosen here, where it cannot: shown as off, what was chosen of it kept. */
+  readonly locked?: string | undefined;
 }
 
 /** An element with its classes: the console's `sc-*` as they are, every other prefixed. */
@@ -148,14 +150,23 @@ export function checks<K extends string>(
     const chip = el("label", "sc-toggle-chip pill");
     const box = document.createElement("input");
     box.type = "checkbox";
-    box.checked = initial.has(option.value);
+    if (option.locked === undefined) {
+      box.checked = initial.has(option.value);
+    } else {
+      box.disabled = true;
+      chip.title = option.locked;
+    }
     boxes.set(option.value, box);
     chip.append(box, el("span", "", option.label));
     node.append(chip);
   }
   return {
     node,
-    chosen: () => [...boxes].filter(([, box]) => box.checked).map(([key]) => key),
+    // What cannot be chosen here stays as it was chosen, for when it can be again.
+    chosen: () =>
+      [...boxes]
+        .filter(([key, box]) => (box.disabled ? initial.has(key) : box.checked))
+        .map(([key]) => key),
   };
 }
 
