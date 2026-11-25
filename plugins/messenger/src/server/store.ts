@@ -96,6 +96,13 @@ export async function connectionsOf(ctx: PluginContext): Promise<ConnectionRecor
   );
 }
 
+/** Every workspace the app was ever installed in, those it was taken away from too. */
+export async function everyConnection(ctx: PluginContext): Promise<ConnectionRecord[]> {
+  const page = await ctx.records(connections).list({ limit: 200 });
+  // A connection of data version 2 is among them, until the upgrade archives it.
+  return page.items.filter((record) => "state" in record.data);
+}
+
 /** The workspaces that installed the app through a link and wait to be accepted, the oldest first. */
 export async function pendingOf(ctx: PluginContext): Promise<ConnectionRecord[]> {
   const page = await ctx.records(connections).list({ where: { state: "pending" }, limit: 100 });
@@ -150,6 +157,7 @@ export function blankConnection(teamId: string): ConnectionData {
     connectedAt: null,
     connectedBy: null,
     installedBy: null,
+    acceptedBy: null,
     problem: null,
     problemAt: null,
     matchedAt: null,

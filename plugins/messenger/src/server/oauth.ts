@@ -158,7 +158,7 @@ async function completed(
       installedBy: installer !== null && /^[UW][A-Z0-9]{2,40}$/.test(installer) ? installer : null,
       problem: null,
       problemAt: null,
-      ...(stays ? {} : { matchedAt: null }),
+      ...(stays ? {} : { matchedAt: null, acceptedBy: null }),
     });
     await noteProblem(ctx, null);
     // The handle Slack made of the bot's name, which the setup page says: `@console2` where taken.

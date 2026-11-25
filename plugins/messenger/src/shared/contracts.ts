@@ -104,6 +104,14 @@ export interface WorkspaceView {
   /** Who gave out the link it was installed through, and who installed it, by their id in Slack. */
   readonly connectedBy: PersonBrief | null;
   readonly installedBy: string | null;
+  /**
+   * Whether the console is told whose each account here is, by which an agent account knows who
+   * wrote to it in Slack: `told`; `administrator`, not until an administrator of the console
+   * accepts the workspace; `off`, the capability being off.
+   */
+  readonly accounts: "off" | "told" | "administrator";
+  /** Whether whoever reads this may accept it, waiting, or as an administrator for its accounts. */
+  readonly mayAccept: boolean;
   readonly problem: string | null;
   readonly problemAt: string | null;
   readonly matchedAt: string | null;

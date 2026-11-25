@@ -196,6 +196,7 @@ export interface FakePerson {
   readonly email: string | null;
   readonly language: string | null;
   readonly status?: "active" | "deactivated";
+  readonly role?: "admin" | "member";
   readonly managerId?: string | null;
 }
 
@@ -206,7 +207,7 @@ export function restPerson(person: FakePerson) {
     login: person.login,
     name: person.name,
     avatar: null,
-    role: "member" as const,
+    role: person.role ?? ("member" as const),
     status: person.status ?? ("active" as const),
     source: "organization" as const,
     deactivatedAt: null,

@@ -26,8 +26,8 @@ import {
   type StatusReport,
   type WorkspaceView,
 } from "../shared/contracts.js";
-import { callerPerson, ROLE, requireRole } from "./access.js";
-import { sayAccountsOf } from "./accounts.js";
+import { administers, callerPerson, ROLE, requireRole } from "./access.js";
+import { answeredFor, sayAccountsOf, saysAccounts } from "./accounts.js";
 import { addressState } from "./address.js";
 import {
   apps,
@@ -573,15 +573,15 @@ export async function removeWorkspace(
   }
   await ctx.secrets.forget(BOT_TOKEN, teamId).catch(() => false);
   await archiveAll(ctx, threads, { teamId });
-  // The links stay, to come back with the app; what the console was told of them does not:
-  // an account of a workspace the messenger is not in is nobody's as far as it says.
-  await sayAccountsOf(ctx, teamId, true);
-  await ctx.records("connections").update(connection.id, {
+  const removed = await ctx.records(connections).update(connection.id, {
     state: "removed",
     default: false,
     problem: null,
     problemAt: null,
   });
+  // The links stay, to come back with the app; what the console was told of them does not:
+  // an account of a workspace the messenger is not in is nobody's as far as it says.
+  await sayAccountsOf(ctx, removed);
   if (connection.data.default) {
     const next = (await connectionsOf(ctx))[0];
     if (next !== undefined) {
@@ -694,19 +694,30 @@ export const workspace = defineCommand({
   async run(ctx, args) {
     requireRole(ctx);
     const words = serverWords(ctx.language);
+    let accepted: string | null = null;
     if (args.accept === true) {
-      // Accepted by a person who knows which workspace it is: its people are matched within the
-      // hour, the first one accepted the default (ADR-0016).
-      const waiting = await connectionOfTeam(ctx, args.team.trim().toUpperCase());
-      if (waiting === null || waiting.data.state !== "pending") {
+      const found = await connectionOfTeam(ctx, args.team.trim().toUpperCase());
+      const acceptedBy = callerPerson(ctx)?.id ?? null;
+      if (found?.data.state === "pending") {
+        // Accepted by a person who knows which workspace it is: its people are matched within the
+        // hour, the first one accepted the default (ADR-0016).
+        const first = (await connectionsOf(ctx)).length === 0;
+        await ctx.records(connections).update(found.id, {
+          state: "connected",
+          default: first,
+          matchedAt: null,
+          acceptedBy,
+        });
+        accepted = words.said.accepted(found.data.teamName ?? found.data.teamId);
+      } else if (found?.data.state === "connected" && saysAccounts(ctx) && administers(ctx)) {
+        // Accepted already, by someone who need not administer the console: an administrator who
+        // accepts it answers for it from now on, and the console is told whose each account is.
+        const answered = await ctx.records(connections).update(found.id, { acceptedBy });
+        await sayAccountsOf(ctx, answered);
+        accepted = words.said.answeredFor(found.data.teamName ?? found.data.teamId);
+      } else {
         throw new PluginError("not_pending", words.refused.notPending(args.team));
       }
-      const first = (await connectionsOf(ctx)).length === 0;
-      await ctx.records(connections).update(waiting.id, {
-        state: "connected",
-        default: first,
-        matchedAt: null,
-      });
     }
     const connection = await namedWorkspace(ctx, args.team);
     const added = (args.add ?? []).map((project) => project.id);
@@ -737,10 +748,7 @@ export const workspace = defineCommand({
     const data = saved.data as ConnectionRecord["data"];
     const name = data.teamName ?? data.teamId;
     return {
-      text: [
-        args.accept === true ? words.said.accepted(name) : null,
-        words.said.workspaceSaved(name, data.default, String(data.projects.length)),
-      ]
+      text: [accepted, words.said.workspaceSaved(name, data.default, String(data.projects.length))]
         .filter((line) => line !== null)
         .join("\n"),
       data: { workspace: data.teamId, default: data.default, projects: data.projects },
@@ -860,6 +868,11 @@ async function workspaceViews(
         person === null ? null : { id: person.id, login: person.login, name: person.name ?? null };
     }
     const token = tokens.get(data.teamId);
+    const accounts: WorkspaceView["accounts"] = !saysAccounts(ctx)
+      ? "off"
+      : (await answeredFor(ctx, connection).catch(() => false))
+        ? "told"
+        : "administrator";
     views.push({
       teamId: data.teamId,
       teamName: data.teamName,
@@ -871,6 +884,8 @@ async function workspaceViews(
       connectedAt: data.connectedAt,
       connectedBy,
       installedBy: data.installedBy,
+      accounts,
+      mayAccept: data.state === "pending" || (accounts === "administrator" && administers(ctx)),
       problem: data.problem,
       problemAt: data.problemAt,
       matchedAt: data.matchedAt,

@@ -2,14 +2,18 @@
 // capability `people:accounts` where an administrator turned it on. An agent account's wake from
 // Slack then says which member wrote and whether a supervisor of the account did, whose own word
 // there the account takes as an instruction: so what is said here is a live link and nothing
-// else. A link is written by the matching alone, from the address Slack keeps for an account
-// against the one the console keeps for the member, in a workspace whoever keeps the messenger
-// accepted; no name, no message, no argument of a command and no page reaches it. The console
-// keeps what the messenger said and counts it while the messenger holds the capability; what it
-// keeps is brought to the links again every hour, so that a link the console was not told of,
+// else. A link is written by the matching alone, from the address Slack keeps for an account of
+// the workspace against the one the console keeps for the member; no name, no message, no argument
+// of a command and no page reaches it. And a workspace is said of only where an administrator of
+// the console answers for it, having accepted it: accepting one is what makes its addresses
+// trusted (ADR-0016), and that an agent account takes a word from there as a supervisor's is more
+// than whoever keeps the messenger was given to allow. The console keeps what the messenger said
+// and counts it while the messenger holds the capability; what it keeps is brought to the links
+// again every hour, of a workspace that went as well, so that a link the console was not told of,
 // or one it was not told is gone, does not stand.
 import type { PluginContext } from "@skillcdn/console/plugin";
 import { links } from "./collections.js";
+import type { ConnectionRecord } from "./store.js";
 
 /** The capability, optional: without it the messenger says nothing, and works as it did. */
 export const ACCOUNTS = "people:accounts";
@@ -27,6 +31,24 @@ const codeOf = (error: unknown): string | null =>
   typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
     ? error.code
     : null;
+
+/**
+ * Whether an administrator of the console answers for a workspace: it is connected, and whoever
+ * accepted it is an active administrator now. Of one connected before that was kept, whoever gave
+ * out the link it was installed through stands for them.
+ */
+export async function answeredFor(
+  ctx: PluginContext,
+  connection: ConnectionRecord,
+): Promise<boolean> {
+  const { state, acceptedBy, connectedBy } = connection.data;
+  const by = acceptedBy === undefined ? connectedBy : acceptedBy;
+  if (state !== "connected" || by === null) {
+    return false;
+  }
+  const person = await ctx.console.people.get(by);
+  return person !== null && person.status === "active" && person.role === "admin";
+}
 
 /** Says one account, or takes one back; a refusal is logged by its code and costs nothing else. */
 async function say(
@@ -58,13 +80,22 @@ async function say(
 /** A person's link in a workspace was written or dropped: the console is told the same. */
 export async function sayAccount(
   ctx: PluginContext,
+  connection: ConnectionRecord,
   personId: string,
-  teamId: string,
   memberId: string | null,
 ): Promise<void> {
-  if (saysAccounts(ctx)) {
-    await say(ctx, personId, teamId, memberId);
+  if (!saysAccounts(ctx)) {
+    return;
   }
+  try {
+    if (memberId !== null && !(await answeredFor(ctx, connection))) {
+      return;
+    }
+  } catch (error) {
+    ctx.log.warn("an account was not said to the console", { code: codeOf(error), said: true });
+    return;
+  }
+  await say(ctx, personId, connection.data.teamId, memberId);
 }
 
 /** The live links of a workspace: each person's account there. */
@@ -112,20 +143,23 @@ async function said(ctx: PluginContext, teamId: string): Promise<Map<string, str
 
 /**
  * Brings what the console keeps of a workspace to its live links: an account the console keeps
- * and no link stands for is taken back, a link it does not keep is said. With `gone`, the
- * workspace was taken away, and everything said of it is taken back. Nothing where the
- * capability is off; a console that refuses is logged, and the matching is none the worse.
+ * and no link stands for is taken back, a link it does not keep is said. Of a workspace no
+ * administrator answers for, one taken away among them, everything said is taken back. Nothing
+ * where the capability is off; a console that refuses is logged, and the matching is none the
+ * worse.
  */
 export async function sayAccountsOf(
   ctx: PluginContext,
-  teamId: string,
-  gone = false,
+  connection: ConnectionRecord,
 ): Promise<void> {
   if (!saysAccounts(ctx)) {
     return;
   }
+  const teamId = connection.data.teamId;
   try {
-    const wanted = gone ? new Map<string, string>() : await linked(ctx, teamId);
+    const wanted = (await answeredFor(ctx, connection))
+      ? await linked(ctx, teamId)
+      : new Map<string, string>();
     const kept = await said(ctx, teamId);
     for (const personId of kept.keys()) {
       if (!wanted.has(personId)) {

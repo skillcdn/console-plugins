@@ -83,6 +83,9 @@ export interface Words {
     readonly waiting: string;
     readonly accept: string;
     readonly acceptHint: string;
+    readonly accountsTitle: string;
+    readonly accounts: Readonly<Record<"told" | "administrator", string>>;
+    readonly accountsHint: string;
     readonly told: string;
     readonly toldHint: (workspace: string) => string;
     readonly toldNone: string;
@@ -296,6 +299,10 @@ const EN: Words = {
     accept: "Accept",
     acceptHint:
       "A workspace that installed the app through a link waits until you accept it: nothing is matched or told there before. Accept a workspace you know; disconnect any other.",
+    accountsTitle: "Whose account is whose, for agent accounts",
+    accounts: { told: "On", administrator: "Not until an administrator accepts it" },
+    accountsHint:
+      "An agent account is told which member wrote to it in Slack, and takes a supervisor's word there as an instruction: so only of a workspace an administrator of the console accepted.",
     told: "Where projects are told",
     toldHint: (workspace) =>
       `Projects are told in ${workspace}, the default. Add only those told in another workspace; whoever has no account there is told in the default.`,
@@ -615,6 +622,10 @@ const KO: Words = {
     accept: "수락",
     acceptHint:
       "링크로 앱을 설치한 워크스페이스는 수락할 때까지 기다립니다. 그 전에는 계정을 연결하지도, 알리지도 않습니다. 아는 워크스페이스만 수락하고, 아니면 연결을 해제하세요.",
+    accountsTitle: "에이전트 계정에 알리는 계정 연결",
+    accounts: { told: "활성", administrator: "관리자의 수락이 필요함" },
+    accountsHint:
+      "에이전트 계정은 Slack에서 어느 구성원이 썼는지 듣고, 감독자의 말을 지시로 받습니다. 그래서 콘솔 관리자가 수락한 워크스페이스의 계정 연결만 알립니다.",
     told: "프로젝트를 알리는 곳",
     toldHint: (workspace) =>
       `프로젝트는 기본 워크스페이스인 ${workspace}에 알립니다. 다른 워크스페이스에 알릴 것만 추가하세요. 그곳에 계정이 없는 사람에게는 기본 워크스페이스에서 알립니다.`,

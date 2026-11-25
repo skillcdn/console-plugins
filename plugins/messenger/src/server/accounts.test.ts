@@ -1,10 +1,26 @@
 // What the console is told of whose a Slack account is (`people:accounts`): a live link and
-// nothing else, said with the matching, brought to the links every hour, taken back when a link
-// or a workspace goes; nothing without the capability, and a console that refuses stops nothing.
+// nothing else, in a workspace an administrator of the console answers for, said with the matching,
+// brought to the links every hour, taken back when a link or a workspace goes; nothing without the
+// capability, and a console that refuses stops nothing.
 import { describe, expect, it } from "vitest";
+import type { StatusReport } from "../shared/contracts.js";
 import { ACCOUNTS, sayAccountsOf } from "./accounts.js";
-import { disconnect, keep, match, onPersonChanged } from "./index.js";
-import { connected, fakeSlack, HANA, JIHYE, MINSU, NOW, setup, TEAM } from "./test-fakes.js";
+import { disconnect, keep, match, onPersonChanged, status, workspace } from "./index.js";
+import { connectionsOf } from "./store.js";
+import {
+  connected,
+  type FakePerson,
+  fakeSlack,
+  HANA,
+  JIHYE,
+  KEEPER,
+  linked,
+  MINSU,
+  NOMAIL,
+  NOW,
+  setup as plain,
+  TEAM,
+} from "./test-fakes.js";
 
 const WITH = [
   "people:read",
@@ -29,6 +45,21 @@ const directory = (members: readonly unknown[]) =>
 
 const everyone = () =>
   directory([member("U0MINSU01", "minsu@acme.example"), member("U0JIHYE01", "jihye@acme.example")]);
+
+/** Jihye, through whose link the workspaces of the tests were installed, an administrator. */
+const BOSS: FakePerson = { ...JIHYE, role: "admin" };
+const setup = (options: Parameters<typeof plain>[0] = {}) =>
+  plain({ people: [MINSU, BOSS, HANA, NOMAIL], ...options });
+
+/** Whoever keeps the messenger: Hana, no administrator, and Jihye as the administrator she is. */
+const HANA_KEEPS = {
+  ...KEEPER,
+  person: { id: HANA.id, login: HANA.login, name: HANA.name, language: "en", admin: false },
+} as typeof KEEPER;
+const BOSS_KEEPS = {
+  ...KEEPER,
+  person: { id: BOSS.id, login: BOSS.login, name: BOSS.name, language: "en", admin: true },
+} as typeof KEEPER;
 
 const keptOf = (kept: readonly { personId: string; workspace: string; account: string }[]) =>
   kept.map((one) => [one.workspace, one.personId, one.account]).sort();
@@ -170,6 +201,99 @@ describe("what the console is told of an account", () => {
     expect(accounts.calls.filter((call) => call.startsWith("put"))).toEqual([]);
   });
 
+  it("is nothing of a workspace no administrator accepted, until one does", async () => {
+    const { ctx, accounts } = setup({ capabilities: WITH, slack: everyone(), caller: HANA_KEEPS });
+    await connected(ctx);
+    // Installed again, it waits; whoever keeps the messenger, no administrator, accepts it.
+    await ctx
+      .records("connections")
+      .update(ctx.all("connections")[0]?.id ?? "", { state: "pending", acceptedBy: null });
+    await workspace.run(ctx, { team: TEAM, accept: true });
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      state: "connected",
+      acceptedBy: HANA.id,
+    });
+    await match.run(ctx, {});
+    await keep.run?.(ctx);
+    expect(ctx.all("links")).toHaveLength(2);
+    expect(accounts.kept).toEqual([]);
+    expect(accounts.calls.filter((call) => call.startsWith("put"))).toEqual([]);
+    const seen = (await status.run(ctx, {})) as StatusReport;
+    expect(seen.workspaces[0]).toMatchObject({ accounts: "administrator", mayAccept: false });
+    // Accepting again what is connected is an administrator's alone.
+    await expect(workspace.run(ctx, { team: TEAM, accept: true })).rejects.toMatchObject({
+      code: "not_pending",
+    });
+    const boss = ctx.as(BOSS_KEEPS);
+    const asked = (await status.run(boss, {})) as StatusReport;
+    expect(asked.workspaces[0]).toMatchObject({ accounts: "administrator", mayAccept: true });
+    const answer = await workspace.run(boss, { team: TEAM, accept: true });
+    expect(answer.text).toContain("told whose each account there is");
+    // Said at once, and what else the workspace is stays as it was.
+    expect(keptOf(accounts.kept)).toEqual(
+      [
+        [TEAM, MINSU.id, "U0MINSU01"],
+        [TEAM, JIHYE.id, "U0JIHYE01"],
+      ].sort(),
+    );
+    expect(ctx.all("connections")[0]?.data).toMatchObject({
+      state: "connected",
+      default: true,
+      acceptedBy: BOSS.id,
+    });
+    expect(ctx.all("connections")[0]?.data.matchedAt).not.toBe(null);
+    const told = (await status.run(boss, {})) as StatusReport;
+    expect(told.workspaces[0]).toMatchObject({ accounts: "told", mayAccept: false });
+  });
+
+  it("is said of one person no sooner than an administrator answers for the workspace", async () => {
+    const slack = fakeSlack({
+      "users.lookupByEmail": () => ({ ok: true, user: member("U0MINSU01", "minsu@acme.example") }),
+    });
+    const { ctx, accounts } = setup({ capabilities: WITH, slack, people: [MINSU, JIHYE] });
+    await connected(ctx);
+    await match.run(ctx, { person: { id: MINSU.id, login: MINSU.login, name: MINSU.name } });
+    expect(ctx.all("links")).toHaveLength(1);
+    expect(accounts.calls).toEqual([]);
+  });
+
+  it("is taken back where whoever accepted the workspace administers the console no more", async () => {
+    const first = setup({ capabilities: WITH, slack: everyone() });
+    await connected(first.ctx);
+    await match.run(first.ctx, {});
+    expect(first.accounts.kept).toHaveLength(2);
+    for (const gone of [JIHYE, { ...BOSS, status: "deactivated" as const }]) {
+      const later = setup({
+        capabilities: WITH,
+        slack: everyone(),
+        people: [MINSU, gone, HANA, NOMAIL],
+      });
+      await connected(later.ctx);
+      await linked(later.ctx, MINSU, "U0MINSU01");
+      later.accounts.kept.push(...first.accounts.kept);
+      await keep.run?.(later.ctx);
+      expect(later.accounts.kept).toEqual([]);
+    }
+  });
+
+  it("is taken back by the hourly pass of a workspace that went while nothing could be said", async () => {
+    // Disconnected while the capability was off, so that what stood was not taken back then.
+    for (const state of ["removed", "pending"] as const) {
+      const { ctx, accounts } = setup({ capabilities: WITH, slack: everyone() });
+      await connected(ctx);
+      await linked(ctx, MINSU, "U0MINSU01");
+      await ctx.records("connections").update(ctx.all("connections")[0]?.id ?? "", { state });
+      accounts.kept.push({
+        personId: MINSU.id,
+        messenger: "slack",
+        workspace: TEAM,
+        account: "U0MINSU01",
+      });
+      await keep.run?.(ctx);
+      expect(accounts.kept).toEqual([]);
+    }
+  });
+
   it("goes on where the console refuses one account, and where it refuses them all", async () => {
     const { ctx, accounts } = setup({ capabilities: WITH, slack: everyone() });
     await connected(ctx);
@@ -181,7 +305,9 @@ describe("what the console is told of an account", () => {
     expect(JSON.stringify(ctx.logged)).toContain("plugin.conflict");
     expect(JSON.stringify(ctx.logged)).not.toContain("U0MINSU01");
     // The next pass says it again.
-    await sayAccountsOf(ctx, TEAM);
+    for (const connection of await connectionsOf(ctx)) {
+      await sayAccountsOf(ctx, connection);
+    }
     expect(accounts.kept).toHaveLength(2);
   });
 });

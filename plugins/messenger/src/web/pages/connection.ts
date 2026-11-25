@@ -262,6 +262,46 @@ function toldPanel(
   );
 }
 
+/**
+ * Whether the console is told whose each account of a workspace is, by which an agent account knows
+ * who wrote to it in Slack (ADR-0021): a row for each, with the way for an administrator to accept
+ * one that somebody else accepted.
+ */
+function accountsPanel(
+  frame: PluginFrame,
+  words: Words,
+  workspaces: readonly WorkspaceView[],
+): HTMLElement {
+  const w = words.connection;
+  const said = statusLine("accounts");
+  const settings = el("div", "sc-form sc-settings-form");
+  settings.append(lead(w.accountsHint));
+  for (const workspace of workspaces) {
+    if (workspace.accounts === "off") {
+      continue;
+    }
+    const controls: HTMLElement[] = [
+      badge(w.accounts[workspace.accounts], workspace.accounts === "told" ? "success" : "warning"),
+    ];
+    if (workspace.mayAccept) {
+      const accept = button(
+        w.accept,
+        () => {
+          void runCommand(frame, accept, said, words, "workspace", {
+            team: workspace.teamId,
+            accept: true,
+          });
+        },
+        "secondary",
+        true,
+      );
+      controls.push(accept);
+    }
+    settings.append(settingsRow(nameOf(workspace), toolbar(...controls)));
+  }
+  return panel(w.accountsTitle, settings, said);
+}
+
 function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElement[] {
   const w = words.connection;
   const when = dateTimeIn(frame.context.language);
@@ -440,6 +480,10 @@ function build(frame: PluginFrame, words: Words, status: StatusReport): HTMLElem
   }
   if (several) {
     main.push(toldPanel(frame, words, status, workspaces));
+  }
+  // Nothing of it where the capability is off, which is the plugin's settings page to say.
+  if (workspaces.some((workspace) => workspace.accounts !== "off")) {
+    main.push(accountsPanel(frame, words, workspaces));
   }
 
   // What HR is to the messenger, first in the aside: it holds whatever the connection's stage.

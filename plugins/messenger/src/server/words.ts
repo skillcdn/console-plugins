@@ -56,6 +56,7 @@ export interface ServerWords {
     readonly workspaceSaved: (name: string, isDefault: boolean, projects: string) => string;
     readonly notices: (kinds: string, when: string) => string;
     readonly accepted: (name: string) => string;
+    readonly answeredFor: (name: string) => string;
     readonly names: (app: string, bot: string, handle: string | null) => string;
     readonly icon: {
       readonly set: string;
@@ -307,6 +308,8 @@ const EN: ServerWords = {
     notices: (out, when) =>
       `What the console tells you reaches you in Slack ${when}. Kept out of Slack: ${out}.`,
     accepted: (name) => `${name} is accepted: its people are matched within the hour.`,
+    answeredFor: (name) =>
+      `You accepted ${name} as an administrator: the console is told whose each account there is.`,
     names: (app, bot, handle) =>
       `In Slack the app is "${app}" and its bot "${bot}"${handle === null ? "" : `, @${handle}`}.`,
     icon: {
@@ -607,6 +610,8 @@ const KO: ServerWords = {
       `콘솔이 알려 주는 것을 Slack으로 ${when} 보냅니다. Slack으로 보내지 않는 것: ${out}.`,
     accepted: (name) =>
       `${asObject(name)} 수락했습니다. 한 시간 안에 그곳 사람들의 계정을 연결합니다.`,
+    answeredFor: (name) =>
+      `관리자로서 ${asObject(name)} 수락했습니다. 이제 그곳의 계정 연결을 콘솔에 알립니다.`,
     names: (app, bot, handle) =>
       `Slack에서 앱 이름은 "${app}", 봇 이름은 "${bot}"${handle === null ? "" : `(@${handle})`}입니다.`,
     icon: {

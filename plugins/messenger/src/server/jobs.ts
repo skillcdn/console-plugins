@@ -7,11 +7,11 @@
 // and a manager told of an agent account that has gone unheard for long, or runs again after
 // that or after its usage limit.
 import type { JobDefinition, PluginContext } from "@skillcdn/console/plugin";
-import { sayAccountsOf } from "./accounts.js";
+import { sayAccountsOf, saysAccounts } from "./accounts.js";
 import { keepConnection } from "./connection.js";
 import { matchEveryone } from "./matching.js";
 import { day, unheard } from "./notices.js";
-import { connectionsOf, noteTeamProblem } from "./store.js";
+import { connectionsOf, everyConnection, noteTeamProblem } from "./store.js";
 
 async function matchWhenConnected(ctx: PluginContext, onlyFirst: boolean): Promise<void> {
   for (const connection of await connectionsOf(ctx)) {
@@ -37,9 +37,12 @@ export const keep: JobDefinition = {
     await keepConnection(ctx);
     await matchWhenConnected(ctx, true);
     // What the console keeps of whose each account is, brought to the links: said within the
-    // hour of an administrator turning the capability on, and of a link it was not told of.
-    for (const connection of await connectionsOf(ctx)) {
-      await sayAccountsOf(ctx, connection.data.teamId);
+    // hour of an administrator turning the capability on, and of a link it was not told of; and
+    // taken back of a workspace that went while the capability was off or the console refused.
+    if (saysAccounts(ctx)) {
+      for (const connection of await everyConnection(ctx)) {
+        await sayAccountsOf(ctx, connection);
+      }
     }
   },
 };

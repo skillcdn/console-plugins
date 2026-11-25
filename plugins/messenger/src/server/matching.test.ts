@@ -10,6 +10,7 @@ import {
   fakeSlack,
   HANA,
   JIHYE,
+  linked,
   MINSU,
   NOMAIL,
   NOW,
@@ -84,6 +85,71 @@ describe("match", () => {
     });
   });
 
+  it("matches nobody to an account of another organization, whatever address it carries", async () => {
+    // Shared through a channel: what it says of itself is for the other organization to govern.
+    const shared = [
+      member("U0STRANGE", "minsu@acme.example", { team_id: "T0OTHER01" }),
+      member("U0STRANG2", "jihye@acme.example", { is_stranger: true }),
+      member("U0STRANG3", "hana@acme.example", { is_external: true }),
+      { ...member("U0STRANG4", "hana@acme.example"), team_id: undefined },
+      member("U0STRANG5", "hana@acme.example", {
+        team_id: "T0OTHER01",
+        enterprise_user: { id: "W0STRANG5", teams: ["T0OTHER01", "T0OTHER02"] },
+      }),
+    ];
+    const slack = fakeSlack({
+      "users.list": () => ({ ok: true, members: shared }),
+      "users.lookupByEmail": (params) => ({
+        ok: true,
+        user: shared.find((one) => one.profile.email === params.email),
+      }),
+    });
+    const { ctx } = setup({ slack });
+    await connected(ctx);
+    expect((await match.run(ctx, {})).data).toEqual({
+      workspaces: [{ teamId: TEAM, matched: 0, unmatched: 4 }],
+    });
+    for (const person of [MINSU, JIHYE, HANA]) {
+      const one = await match.run(ctx, {
+        person: { id: person.id, login: person.login, name: person.name },
+      });
+      expect(one.data).toMatchObject({ matched: false });
+    }
+    expect(ctx.all("links")).toEqual([]);
+  });
+
+  it("drops the link of one matched to such an account before, whichever way it is found", async () => {
+    const shared = member("U0STRANGE", "minsu@acme.example", { team_id: "T0OTHER01" });
+    for (const args of [{}, { person: { id: MINSU.id, login: MINSU.login, name: MINSU.name } }]) {
+      const slack = fakeSlack({
+        "users.list": () => ({ ok: true, members: [shared] }),
+        "users.lookupByEmail": () => ({ ok: true, user: shared }),
+      });
+      const { ctx } = setup({ slack });
+      await connected(ctx);
+      await linked(ctx, MINSU, "U0STRANGE");
+      await match.run(ctx, args);
+      expect(ctx.all("links").filter((record) => record.archivedAt === null)).toEqual([]);
+    }
+  });
+
+  it("matches a member of another workspace of the same organization in Slack", async () => {
+    const slack = fakeSlack({
+      "users.list": () => ({
+        ok: true,
+        members: [
+          member("U0MINSU01", "minsu@acme.example", {
+            team_id: "T0SISTER1",
+            enterprise_user: { id: "W0MINSU01", teams: ["T0SISTER1", TEAM] },
+          }),
+        ],
+      }),
+    });
+    const { ctx } = setup({ slack });
+    await connected(ctx);
+    expect((await match.run(ctx, {})).data).toMatchObject({ workspaces: [{ matched: 1 }] });
+  });
+
   it("drops a link whose account is gone, and writes nothing where nothing changed", async () => {
     const slack = directory();
     const { ctx } = setup({ slack });
@@ -130,9 +196,16 @@ describe("match", () => {
     const slack = fakeSlack({
       "users.list": (params) => ({
         ok: true,
-        members: [member(params.cursor === undefined ? "U0MINSU01" : "U0X", "minsu@acme.example")],
+        members: [
+          member(params.cursor === undefined ? "U0MINSU01" : "U0X", "minsu@acme.example", {
+            enterprise_user: { teams: [TEAM, "T0OTHER01"] },
+          }),
+        ],
       }),
-      "users.lookupByEmail": () => ({ ok: true, user: member("U0MINSU09", "minsu@acme.example") }),
+      "users.lookupByEmail": () => ({
+        ok: true,
+        user: member("U0MINSU09", "minsu@acme.example", { team_id: "T0OTHER01" }),
+      }),
     });
     const { ctx } = setup({ slack });
     await connected(ctx);

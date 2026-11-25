@@ -20,6 +20,11 @@ export function callerPerson(ctx: PluginContext): PersonBrief | null {
   return null;
 }
 
+/** Whether a person who administers the console calls, as themselves or through their agent. */
+export function administers(ctx: PluginContext): boolean {
+  return ctx.caller.kind === "person" && ctx.caller.person.admin;
+}
+
 /** Refuses a caller who holds no role here; the console refuses first, this is the second line. */
 export function requireRole(ctx: PluginContext): void {
   if (ctx.caller.kind === "console") {

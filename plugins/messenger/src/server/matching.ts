@@ -4,7 +4,7 @@
 // administrator wrote, against a workspace's members, listed once a page of two hundred at a time,
 // since the console holds a plugin to sixty requests a minute; one person looked up alone in each
 // workspace when the console says their address changed or they came back. Nothing is matched by
-// a name.
+// a name, and nobody to an account of another organization that a channel is shared with.
 import {
   arg,
   defineCommand,
@@ -39,6 +39,9 @@ const member = z.object({
   deleted: z.boolean().optional(),
   is_bot: z.boolean().optional(),
   is_app_user: z.boolean().optional(),
+  is_stranger: z.boolean().nullish(),
+  is_external: z.boolean().nullish(),
+  enterprise_user: z.object({ teams: z.array(z.string().max(40)).max(10_000).nullish() }).nullish(),
   name: z.string().max(200).optional(),
   profile: z
     .object({
@@ -59,10 +62,7 @@ const membersPage = z.object({
 /** At most this many pages of members are read in one matching: ten thousand people. */
 const PAGES_AT_MOST = 50;
 
-/**
- * What a link keeps of an account: the name it goes by in Slack and its picture, in the workspace
- * it was found in, whatever workspace the member says it comes from (a member shared from another).
- */
+/** What a link keeps of an account: the name it goes by in Slack and its picture. */
 function accountOf(found: Member, teamId: string): Omit<LinkData, "personId" | "matchedAt"> {
   const profile = found.profile ?? {};
   const name =
@@ -73,8 +73,27 @@ function accountOf(found: Member, teamId: string): Omit<LinkData, "personId" | "
   return { memberId: found.id, teamId, name: name.trim(), image };
 }
 
-function usable(found: Member): boolean {
-  return found.deleted !== true && found.is_bot !== true && found.id !== "USLACKBOT";
+/**
+ * Whether an account is of the workspace: its own, or one of the organization in Slack the
+ * workspace is part of. One of another organization, shared through a channel, carries the address
+ * that organization gave it, which nobody here governs, so that it is matched to nobody; nor is
+ * one that does not say whose it is.
+ */
+function ofWorkspace(found: Member, teamId: string): boolean {
+  return (
+    found.is_stranger !== true &&
+    found.is_external !== true &&
+    (found.team_id === teamId || found.enterprise_user?.teams?.includes(teamId) === true)
+  );
+}
+
+function usable(found: Member, teamId: string): boolean {
+  return (
+    found.deleted !== true &&
+    found.is_bot !== true &&
+    found.id !== "USLACKBOT" &&
+    ofWorkspace(found, teamId)
+  );
 }
 
 /** A workspace's members by their address, lowercase. */
@@ -93,7 +112,7 @@ async function membersByEmail(ctx: PluginContext, teamId: string): Promise<Map<s
     for (const raw of answer.members) {
       const parsed = member.safeParse(raw);
       const email = parsed.success ? parsed.data.profile?.email?.trim().toLowerCase() : undefined;
-      if (parsed.success && usable(parsed.data) && email !== undefined && email.length > 0) {
+      if (parsed.success && usable(parsed.data, teamId) && email !== undefined && email !== "") {
         found.set(email, parsed.data);
       }
     }
@@ -222,7 +241,7 @@ export async function matchEveryone(
   const unmatched = people.length - matched;
   await saveConnection(ctx, teamId, { matchedAt: ctx.now().toISOString(), matched, unmatched });
   // The console is told whose each account is, where an administrator let the messenger say so.
-  await sayAccountsOf(ctx, teamId);
+  await sayAccountsOf(ctx, connection);
   return { matched, unmatched };
 }
 
@@ -246,24 +265,24 @@ export async function matchOne(
     const existing = (await linksOfTeam(ctx, teamId)).get(personId);
     if (usableEmail === null) {
       await dropLink(ctx, existing);
-      await sayAccount(ctx, personId, teamId, null);
+      await sayAccount(ctx, connection, personId, null);
       continue;
     }
     try {
       const answer = await slack(ctx, "users.lookupByEmail", { email: usableEmail }, bot(teamId));
       const account = member.safeParse(answer.user);
-      if (!account.success || !usable(account.data)) {
+      if (!account.success || !usable(account.data, teamId)) {
         await dropLink(ctx, existing);
-        await sayAccount(ctx, personId, teamId, null);
+        await sayAccount(ctx, connection, personId, null);
         continue;
       }
       await keepLink(ctx, personId, accountOf(account.data, teamId), existing);
-      await sayAccount(ctx, personId, teamId, account.data.id);
+      await sayAccount(ctx, connection, personId, account.data.id);
       found += 1;
     } catch (error) {
       if (error instanceof SlackError && error.code === "users_not_found") {
         await dropLink(ctx, existing);
-        await sayAccount(ctx, personId, teamId, null);
+        await sayAccount(ctx, connection, personId, null);
         continue;
       }
       throw error;

@@ -90,6 +90,11 @@ export const connections = defineCollection("connections", {
     /** Who gave out the link it was installed through, by the console's id, and who installed it in Slack. */
     connectedBy: id.nullable(),
     installedBy: memberId.nullable(),
+    /**
+     * Who accepted it on the console, the last to; nobody while it waits. A record of before this
+     * was kept has none, and whoever gave out the link stands for them.
+     */
+    acceptedBy: id.nullable().optional(),
     problem: z.string().max(500).nullable(),
     problemAt: instant.nullable(),
     matchedAt: instant.nullable(),
