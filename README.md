@@ -48,11 +48,11 @@ What an agent reads to work a plugin for a person, shipped in each plugin's pack
 
 ## Install one into a console
 
-A deployment installs a plugin by building it into its image from a list and a lockfile, with no install scripts, and names the directory with `PLUGINS_DIR` ([deploy/README.md of the console, "Plugins in the image"](https://github.com/skillcdn/console/blob/main/deploy/README.md#plugins-in-the-image)). Each plugin's manifest names the consoles it runs on, `console`: `hr` 0.5 and `messenger` 0.6 run on the console's 0.6 line, and a console outside the range lists the plugin as failed with the reason, so a deployment moves its console and its plugins in one release. `console whoami` says which version a console is.
+A deployment installs a plugin by building it into its image from a list and a lockfile, with no install scripts, and names the directory with `PLUGINS_DIR` ([deploy/README.md of the console, "Plugins in the image"](https://github.com/skillcdn/console/blob/main/deploy/README.md#plugins-in-the-image)). Each plugin's manifest names the consoles it runs on, `console`: `hr` 0.6 runs on the console's 0.6 line from 0.6.1 and `messenger` 0.7 from 0.6.2, and a console outside the range lists the plugin as failed with the reason, so a deployment moves its console and its plugins in one release. `console whoami` says which version a console is.
 
 ```sh
 cd plugins                      # the deployment's own list: a package.json and its lockfile, nothing that runs
-npm install --save-exact --package-lock-only --ignore-scripts @skillcdn/console-plugin-hr@0.5.1
+npm install --save-exact --package-lock-only --ignore-scripts @skillcdn/console-plugin-hr@0.6.0
 ```
 
 The image is then built and rolled out as a release of the deployment, and an administrator enables the plugin on the console's settings page, or their agent does with `console plugin <key> enable`, consenting to each capability the manifest asks, making or choosing its board project, naming the projects it is on and filling its settings. Writing the install as a task for the deployment's people is the last step of writing a plugin ([docs/guide/releasing.md](docs/guide/releasing.md)).
