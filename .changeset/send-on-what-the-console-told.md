@@ -2,7 +2,7 @@
 "@skillcdn/console-plugin-messenger": minor
 ---
 
-Breaking: the messenger sends on to Slack what the console told each member of, and no longer decides for itself who is told. It runs on console 0.6.1 or later and asks one capability more, `notifications:read`: once this version is installed the plugin waits, disabled, until an administrator consents to it, on the plugin's settings page or with `console plugin messenger capabilities`.
+Breaking: the messenger sends on to Slack what the console told each member of, and no longer decides for itself who is told. It asks one capability more, `notifications:read`: once this version is installed the plugin waits, disabled, until an administrator consents to it, on the plugin's settings page or with `console plugin messenger capabilities`.
 
 - **Who is told is the console's to say.** From 0.6.1 the console decides who is told of a task, a decision or an agent account, and each member chooses it in the console's own settings (Settings, Notifications; `console notify`; a task's bell). The messenger sends on what the console told, to whom it told it. A person who chose nothing in the console is told of their agent accounts alone, so nobody is sent a task given to them, a move, a comment or a decision in Slack until they turn that kind on in the console. Tell your people so.
 - **An agent account is sent nothing of the board in Slack.** The console wakes it itself for what it is told, and the messenger sends that to nobody, so that an account is no longer told twice.
