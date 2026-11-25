@@ -426,6 +426,16 @@ export interface Setup {
   readonly slack: FakeSlack;
   readonly hr: FakeHr;
   readonly answered: { decisionId: string; answer: unknown; for: string }[];
+  /** What the console keeps of whose an account is, as the plugin said it, and each call made. */
+  readonly accounts: FakeAccounts;
+}
+
+/** The console's `accounts`, in memory: what was said, and what the plugin asked of it. */
+export interface FakeAccounts {
+  readonly kept: { personId: string; messenger: string; workspace: string; account: string }[];
+  readonly calls: string[];
+  /** A code the console refuses the next `put` of an account with, once. */
+  refuse: { account: string; code: string } | null;
 }
 
 /** A console around the plugin: the people, HR, Slack and the secrets a test asks for. */
@@ -438,6 +448,8 @@ export function setup(
     readonly secrets?: Readonly<Record<string, string | Readonly<Record<string, string>>>>;
     readonly url?: string | null;
     readonly capabilities?: readonly string[];
+    /** How many accounts the console answers in one page of what it keeps; two hundred unless said. */
+    readonly accountsPage?: number;
     readonly grants?: readonly { readonly plugin: string; readonly role: string }[];
     /** The projects the messenger is placed on, by key; every one unless said. */
     readonly placed?: readonly string[];
@@ -458,6 +470,13 @@ export function setup(
   const slack = options.slack ?? fakeSlack();
   const hr = options.hr ?? fakeHr();
   const answered: Setup["answered"] = [];
+  const accounts: FakeAccounts = { kept: [], calls: [], refuse: null };
+  const allowed = (): void => {
+    // As the console does: without the capability, the call is refused.
+    if (!(options.capabilities ?? []).includes("people:accounts")) {
+      throw Object.assign(new Error("forbidden"), { code: "plugin.forbidden" });
+    }
+  };
   const url = options.url === undefined ? PUBLIC_URL : options.url;
   const ctx = createTestContext({
     collections,
@@ -502,6 +521,64 @@ export function setup(
           ),
         get: async (id) => people.find((person) => person.id === id) ?? null,
       },
+      accounts: {
+        list: async (where) => {
+          allowed();
+          accounts.calls.push(
+            `list ${where.workspace}${where.after === undefined ? "" : ` after ${where.after}`}`,
+          );
+          const all = accounts.kept.filter(
+            (one) => one.messenger === where.messenger && one.workspace === where.workspace,
+          );
+          const from = where.after === undefined ? 0 : Number(where.after);
+          const limit = Math.min(where.limit ?? 200, options.accountsPage ?? 200);
+          return {
+            items: all.slice(from, from + limit).map((one, index) => ({
+              ...one,
+              id: String(from + index + 1),
+              since: NOW.toISOString(),
+            })),
+            after: from + limit < all.length ? String(from + limit) : null,
+          };
+        },
+        put: async (said) => {
+          allowed();
+          accounts.calls.push(`put ${said.workspace} ${said.personId} ${said.account}`);
+          if (accounts.refuse?.account === said.account) {
+            const code = accounts.refuse.code;
+            accounts.refuse = null;
+            throw Object.assign(new Error("refused"), { code });
+          }
+          for (let index = accounts.kept.length - 1; index >= 0; index -= 1) {
+            const one = accounts.kept[index];
+            if (
+              one !== undefined &&
+              one.messenger === said.messenger &&
+              one.workspace === said.workspace &&
+              (one.personId === said.personId || one.account === said.account)
+            ) {
+              accounts.kept.splice(index, 1);
+            }
+          }
+          accounts.kept.push({ ...said });
+          return { ...said, id: String(accounts.kept.length), since: NOW.toISOString() };
+        },
+        remove: async (gone) => {
+          allowed();
+          accounts.calls.push(`remove ${gone.workspace} ${gone.personId}`);
+          const index = accounts.kept.findIndex(
+            (one) =>
+              one.messenger === gone.messenger &&
+              one.workspace === gone.workspace &&
+              one.personId === gone.personId,
+          );
+          if (index === -1) {
+            return false;
+          }
+          accounts.kept.splice(index, 1);
+          return true;
+        },
+      },
       ...(options.board?.tasks === undefined ? {} : { tasks: options.board.tasks as never }),
       projects: (options.board?.projects ?? { list: async () => [] }) as never,
       decisions: {
@@ -528,7 +605,7 @@ export function setup(
     endpoints: ["slack", "slack-oauth"],
     now: options.now ?? (() => NOW),
   });
-  return { ctx, slack, hr, answered };
+  return { ctx, slack, hr, answered, accounts };
 }
 
 /** A request from Slack as it arrives at the endpoint: a form with the payload, signed. */

@@ -16,6 +16,7 @@ import {
 } from "@skillcdn/console/plugin";
 import type { MatchState, PeopleReport, PersonMatch } from "../shared/contracts.js";
 import { ROLE, requireRole } from "./access.js";
+import { sayAccount, sayAccountsOf } from "./accounts.js";
 import { type LinkData, links } from "./collections.js";
 import { nameOf } from "./people.js";
 import { bot, refusalOf, SlackError, slack } from "./slack/api.js";
@@ -220,6 +221,8 @@ export async function matchEveryone(
   }
   const unmatched = people.length - matched;
   await saveConnection(ctx, teamId, { matchedAt: ctx.now().toISOString(), matched, unmatched });
+  // The console is told whose each account is, where an administrator let the messenger say so.
+  await sayAccountsOf(ctx, teamId);
   return { matched, unmatched };
 }
 
@@ -243,6 +246,7 @@ export async function matchOne(
     const existing = (await linksOfTeam(ctx, teamId)).get(personId);
     if (usableEmail === null) {
       await dropLink(ctx, existing);
+      await sayAccount(ctx, personId, teamId, null);
       continue;
     }
     try {
@@ -250,13 +254,16 @@ export async function matchOne(
       const account = member.safeParse(answer.user);
       if (!account.success || !usable(account.data)) {
         await dropLink(ctx, existing);
+        await sayAccount(ctx, personId, teamId, null);
         continue;
       }
       await keepLink(ctx, personId, accountOf(account.data, teamId), existing);
+      await sayAccount(ctx, personId, teamId, account.data.id);
       found += 1;
     } catch (error) {
       if (error instanceof SlackError && error.code === "users_not_found") {
         await dropLink(ctx, existing);
+        await sayAccount(ctx, personId, teamId, null);
         continue;
       }
       throw error;

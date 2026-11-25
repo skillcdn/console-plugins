@@ -27,6 +27,7 @@ import {
   type WorkspaceView,
 } from "../shared/contracts.js";
 import { callerPerson, ROLE, requireRole } from "./access.js";
+import { sayAccountsOf } from "./accounts.js";
 import { addressState } from "./address.js";
 import {
   apps,
@@ -572,6 +573,9 @@ export async function removeWorkspace(
   }
   await ctx.secrets.forget(BOT_TOKEN, teamId).catch(() => false);
   await archiveAll(ctx, threads, { teamId });
+  // The links stay, to come back with the app; what the console was told of them does not:
+  // an account of a workspace the messenger is not in is nobody's as far as it says.
+  await sayAccountsOf(ctx, teamId, true);
   await ctx.records("connections").update(connection.id, {
     state: "removed",
     default: false,

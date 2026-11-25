@@ -13,7 +13,7 @@
     "ko": "메신저 담당: Slack 워크스페이스 연결, 계정 맞추기, 플러그인 알림을 채널로 보내기. 구성원: 콘솔이 알려 주는 것 가운데 무엇을 언제 Slack으로도 받을지(notify, notices). 무엇을 알림으로 받을지는 console notify."
   },
   "pluginApi": 1,
-  "console": ">=0.6.1 <0.7.0",
+  "console": ">=0.6.2 <0.7.0",
   "server": "dist/server/index.js",
   "web": "dist/web",
   "skills": "skills",
@@ -32,7 +32,7 @@
     "outbound:slack.com",
     "outbound:hooks.slack.com"
   ],
-  "optionalCapabilities": ["plugins:hr"],
+  "optionalCapabilities": ["plugins:hr", "people:accounts"],
   "roles": {
     "member": {
       "name": {

@@ -6,7 +6,7 @@ The working agreement for this repository. It applies to AI agents and humans al
 
 The reference plugins of the SkillCDN Console: each an area of an organization's work (HR, CRM, finance) as one npm package a deployment installs and an administrator turns on, worked by agents through `console plugin <key>` and seen by people in the console's tabs, under the console's rule that people decide and agents work. One directory and one package per plugin under `plugins/`, published as `@skillcdn/console-plugin-<key>`; and the shape this repository proposes for a repository that keeps several plugins together. [README.md](README.md) says what it is, [docs/repository.md](docs/repository.md) how it is shaped, [docs/roadmap.md](docs/roadmap.md) what exists and what is next.
 
-- **Status:** pre-alpha, on console 0.6 (from 0.6.1) and SkillCDN 0.6. [docs/roadmap.md](docs/roadmap.md) says what exists by area, what is in progress and what is next: start there. In short:
+- **Status:** pre-alpha, on console 0.6 (from 0.6.2) and SkillCDN 0.6. [docs/roadmap.md](docs/roadmap.md) says what exists by area, what is in progress and what is next: start there. In short:
   - **`hr`**, published: leave, from a request to its approval by the person's manager and the balance under a policy, and announcements; attendance and the people's records come next, in the same plugin.
   - **`messenger`**, published: Slack, one app in each workspace that takes it, what the console tells each member of sent on to them as they choose, and HR's leave requested and approved in the chat.
   - **`crm`** and **`finance`**, planned, each written as the console's skill `building-a-plugin` writes one, the design first.
