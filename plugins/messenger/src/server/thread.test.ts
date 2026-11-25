@@ -236,6 +236,28 @@ describe("the steps", () => {
   });
 });
 
+describe("an agent account asked", () => {
+  it("is in no conversation, is named in no message and is asked in none: the console wakes it itself", async () => {
+    const agent = { ...JIHYE, kind: "agent" as const };
+    const views: Record<string, unknown> = { [REQUEST]: view({}) };
+    const slack = fakeSlack();
+    const made = setup({ slack, hr: fakeHr({ views }), people: [MINSU, agent, HANA] });
+    await connected(made.ctx);
+    await linked(made.ctx, MINSU, "U0MINSU01");
+    await linked(made.ctx, agent, "U0AGENT01");
+    const hook = made.ctx.as(CONSOLE);
+    await onLeaveEvent(hook, event("leave-requested"));
+    expect(slack.of("conversations.open").map((call) => call.params.users)).toEqual(["U0MINSU01"]);
+    // Asked after, whom the conversation does not hold: no direct message either.
+    views[REQUEST] = view({ decisionId: SECOND, asked: [brief(agent)] });
+    await onLeaveEvent(hook, event("leave-advanced"));
+    expect(slack.of("conversations.open")).toHaveLength(1);
+    expect(JSON.stringify(slack.calls)).not.toContain("U0AGENT01");
+    // Whoever asked still reads who was asked, by name.
+    expect(blocksOf(slack.of("chat.postMessage").at(-1))).toContain("Lee Jihye");
+  });
+});
+
 describe("several workspaces", () => {
   const OTHER = { id: "T0OTHER01", name: "Other" };
 

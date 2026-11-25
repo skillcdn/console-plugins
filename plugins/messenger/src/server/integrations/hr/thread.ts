@@ -767,6 +767,20 @@ function describe(error: unknown): string {
   return code === null ? "failed" : `console:${code}`;
 }
 
+/**
+ * Of the people of a request, those who are told in Slack. An agent account is not (ADR-0017): the
+ * console wakes it for what it is asked, and a message that names it, or one in a conversation it
+ * is in, would wake it again, where it presses no button.
+ */
+async function toldInSlack(ctx: PluginContext, ids: readonly string[]): Promise<string[]> {
+  const agents = new Set(
+    (await ctx.console.people.list())
+      .filter((person) => person.kind === "agent")
+      .map((person) => person.id),
+  );
+  return ids.filter((id) => !agents.has(id));
+}
+
 /** Hears one of HR's leave events and tells it, once. */
 export async function onLeaveEvent(ctx: PluginContext, event: PluginHookEvent): Promise<void> {
   if (await alreadyDone(ctx, event)) {
@@ -821,7 +835,10 @@ export async function onLeaveEvent(ctx: PluginContext, event: PluginHookEvent): 
       kinds,
       links: await linksOf(
         ctx,
-        people.map((person) => person.id),
+        await toldInSlack(
+          ctx,
+          people.map((person) => person.id),
+        ),
       ),
       consoleUrl: workspace.url,
       fallbackLanguage: workspace.languageSet
