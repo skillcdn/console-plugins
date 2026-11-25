@@ -96,6 +96,17 @@ export async function connectionsOf(ctx: PluginContext): Promise<ConnectionRecor
   );
 }
 
+/** Who accepted a workspace; of one connected before that was kept, whoever gave out its link. */
+export function acceptedOf(
+  data: Pick<ConnectionData, "acceptedBy" | "connectedBy"> | undefined,
+): string | null {
+  return data === undefined
+    ? null
+    : data.acceptedBy === undefined
+      ? data.connectedBy
+      : data.acceptedBy;
+}
+
 /** Every workspace the app was ever installed in, those it was taken away from too. */
 export async function everyConnection(ctx: PluginContext): Promise<ConnectionRecord[]> {
   const page = await ctx.records(connections).list({ limit: 200 });

@@ -13,7 +13,7 @@
 // or one it was not told is gone, does not stand.
 import type { PluginContext } from "@skillcdn/console/plugin";
 import { links } from "./collections.js";
-import type { ConnectionRecord } from "./store.js";
+import { acceptedOf, type ConnectionRecord } from "./store.js";
 
 /** The capability, optional: without it the messenger says nothing, and works as it did. */
 export const ACCOUNTS = "people:accounts";
@@ -41,9 +41,8 @@ export async function answeredFor(
   ctx: PluginContext,
   connection: ConnectionRecord,
 ): Promise<boolean> {
-  const { state, acceptedBy, connectedBy } = connection.data;
-  const by = acceptedBy === undefined ? connectedBy : acceptedBy;
-  if (state !== "connected" || by === null) {
+  const by = acceptedOf(connection.data);
+  if (connection.data.state !== "connected" || by === null) {
     return false;
   }
   const person = await ctx.console.people.get(by);

@@ -716,6 +716,29 @@ describe("an installation's return", () => {
     });
   });
 
+  it("keeps who accepted a connected workspace installed again, whoever's link it was", async () => {
+    for (const [before, accepted] of [
+      // Connected before it was kept: whoever's link it was installed through, and not the new one's.
+      [{ connectedBy: HANA.id }, HANA.id],
+      [{ connectedBy: HANA.id, acceptedBy: MINSU.id }, MINSU.id],
+      [{ connectedBy: HANA.id, acceptedBy: null }, null],
+    ] as const) {
+      const { ctx } = setup({ slack: fakeSlack(exchangedIn({ id: TEAM, name: "Acme" })) });
+      await connected(ctx);
+      await ctx.records("connections").update(workspaceOf(ctx, TEAM)?.id ?? "", before);
+      await install.run(ctx, {});
+      await slackOauthEndpoint.run(
+        ctx.as(CONSOLE),
+        request({ code: "code-1", state: stateOf(ctx) }),
+      );
+      expect(workspaceOf(ctx, TEAM)?.data).toMatchObject({
+        state: "connected",
+        connectedBy: JIHYE.id,
+        acceptedBy: accepted,
+      });
+    }
+  });
+
   it("adds a second workspace beside the first, which stays the default", async () => {
     const { ctx } = setup({ slack: fakeSlack(exchangedIn(OTHER, "U0BOT0002")) });
     await connected(ctx);

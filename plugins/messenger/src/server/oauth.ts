@@ -18,6 +18,7 @@ import { refusalCode } from "./integrations/hr/contract.js";
 import { SlackError, slackCall, textOf } from "./slack/api.js";
 import {
   type AppRecord,
+  acceptedOf,
   appOf,
   connectionOfTeam,
   isMade,
@@ -158,7 +159,10 @@ async function completed(
       installedBy: installer !== null && /^[UW][A-Z0-9]{2,40}$/.test(installer) ? installer : null,
       problem: null,
       problemAt: null,
-      ...(stays ? {} : { matchedAt: null, acceptedBy: null }),
+      // Who accepted it stands whoever's link renews its token: of one connected before that was
+      // kept, whoever gave out the link of then, and never of this one.
+      acceptedBy: stays ? acceptedOf(before?.data) : null,
+      ...(stays ? {} : { matchedAt: null }),
     });
     await noteProblem(ctx, null);
     // The handle Slack made of the bot's name, which the setup page says: `@console2` where taken.
