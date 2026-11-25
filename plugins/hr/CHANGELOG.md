@@ -1,5 +1,29 @@
 # @skillcdn/console-plugin-hr
 
+## 0.6.0
+
+### Minor Changes
+
+- [`94814e8`](https://github.com/skillcdn/console-plugins/commit/94814e8bc8cb44c2e5c7db7f34b88b2b7b1f0382) Thanks [@samo-lucid](https://github.com/samo-lucid)! - The project made for HR has a mark of its own: the icon pack's `people` on green. The form that enables the plugin begins the project to make with it, beside the icons and the colours to choose from, and `console plugin hr enable --board new` sends it as named. A project that exists, chosen at enabling or made before, keeps its own mark: change it in the project's settings.
+  
+  The manifest names the mark in `board.defaults`, which a console reads from 0.6.1 and an older one refuses, so this version runs on console 0.6.1 or later, before 0.7.0.
+
+- [`592f8f1`](https://github.com/skillcdn/console-plugins/commit/592f8f1a2d77bea845303eb283236fb5a5ff0032) Thanks [@samo-lucid](https://github.com/samo-lucid)! - Breaking: HR's events name nobody. The console answers the events a plugin emits to whoever holds any role of it, and everyone holds HR's `member`: so a member could read from them that a colleague's leave was asked for, rejected or cancelled and that HR changed their balance, whatever HR's settings say of who sees what. An event carries the id of one record now, or nothing.
+  
+  - **The events:** `personId` and `by` are gone from every one; `policy-changed`, `type-changed`, `config-changed` and `person-changed` carry nothing. A plugin that hears them reads the rest through HR's calls, under its own roles. The messenger has always read `requestId` alone.
+  - **A draft of an announcement is told of to nobody:** no event says one is written, changed or thrown away.
+  - **What a person writes stays out of the board project's feed.** A command leaves an event with its arguments, which whoever sees the board project reads: the reason of a request and of a cancellation, HR's notes on a person and on an adjustment, and an announcement's title and text are `[hidden]` in it now.
+  - **The calendar** no longer answers `requestId` with an entry, and the records of `types` are read by HR alone (`console plugin hr records types`); everyone reads the kinds offered with `console plugin hr types`.
+  - **The People page says who reads a note:** HR alone for the note of a person's record, and the person and whoever may see their balance for an adjustment's.
+  
+  Events written before this version stay as they were: those a plugin emitted for ninety days, those in the board project's feed for good. The README's "Who reads what" says who reads each part of what HR keeps.
+
+### Patch Changes
+
+- [`9db2c83`](https://github.com/skillcdn/console-plugins/commit/9db2c8385512d03bf4b917acfba08125ba320f01) Thanks [@samo-lucid](https://github.com/samo-lucid)! - The announcement editor's tools wear the console's icons. The bulleted and the numbered list, the quote, the divider, the link, the picture, undo and redo are glyphs of the console's icon pack, drawn and coloured as every icon of the console is, where the editor drew eight of its own in another weight.
+
+- [`bc7eb9b`](https://github.com/skillcdn/console-plugins/commit/bc7eb9bce9820d53682d135ef7b89f6373fcfbab) Thanks [@samo-lucid](https://github.com/samo-lucid)! - HR's setting that shows the kind of leave on the calendar, off unless HR turns it on, reaches whatever tells colleagues of leave. A request's view answers `typeShown`, whether they may read the kind, so that a plugin that tells them, as the messenger tells a Slack channel, says it only where they may. The Setup page says so, under Work and visibility.
+
 ## 0.5.1
 
 ### Patch Changes
