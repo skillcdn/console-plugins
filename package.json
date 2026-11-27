@@ -39,7 +39,7 @@
     "@skillcdn/cli": "^0.6.2",
     "@skillcdn/console": "catalog:",
     "esbuild": "catalog:",
-    "turbo": "^2.11.12",
+    "turbo": "^2.11.13",
     "typescript": "catalog:"
   }
 }
